@@ -84,7 +84,7 @@ Options:
 | `animate` | `boolean` | `true` | Animate fold and relayout |
 | `injectStyle` | `boolean` | `true` | Add the stylesheet to `<head>` |
 | `transformer` | `TransformerLike` | markmap-lib's standard `Transformer` | The Markdown-to-tree transformer. Required in `markdag/core` |
-| `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]`) and the source text changes |
+| `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]` or `## [ ]`) and the source text changes |
 | `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [Hooks](#hooks)) |
 | `onTransform` | `(transform: { x, y, k }, byUser: boolean) => void` | none | Called when pan or zoom changes (see [Hooks](#hooks)) |
 
@@ -131,7 +131,10 @@ draw(true);
 
 - `MarkdagView` does not add the stylesheet. Load `markdag/style.css` on the page.
 - `setDocument(parsed, model, fit)`: with `fit` false, zoom and pan are kept, and the reader's fold state is kept when the tree shape and the document's initial fold state are unchanged. With `fit` true, the fold state goes back to the document's initial state and the diagram is fitted.
-- `toggleTask(source, line)` flips `[ ]` / `[x]` on that line and keeps line endings. A line outside the source returns the source unchanged.
+- `toggleTask(source, line)` flips `[ ]` / `[x]` (`[X]`) on that line and keeps line endings. A line outside the source returns the source unchanged.
+- A task is a list item or a heading whose first line starts with `[ ]`, `[x]` or `[X]`. `node.task.line` is that source line.
+- `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details: open`). It does not fire for a click inside a nested element that contains its own control (a raw `<input>`, a link, a button): there, a click on the text toggles that element's single checkbox or radio button instead.
+- A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
 - Each `OutlineNode` has `id` (document order, root is 1), `lines` (`{ start, end }`, 0-based source lines, `end` exclusive, or `null`) and `task`. Node elements carry the same range as `data-lines="start,end"`, next to `data-id`.
 - CRLF documents are parsed the same as LF documents.
 

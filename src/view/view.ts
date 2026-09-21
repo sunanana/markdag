@@ -87,7 +87,7 @@ const CHECKABLE = 'input[type="checkbox"], input[type="radio"]';
 
 // ノードの文字をクリックしたときに切り替えるチェックボックスを探す。クリックした場所から外側へたどり、
 // チェックボックスを 1 つだけ含む最も内側の範囲を採る。2 つ以上ある範囲に達したら、どれのことか決められないのでやめる
-function findLoneCheckbox(content: HTMLElement, target: Element): HTMLInputElement | null {
+function findLoneCheckbox(content: Element, target: Element): HTMLInputElement | null {
     for (let scope: Element | null = target; scope; scope = scope === content ? null : scope.parentElement) {
         const inputs = scope.querySelectorAll<HTMLInputElement>(CHECKABLE);
         if (inputs.length === 1) return inputs[0] ?? null;
@@ -95,6 +95,18 @@ function findLoneCheckbox(content: HTMLElement, target: Element): HTMLInputEleme
     }
     return null;
 }
+
+// クリックした場所を囲む、自分の操作を持つ入れ子の部分 (HTML で直接書いたラジオボタンを囲む div など)。
+// area そのものは数えない。area の直下の文字 (タスクのラベルや詳細の文) のクリックでは null になる
+function findNestedZone(area: Element, target: Element): Element | null {
+    for (let scope: Element | null = target; scope && scope !== area; scope = scope.parentElement) {
+        if (scope.querySelector(INTERACTIVE)) return scope;
+    }
+    return null;
+}
+
+// タスクの状態の絵 (内容の先頭の SVG) を除いた内容。タスクを切り替えると絵だけが変わるので、内容が同じかを比べるときに外す
+const withoutLeadingIcon = (html: string): string => html.replace(/^<svg[\s\S]*?<\/svg>/, '');
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 const ease = (t: number): number => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
@@ -147,6 +159,8 @@ export class MarkdagView {
     private thicken = false;
     private elements = new Map<number, HTMLDivElement>();
     private boxes = new Map<number, HTMLElement>();
+    // 文書の差し替えをまたいで引き継ぐ、ノードの中のチェックボックスの状態 (要素を作ったときに戻す)
+    private carriedChecks = new Map<number, boolean[]>();
     private lastSizes = new Map<number, string>();
     private displayed = new Map<number, Rect>();
     private targets = new Map<number, Rect>();
@@ -271,6 +285,7 @@ export class MarkdagView {
         }
         const previousInitial = this.initialFolded;
         const previousFolded = this.folded;
+        this.carriedChecks = sameShape ? this.collectChecks(parsed.nodes) : new Map();
         this.observer.disconnect();
         cancelAnimationFrame(this.animation);
         for (const layer of [this.frameLayer, this.controlLayer]) layer.innerHTML = '';
@@ -304,6 +319,28 @@ export class MarkdagView {
         if (kept && kept.details !== null && this.detailsMode() !== 'open' && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
             this.showPopover(kept, shown?.pinned ?? false);
         }
+    }
+
+    // ノードの中に HTML で直接書かれたチェックボックスの状態は、原文ではなく画面の要素だけが持つ。文書を差し替えると
+    // 要素を作り直すので、内容が前と同じノードの状態を控えておく。まだ要素を作っていないノードは、前に控えたものを持ち越す
+    private collectChecks(next: OutlineNode[]): Map<number, boolean[]> {
+        const carried = new Map<number, boolean[]>();
+        for (const node of next) {
+            const before = this.nodes[node.id - 1];
+            if (!before || withoutLeadingIcon(before.html) !== withoutLeadingIcon(node.html) || before.details !== node.details) continue;
+            const box = this.boxes.get(node.id);
+            const checks = box ? [...box.querySelectorAll<HTMLInputElement>(CHECKABLE)].map((input) => input.checked) : this.carriedChecks.get(node.id);
+            if (checks && checks.length > 0) carried.set(node.id, checks);
+        }
+        return carried;
+    }
+
+    private restoreChecks(id: number, box: HTMLElement): void {
+        const checks = this.carriedChecks.get(id);
+        this.carriedChecks.delete(id);
+        const inputs = [...box.querySelectorAll<HTMLInputElement>(CHECKABLE)];
+        if (!checks || checks.length !== inputs.length) return;
+        inputs.forEach((input, index) => (input.checked = checks[index] ?? input.checked));
     }
 
     private isPointerOver(id: number): boolean {
@@ -599,12 +636,7 @@ export class MarkdagView {
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
-        content.addEventListener('click', (event) => {
-            const target = event.target instanceof Element ? event.target : null;
-            if (!target || target.closest(INTERACTIVE) || (window.getSelection()?.toString() ?? '') !== '') return;
-            if (content.querySelector(CHECKABLE)) findLoneCheckbox(content, target)?.click();
-            else if (node.task) this.hooks.onToggleTask?.(node);
-        });
+        content.addEventListener('click', (event) => this.handleTextClick(node, content, event));
         if (node.details === null) {
             box.append(content);
         } else {
@@ -613,6 +645,8 @@ export class MarkdagView {
             details.className = 'mdag-details mdag-content';
             details.innerHTML = node.details;
             for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) details.addEventListener(type, stop);
+            // タスクのノードでは、開いて表示した詳細の文をクリックしても、ラベルと同じようにタスクが切り替わる
+            if (node.task) details.addEventListener('click', (event) => this.handleTextClick(node, details, event));
             const main = document.createElement('div');
             main.className = 'mdag-main';
             main.append(content, details);
@@ -649,6 +683,7 @@ export class MarkdagView {
         badge.textContent = `#${node.id}`;
         element.append(badge);
 
+        this.restoreChecks(node.id, box);
         outer.append(box);
         element.append(outer);
         this.nodeLayer.append(element);
@@ -656,6 +691,17 @@ export class MarkdagView {
         this.boxes.set(node.id, box);
         this.observer.observe(box);
         return element;
+    }
+
+    // ノードの文字 (内容か、開いて表示した詳細) のクリックを、チェックの切り替えに読み替える。
+    // タスクのノードでは、タスクを切り替える。ただし、自分の操作を持つ入れ子の部分の中のクリックは、その部分のものとして扱い、
+    // タスクは切り替えない。タスクでないノードでは、HTML で直接書いたチェックボックスを切り替える
+    private handleTextClick(node: OutlineNode, area: HTMLElement, event: MouseEvent): void {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target || target.closest(INTERACTIVE) || (window.getSelection()?.toString() ?? '') !== '') return;
+        const zone = node.task ? findNestedZone(area, target) : area;
+        if (zone === null) this.hooks.onToggleTask?.(node);
+        else findLoneCheckbox(zone, target)?.click();
     }
 
     private detailsMode(): DetailsMode {

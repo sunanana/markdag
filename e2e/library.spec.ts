@@ -104,6 +104,145 @@ test.describe('解析', () => {
     });
 });
 
+// ノードの id は、Root = 1, Heading task = 2, Upper = 3, Lower = 4, plain = 5, Setext = 6, leaf = 7
+const TASKS = [
+    '---',
+    'markdag:',
+    '---',
+    '',
+    '# [x] Root',
+    '',
+    '## [ ] Heading task #tag',
+    '',
+    '- [X] Upper',
+    '- [x] Lower',
+    '- plain',
+    '',
+    '[X] Setext',
+    '---',
+    '',
+    '- leaf',
+    '',
+].join('\n');
+
+test.describe('タスク', () => {
+    test('見出しもタスクになり、大文字の記号、文書の最初の見出し、下線で書く見出しでも同じ絵と参照用のテキストになる', async ({ page }) => {
+        await open(page);
+        const nodes = await page.evaluate((markdown) => (window as unknown as TestWindow).harness.markdag.parseDocument(markdown).nodes, TASKS);
+        expect(nodes.map((node) => node.refText)).toEqual(['Root', 'Heading task', 'Upper', 'Lower', 'plain', 'Setext', 'leaf']);
+        expect(nodes.map((node) => node.task)).toEqual([
+            { line: 4, checked: true },
+            { line: 6, checked: false },
+            { line: 8, checked: true },
+            { line: 9, checked: true },
+            null,
+            { line: 12, checked: true },
+            null,
+        ]);
+        expect(nodes[1]?.tags).toEqual(['tag']);
+        for (const node of nodes) expect(node.html.startsWith('<svg')).toBe(node.task !== null);
+        // 完了の絵は、大文字でも、最初の見出しでも、ほかの完了のタスクと同じ
+        const iconOf = (html: string | undefined): string => /^<svg[\s\S]*?<\/svg>/.exec(html ?? '')?.[0] ?? '';
+        expect(iconOf(nodes[0]?.html)).toBe(iconOf(nodes[3]?.html));
+        expect(iconOf(nodes[2]?.html)).toBe(iconOf(nodes[3]?.html));
+        expect(iconOf(nodes[1]?.html)).not.toBe(iconOf(nodes[3]?.html));
+    });
+
+    test('見出しのタスクをクリックすると、原文の見出しの行の記号が切り替わる', async ({ page }) => {
+        await open(page);
+        await page.evaluate((markdown) => {
+            const target = window as unknown as TestWindow & { changes: string[] };
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.changes = [];
+            target.diagram = target.harness.markdag.render(container, markdown, { animate: false, onChange: (next) => target.changes.push(next) });
+        }, TASKS);
+        const heading = page.locator('#a .mdag-node[data-id="2"]');
+        await expect(heading).toHaveAttribute('data-task', 'todo');
+        await heading.locator('.mdag-content').click();
+        await expect(heading).toHaveAttribute('data-task', 'done');
+        const changes = await page.evaluate(() => (window as unknown as TestWindow & { changes: string[] }).changes);
+        expect(changes).toEqual([TASKS.replace('## [ ] Heading task', '## [x] Heading task')]);
+
+        // 大文字で書かれた記号も、クリックで未完了に戻せる
+        await page.locator('#a .mdag-node[data-id="3"] .mdag-content').click();
+        const last = await page.evaluate(() => (window as unknown as TestWindow & { changes: string[] }).changes.at(-1));
+        expect(last).toContain('- [ ] Upper');
+    });
+
+    test('HTML で直接書いたチェックボックスの状態は、ほかのタスクの切り替えで描き直しても残り、その内容を書き換えたら戻る', async ({ page }) => {
+        const markdown = ['---', 'markdag:', '---', '', '# Root', '', '- <input type="checkbox"> raw', '- [ ] Task', ''].join('\n');
+        await open(page);
+        await page.evaluate((source) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.diagram = target.harness.markdag.render(container, source, { animate: false });
+        }, markdown);
+        const raw = page.locator('#a .mdag-node[data-id="2"] input[type="checkbox"]');
+        await raw.click();
+        await expect(raw).toBeChecked();
+
+        await page.locator('#a .mdag-node[data-id="3"] .mdag-content').click();
+        await expect(page.locator('#a .mdag-node[data-id="3"]')).toHaveAttribute('data-task', 'done');
+        await expect(raw).toBeChecked();
+
+        await page.evaluate((source) => (window as unknown as TestWindow).diagram.update(source.replace('> raw', '> raw2')), markdown);
+        await expect(page.locator('#a .mdag-node[data-id="2"]')).toContainText('raw2');
+        await expect(raw).not.toBeChecked();
+    });
+});
+
+test.describe('詳細を開いて表示するタスクのノード', () => {
+    // ノードの id は、Root = 1, 種別の判定 = 2, タスク = 3
+    const markdown = [
+        '---',
+        'markdag:',
+        '    details: open',
+        '---',
+        '',
+        '# Root',
+        '',
+        '## 種別の判定 $detect',
+        '- [ ] 1 本文を新規バッファへ貼る',
+        '    > 入力中にプレビューが Markdag の図へ切り替わる。',
+        "    <div class=\"nested\">hoge<input type='radio'></div>",
+        '',
+    ].join('\n');
+    const task = '#a .mdag-node[data-id="3"]';
+
+    test.beforeEach(async ({ page }) => {
+        await open(page);
+        await page.evaluate((source) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.diagram = target.harness.markdag.render(container, source, { animate: false });
+        }, markdown);
+        await expect(page.locator(task)).toHaveAttribute('data-task', 'todo');
+    });
+
+    test('詳細の文をクリックしても、ラベルのクリックと同じようにタスクが切り替わる', async ({ page }) => {
+        await page.locator(`${task} .mdag-details`).click();
+        await expect(page.locator(task)).toHaveAttribute('data-task', 'done');
+        // ラベルの文字は、内容の要素の直下にある (状態の絵の右)
+        await page.locator(`${task} .mdag-content:not(.mdag-details)`).click({ position: { x: 40, y: 8 } });
+        await expect(page.locator(task)).toHaveAttribute('data-task', 'todo');
+    });
+
+    test('操作を受ける要素を含む入れ子の部分のクリックでは、タスクは切り替わらない', async ({ page }) => {
+        const radio = page.locator(`${task} input[type="radio"]`);
+        await page.locator(`${task} .nested`).click({ position: { x: 4, y: 8 } });
+        await expect(radio).toBeChecked();
+        await expect(page.locator(task)).toHaveAttribute('data-task', 'todo');
+
+        // 入れ子の部分の状態は、そのあとでタスクを切り替えても残る
+        await page.locator(`${task} .mdag-details`).click();
+        await expect(page.locator(task)).toHaveAttribute('data-task', 'done');
+        await expect(radio).toBeChecked();
+    });
+});
+
 test.describe('図の操作', () => {
     test('値のない markdag のキーだけの文書に、警告を出さない', async ({ page }) => {
         await renderFirst(page);

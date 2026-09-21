@@ -84,7 +84,7 @@ Nodes are headings and list items. The first line of a node is what `relations`,
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
 | `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
-| `[ ]`, `[x]` | Start of a list item | A task. Clicking the node toggles it |
+| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details: open`). A click inside a nested element that has its own control (a raw `<input>`, a link, a button) does not toggle the task. `[X]` is the same as `[x]` |
 
 Rules:
 
@@ -201,7 +201,7 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including `re
 ## 7. Not supported yet
 
 - `(X)` (treat the branch of X as one unit and draw a frame around it). It is parsed, reports a `not-supported` warning, and behaves as `X`.
-- Task states other than `[ ]` and `[x]`. `[/]`, `[-]` and `[X]` stay in the node as text.
+- Task states other than `[ ]` and `[x]` (`[X]`). `[/]` and `[-]` stay in the node as text.
 - A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the tag or `$id` silently stays as text.
 
 ## 8. Guidelines for a readable diagram

@@ -63,17 +63,44 @@ const HEADING = /^#{1,6}[ \t]+\S/;
 const LIST_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\S/;
 const FENCE = /^[ \t]*(```|~~~)/;
 const TASK_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[( |x|X)\][ \t]/;
+// 見出しのタスク (`## [ ] 名前`)。下線で書く見出しは、行が状態の記号から始まる。見出しと分かっている行にだけ使う
+const TASK_HEADING = /^[ \t]*(?:#{1,6}[ \t]+)?\[( |x|X)\][ \t]/;
+// 大文字で書かれた完了の記号と、その前に置かれた行頭の記号 (リストの記号か、見出しの #)
+const UPPER_MARK = /^([ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+|#{1,6}[ \t]+)?)\[X\](?=[ \t])/;
+const SETEXT_UNDERLINE = /^[ \t]{0,3}(?:=+|-+)[ \t]*\r?$/;
 const TRAILING_TOKEN = /[ \t]+(#[\p{L}\p{N}_-]+|\$[A-Za-z][A-Za-z0-9_-]*)[ \t]*$/u;
+
+// 本文の行 (frontmatter とコードブロックの中を除く) を、1 行ずつ書き換える。行数は変えない
+function rewriteBodyLines(source: string, rewrite: (line: string, index: number, lines: string[]) => string): string {
+    const frontmatterLines = (FRONTMATTER.exec(source)?.[0].split('\n').length ?? 1) - 1;
+    let inFence = false;
+    return source
+        .split('\n')
+        .map((line, index, lines) => {
+            if (index < frontmatterLines) return line;
+            if (FENCE.test(line)) inFence = !inFence;
+            return inFence ? line : rewrite(line, index, lines);
+        })
+        .join('\n');
+}
+
+// 完了の記号の大文字 (`[X]`) を、小文字にそろえる。変換器が絵にするのは小文字だけで、大文字は文字のまま残るため。
+// 文字数も行数も変えない
+function normalizeTaskMarks(source: string): string {
+    return rewriteBodyLines(source, (line, index, lines) => {
+        const match = UPPER_MARK.exec(line);
+        if (!match) return line;
+        // 行頭の記号がない行は、下線で書く見出し (次の行が === か ---) のときだけがタスク
+        if ((match[1] ?? '').trim() === '' && !SETEXT_UNDERLINE.test(lines[index + 1] ?? '')) return line;
+        return line.replace('[X]', '[x]');
+    });
+}
 
 // 見出しとリスト項目の 1 行目の末尾から、`#タグ` と `$id` を取り除く。行数は変えない
 function stripAnnotations(source: string): { text: string; annotations: Map<number, LineAnnotation> } {
     const annotations = new Map<number, LineAnnotation>();
-    const frontmatterLines = (FRONTMATTER.exec(source)?.[0].split('\n').length ?? 1) - 1;
-    let inFence = false;
-    const lines = source.split('\n').map((line, index) => {
-        if (index < frontmatterLines) return line;
-        if (FENCE.test(line)) inFence = !inFence;
-        if (inFence || !(HEADING.test(line) || LIST_ITEM.test(line))) return line;
+    const text = rewriteBodyLines(source, (line, index) => {
+        if (!(HEADING.test(line) || LIST_ITEM.test(line))) return line;
 
         const annotation: LineAnnotation = { tags: [], refId: null };
         // 改行が CRLF の文書では、行の終わりに \r が残る。末尾の照合の邪魔になるので外しておき、最後に戻す
@@ -91,7 +118,7 @@ function stripAnnotations(source: string): { text: string; annotations: Map<numb
         if (annotation.tags.length > 0 || annotation.refId !== null) annotations.set(index, annotation);
         return rest + carriage;
     });
-    return { text: lines.join('\n'), annotations };
+    return { text, annotations };
 }
 
 const normalize = (text: string): string => text.normalize('NFC').replace(/[ \t\n]+/g, ' ').trim();
@@ -132,9 +159,40 @@ function lineRange(lines: string | undefined): OutlineNode['lines'] {
     return start !== undefined && end !== undefined && Number.isInteger(start) && Number.isInteger(end) ? { start, end } : null;
 }
 
-function taskAt(sourceLines: string[], line: number): OutlineNode['task'] {
-    const mark = TASK_ITEM.exec(sourceLines[line] ?? '')?.[1];
+// タスクになるのは、リスト項目と見出し。どちらも 1 行目が状態の記号 (`[ ]`, `[x]`, `[X]`) から始まるもの
+function taskAt(sourceLines: string[], line: number, tag: string | undefined): OutlineNode['task'] {
+    const pattern = tag === 'li' ? TASK_ITEM : /^h[1-6]$/.test(tag ?? '') ? TASK_HEADING : null;
+    const mark = pattern?.exec(sourceLines[line] ?? '')?.[1];
     return mark === undefined ? null : { line, checked: mark !== ' ' };
+}
+
+interface MarkIcons {
+    todo: string;
+    done: string;
+}
+
+const LEADING_ICON = /^<svg[\s\S]*?<\/svg>/;
+const LEADING_MARK = /^\[( |x)\] /;
+const markIcons = new WeakMap<TransformerLike, MarkIcons | null>();
+
+// 変換器が状態の記号の代わりに描く絵。小さな文書を変換して、その結果から取り出す (絵そのものを、ここに持たずに済ませる)。
+// 記号を絵にしない構成の変換器では null
+function markIconsOf(transformer: TransformerLike): MarkIcons | null {
+    const known = markIcons.get(transformer);
+    if (known !== undefined) return known;
+    const root = transformer.transform('# a\n\n## [ ] b\n\n## [x] c\n').root as MarkmapNode;
+    const [todo, done] = (root.children ?? []).map((child) => LEADING_ICON.exec(child.content)?.[0]);
+    const icons = todo !== undefined && done !== undefined ? { todo, done } : null;
+    markIcons.set(transformer, icons);
+    return icons;
+}
+
+// 文書の最初のブロックが見出しのとき、変換器はその見出しの状態の記号を絵にせず、文字のまま残す。
+// ほかのタスクと見た目も参照用のテキストもそろうよう、残った記号を同じ絵に置き換える
+function drawLeadingMark(html: string, transformer: TransformerLike): string {
+    const mark = LEADING_MARK.exec(html)?.[1];
+    const icons = mark === undefined ? null : markIconsOf(transformer);
+    return mark === undefined || icons === null ? html : html.replace(LEADING_MARK, () => `${mark === ' ' ? icons.todo : icons.done} `);
 }
 
 // タスクのリスト項目の状態を、原文の上で反転する。原文にない行を指定されたら、何も変えない
@@ -146,7 +204,9 @@ export function toggleTask(source: string, line: number): string {
     return lines.join('\n');
 }
 
-export function parseDocument(source: string, { transformer }: ParseOptions): ParsedDocument {
+export function parseDocument(original: string, { transformer }: ParseOptions): ParsedDocument {
+    // 行と桁は変えないので、このあとの行番号は原文のものとしてそのまま使える
+    const source = normalizeTaskMarks(original);
     const probe = transformer.transform(source);
     // frontmatter は「キー: 値」の形でない文書もある (一覧や文字列だけ)。形が違うことの診断は model 層が出すので、
     // ここでは抽出をしない判断にだけ使う
@@ -165,7 +225,9 @@ export function parseDocument(source: string, { transformer }: ParseOptions): Pa
         const lines = lineRange(node.payload?.lines);
         const startLine = lines?.start ?? Number.NaN;
         const annotation = annotations.get(startLine);
-        const { html, details } = extracted ? splitDetails(node.content) : { html: node.content, details: null };
+        const task = taskAt(sourceLines, startLine, node.payload?.tag);
+        const content = task === null ? node.content : drawLeadingMark(node.content, transformer);
+        const { html, details } = extracted ? splitDetails(content) : { html: content, details: null };
         const firstLine = describeFirstLine(html);
         const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
         nodes.push({
@@ -179,7 +241,7 @@ export function parseDocument(source: string, { transformer }: ParseOptions): Pa
             milestone: extracted && firstLine.milestone,
             foldHint: node.payload?.fold ?? 0,
             lines,
-            task: taskAt(sourceLines, node.payload?.tag === 'li' ? startLine : Number.NaN),
+            task,
             details,
         });
         for (const child of node.children ?? []) visit(child, id, depth + 1);
