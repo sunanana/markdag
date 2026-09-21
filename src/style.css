@@ -1,0 +1,89 @@
+/* 図の見た目。色は CSS 変数で持ち、図を置く要素 (.markdag) かその祖先で上書きできる。
+   markmap の CSS 変数とノード内の HTML 用の既定のスタイル (markmap-view の style.css。MIT) を、セレクタを変えて写している */
+.markdag {
+    --markdag-bg: #ffffff; --markdag-panel: #ffffff; --markdag-border: #d5dbe3; --markdag-text: #1f2933; --markdag-muted: #5b6875; --markdag-accent: #3b7dd8;
+    --markdag-edge-tree: #9aa0a6; --markdag-edge-excluded: #d64545;
+    --markmap-max-width: 9999px; --markmap-a-color: #0097e6; --markmap-a-hover-color: #00a8ff; --markmap-code-bg: #f0f0f0; --markmap-code-color: #555;
+    --markmap-highlight-bg: #ffeaa7; --markmap-table-border: 1px solid currentColor; --markmap-font: 300 16px/20px sans-serif; --markmap-text-color: #333;
+    position: relative; overflow: hidden; background: var(--markdag-bg); font: var(--markmap-font); color: var(--markmap-text-color);
+}
+.markdag.markdag-dark {
+    --markdag-bg: #27272a; --markdag-panel: #232428; --markdag-border: #3a3c42; --markdag-text: #e6e8eb; --markdag-muted: #9aa4b2; --markdag-accent: #6fa3ee;
+    --markdag-edge-excluded: #ff7b7b;
+    --markmap-code-bg: #1a1b26; --markmap-code-color: #ddd; --markmap-text-color: #eee;
+}
+.markdag, .markdag *, .markdag *::before, .markdag *::after { box-sizing: border-box; }
+/* overflow: hidden の要素は、中の要素へのフォーカスの移動や scrollIntoView でブラウザにスクロールされ、ズームとパンの状態と表示がずれる。
+   スクロールの対象にならない clip を使う (使えないブラウザでは hidden のままになるので、スクロールされたら描画の側で戻す) */
+.mdag-viewport { position: absolute; inset: 0; overflow: hidden; overflow: clip; cursor: grab; }
+.mdag-viewport:active { cursor: grabbing; }
+.mdag-canvas { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+/* svg の層は 1px 四方にして、はみ出した中身を描かせる (寸法を 0 にすると Chromium では描画されない)。層そのものはクリックを受けない */
+.mdag-frames, .mdag-edges, .mdag-controls { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.mdag-nodes { position: absolute; left: 0; top: 0; }
+/* ノードの要素は .mdag-outer と同じ幅の透明な帯になる。クリックを受けると、relations の配置で同じ高さの右側に来たノードを覆うので、受けるのは箱だけにする */
+.mdag-node { position: absolute; left: 0; top: 0; cursor: auto; pointer-events: none; }
+.mdag-outer { width: var(--markmap-max-width); text-align: left; pointer-events: none; }
+.mdag-box { display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto; }
+.mdag-bands { display: inline-flex; gap: 2px; }
+.mdag-bands i { display: block; width: 4px; border-radius: 2px; }
+.mdag-labels { align-self: center; font-size: 11px; color: var(--markdag-muted); }
+/* タスクの項目は、記号でも文字でもクリックで状態を切り替えられる */
+.mdag-node[data-task] .mdag-content { cursor: pointer; }
+.mdag-node[data-milestone] .mdag-content::before { content: '◆ '; color: var(--markdag-accent); }
+/* 詳細を持つノードの印と、詳細の吹き出し */
+.mdag-note-mark { align-self: center; flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: var(--markdag-accent); font: bold 10px/14px serif; cursor: pointer; }
+.mdag-note-mark::before { content: 'i'; }
+.mdag-node[data-pinned] .mdag-note-mark { background: var(--markdag-accent); color: var(--markdag-bg); }
+/* 開いて表示する詳細。見せ方が open のときだけ出し、そのときは印を隠す */
+.mdag-main { display: flex; flex-direction: column; align-items: flex-start; }
+.mdag-details { display: none; max-width: 340px; margin: 3px 0 4px; padding: 2px 0 2px 8px; border-left: 3px solid var(--markdag-border); font-size: 13px; line-height: 18px; white-space: normal; opacity: 0.85; }
+.mdag-details p { margin: 0 0 0.3em; }
+.mdag-details > :last-child { margin-bottom: 0; }
+.mdag-details ul, .mdag-details ol { margin: 0 0 0.3em; padding-left: 1.3em; }
+.markdag[data-details="open"] .mdag-details { display: block; }
+.markdag[data-details="open"] .mdag-note-mark { display: none; }
+/* 吹き出しの中身は、開いて表示する場合と同じ .mdag-details。線の上でも読めるよう、背景と細い枠だけを足す */
+.mdag-popover { position: absolute; left: 0; top: 0; z-index: 5; transform-origin: 0 0; padding: 3px 10px 3px 6px; border: 1px solid var(--markdag-border); border-radius: 6px; background: var(--markdag-bg); box-shadow: 0 4px 16px rgb(0 0 0 / 0.22); }
+.mdag-popover[hidden] { display: none; }
+.mdag-popover .mdag-details { display: block; margin: 0; }
+.mdag-id { display: none; position: absolute; right: 100%; top: 0; margin-right: 10px; font: 10px/20px ui-monospace, monospace; color: var(--markdag-muted); white-space: nowrap; }
+.mdag-nodes.show-ids .mdag-id { display: block; }
+
+.mdag-content p { margin: 0; }
+.mdag-content a { color: var(--markmap-a-color); }
+.mdag-content a:hover { color: var(--markmap-a-hover-color); }
+.mdag-content code { padding: 0.25em; font-size: calc(1em - 2px); color: var(--markmap-code-color); background-color: var(--markmap-code-bg); border-radius: 2px; }
+.mdag-content pre { margin: 0; }
+.mdag-content pre > code { display: block; }
+.mdag-content del { text-decoration: line-through; }
+.mdag-content em { font-style: italic; }
+.mdag-content strong { font-weight: bold; }
+.mdag-content mark { background: var(--markmap-highlight-bg); }
+.mdag-content table, .mdag-content th, .mdag-content td { border-collapse: collapse; border: var(--markmap-table-border); }
+.mdag-content img { display: inline-block; }
+.mdag-content svg { fill: currentColor; }
+
+/* 線と矢印の色は、描画の側が枝の色から決めて直接付ける (関係の線は出発ノードの色、木の線は子ノードの色) */
+.mdag-edge { fill: none; stroke-width: 1.6; }
+/* 関係の線の下に敷く縁取り。線が交差したときに、どちらが手前を通っているかを分かるようにする */
+.mdag-edge-casing { fill: none; stroke: var(--markdag-bg); stroke-width: 5.2; }
+/* 線のクリックを受ける帯。線に沿って幅を広げるだけで、描かれる線の太さは変えない。
+   線の層はノードの層より下なので、ノードと重なったところではノードのクリックが優先される */
+.mdag-edge-hit { fill: none; stroke: rgb(0 0 0 / 0); stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+/* 線の上でも読めるように、背景の色で縁取る */
+.mdag-edge-badge { font: bold 11px sans-serif; text-anchor: middle; stroke: var(--markdag-bg); stroke-width: 3; paint-order: stroke; }
+.mdag-fold { fill: var(--markdag-bg); stroke-width: 1.5; cursor: pointer; pointer-events: auto; }
+.mdag-frame { fill-opacity: 0.07; stroke-width: 1.2; stroke-dasharray: 4 3; }
+.mdag-frame-label { font: 11px sans-serif; }
+/* グループのクリックを受ける。枠の層は最も下なので、重なったところではノードと線が優先される */
+.mdag-frame[data-group], .mdag-frame-label[data-group] { pointer-events: auto; cursor: pointer; }
+.mdag-gap { fill: #c9bf9f; fill-opacity: 0.25; stroke: #c9bf9f; stroke-dasharray: 3 3; }
+
+/* 凡例。グループが多い文書では項目が増えるので、高さを区切って中でスクロールさせる */
+.mdag-legend { position: absolute; right: 10px; top: 10px; z-index: 4; max-width: 260px; max-height: calc(100% - 40px); overflow: auto; padding: 6px 10px; border: 1px solid var(--markdag-border); border-radius: 6px; background: color-mix(in srgb, var(--markdag-panel) 92%, transparent); font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text); }
+.mdag-legend:empty { display: none; }
+.mdag-legend ul { margin: 0; padding: 0; list-style: none; }
+.mdag-legend li { display: flex; align-items: center; gap: 6px; }
+.mdag-legend-note { color: var(--markdag-muted); margin-bottom: 4px; }
+.mdag-legend-chip { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--markdag-border); }

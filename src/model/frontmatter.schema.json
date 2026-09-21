@@ -1,0 +1,340 @@
+{
+    "type": "object",
+    "description": "markdag の frontmatter のスキーマ。JSON Schema 2020-12 の部分集合で、使うキーワードは type, enum, const, pattern, minLength, items, properties, additionalProperties, uniqueItems, oneOf, $ref, description に限る (実行時はこのスキーマを直接読んで検証するため)。x- で始まるキーワードは日本語の診断を組み立てるための注釈で、検証には影響しない。x-hint は直し方の手がかり (Diagnostic.hint)、x-code は診断のコード (既定は additionalProperties の違反が option-unknown、それ以外が option-invalid)、x-severity は重大度 (既定は warning)。最上位は additionalProperties を閉じない。markmap が title など任意のキーを許すため",
+    "properties": {
+        "markdag": {
+            "type": ["object", "null"],
+            "description": "markdag 固有のオプション。値を書かずにキーだけを置いてもよい (オプションはすべて既定のまま、タグや $id の抽出だけが有効になる)",
+            "x-hint": "markdag: の下に details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "properties": {
+                "edgeHighlight": {
+                    "type": "boolean",
+                    "description": "線をクリックしたときに、その線と前後につながる線だけを残す操作を使えるようにするか。指定がなければ使える",
+                    "x-hint": "使わないなら false と書きます。yes は YAML では文字列になります"
+                },
+                "groupHighlight": {
+                    "type": "boolean",
+                    "description": "グループの枠やラベルをクリックしたときに、そのグループのノードと線だけを残す操作を使えるようにするか。指定がなければ使える",
+                    "x-hint": "使わないなら false と書きます。yes は YAML では文字列になります"
+                },
+                "details": {
+                    "type": "string",
+                    "description": "ノードの詳細 (本文の引用ブロック) の見せ方。click は印のクリックで吹き出しを開く、hover はノードに重ねても開く、open は最初からノードの中に開いて表示する",
+                    "x-hint": "click は印のクリック、hover はノードに重ねる、open は最初から開いて表示します",
+                    "enum": ["click", "hover", "open"]
+                },
+                "legend": {
+                    "description": "凡例に出す項目。指定がなければ groups と branches の両方を出す",
+                    "x-hint": "凡例を出さないなら false、項目を選ぶなら一覧で書きます",
+                    "oneOf": [
+                        {
+                            "type": "boolean",
+                            "description": "false なら凡例を出さない。true なら既定の項目 (groups, branches) を出す",
+                            "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                        },
+                        {
+                            "type": "array",
+                            "description": "凡例に出す項目だけを並べたもの。空なら凡例を出さない",
+                            "x-hint": "legend: の下に、出す項目を「- groups」の形で 1 行ずつ並べます",
+                            "items": {
+                                "type": "string",
+                                "description": "groups はグループの色とラベル、branches は枝の色と起点の名前",
+                                "x-hint": "凡例に出せるのは groups と branches です",
+                                "enum": ["groups", "branches"]
+                            },
+                            "$ref": "#/$defs/noDuplicates"
+                        }
+                    ]
+                },
+                "branches": {
+                    "type": "array",
+                    "description": "色を分ける単位にする枝の起点。書かれた順に色を割り当てる。指定がなければ、色は markmap と同じ colorFreezeLevel で決まる",
+                    "x-hint": "branches: の下に、起点にするノードを「- 名前」の形で 1 行ずつ並べます",
+                    "items": { "$ref": "#/$defs/nodeRef" },
+                    "$ref": "#/$defs/noDuplicates"
+                }
+            },
+            "additionalProperties": false
+        },
+        "relations": {
+            "type": "object",
+            "description": "ツリーに足す線。キーが線の種類で、値は式 1 つか式の一覧",
+            "x-code": "relation-syntax",
+            "x-severity": "error",
+            "x-hint": "relations: の下に fork, join, chain, depends のキーを字下げして、その下に式を一覧で並べます",
+            "$ref": "#/$defs/relationKinds"
+        },
+        "groups": {
+            "type": "object",
+            "description": "グループの定義。キーがグループの名前で、本文では #名前 のタグで付ける。ここに定義のないタグは、色のない文字のラベルになる",
+            "x-code": "group-invalid",
+            "x-hint": "groups: の下にグループの名前を字下げして書き、さらにその下に label, color, boundary, members を書きます",
+            "additionalProperties": { "$ref": "#/$defs/group" }
+        },
+        "markmap": {
+            "type": "object",
+            "description": "markmap のオプション (markmap-view の IMarkmapJSONOptions)。markmap-lib がそのまま読むので、markdag は値を解釈せずに渡す",
+            "x-hint": "markmap: の下に、markmap のオプションを字下げして書きます",
+            "properties": {
+                "autoFit": {
+                    "type": "boolean",
+                    "description": "描き直すたびに、図の全体が表示領域に収まる大きさに合わせる (既定は false)",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "color": {
+                    "description": "枝の色。1 色なら全ノードが同じ色、複数なら枝ごとに順に割り当てる",
+                    "x-hint": "色を 1 つ書くか、「- \"#2980b9\"」の形で 1 行ずつ並べます",
+                    "oneOf": [
+                        { "$ref": "#/$defs/cssColor" },
+                        {
+                            "type": "array",
+                            "description": "枝に順に割り当てる色",
+                            "x-hint": "color: の下に、色を「- \"#2980b9\"」の形で 1 行ずつ並べます",
+                            "items": { "$ref": "#/$defs/cssColor" }
+                        }
+                    ]
+                },
+                "colorFreezeLevel": {
+                    "type": "integer",
+                    "description": "この深さより下のノードを、その深さの祖先と同じ色にする。0 なら固定しない (既定は 0)",
+                    "x-hint": "色を固定する深さを整数で書きます (0 なら固定しません)"
+                },
+                "duration": {
+                    "type": "number",
+                    "description": "開閉のアニメーションの長さ (ミリ秒。既定は 500)",
+                    "x-hint": "ミリ秒を数値で書きます (引用符で囲むと文字列になります)"
+                },
+                "extraCss": {
+                    "description": "図と一緒に読み込む CSS の URL",
+                    "x-hint": "URL を 1 つ書くか、「- https://…」の形で 1 行ずつ並べます",
+                    "oneOf": [
+                        { "$ref": "#/$defs/assetUrl" },
+                        {
+                            "type": "array",
+                            "description": "読み込む CSS の URL",
+                            "x-hint": "extraCss: の下に、URL を「- https://…」の形で 1 行ずつ並べます",
+                            "items": { "$ref": "#/$defs/assetUrl" }
+                        }
+                    ]
+                },
+                "extraJs": {
+                    "description": "図と一緒に読み込む JavaScript の URL",
+                    "x-hint": "URL を 1 つ書くか、「- https://…」の形で 1 行ずつ並べます",
+                    "oneOf": [
+                        { "$ref": "#/$defs/assetUrl" },
+                        {
+                            "type": "array",
+                            "description": "読み込む JavaScript の URL",
+                            "x-hint": "extraJs: の下に、URL を「- https://…」の形で 1 行ずつ並べます",
+                            "items": { "$ref": "#/$defs/assetUrl" }
+                        }
+                    ]
+                },
+                "fitRatio": {
+                    "type": "number",
+                    "description": "表示領域に収めるときの倍率。1 より小さいほど周りに余白が残る (既定は 0.95)",
+                    "x-hint": "倍率を数値で書きます (既定は 0.95)"
+                },
+                "initialExpandLevel": {
+                    "type": "integer",
+                    "description": "最初に開いておく深さ。-1 ならすべて開く (既定は -1)",
+                    "x-hint": "深さを整数で書きます (すべて開くなら -1)"
+                },
+                "maxInitialScale": {
+                    "type": "number",
+                    "description": "最初に表示領域へ収めるときの、拡大の上限 (既定は 2)",
+                    "x-hint": "倍率を数値で書きます (既定は 2)"
+                },
+                "maxWidth": {
+                    "type": "number",
+                    "description": "ノードの幅の上限 (px)。0 なら折り返さない (既定は 0)",
+                    "x-hint": "幅を数値で書きます (折り返さないなら 0)"
+                },
+                "nodeMinHeight": {
+                    "type": "number",
+                    "description": "ノードの高さの下限 (px。既定は 16)",
+                    "x-hint": "高さを数値で書きます (既定は 16)"
+                },
+                "paddingX": {
+                    "type": "number",
+                    "description": "ノードの左右の余白 (px。既定は 8)",
+                    "x-hint": "余白を数値で書きます (既定は 8)"
+                },
+                "pan": {
+                    "type": "boolean",
+                    "description": "ドラッグで表示位置を動かせるようにする (既定は true)",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "spacingHorizontal": {
+                    "type": "number",
+                    "description": "親と子の間の横の間隔 (px。既定は 80)",
+                    "x-hint": "間隔を数値で書きます (既定は 80)"
+                },
+                "spacingVertical": {
+                    "type": "number",
+                    "description": "隣り合うノードの縦の間隔 (px。既定は 5)",
+                    "x-hint": "間隔を数値で書きます (既定は 5)"
+                },
+                "zoom": {
+                    "type": "boolean",
+                    "description": "ホイールで拡大縮小できるようにする (既定は true)",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "lineWidth": {
+                    "description": "枝の線の太さ (px)",
+                    "x-hint": "太さを数値で書くか、「- 1」の形で 3 つ並べます",
+                    "oneOf": [
+                        {
+                            "type": "number",
+                            "description": "どの深さでも同じ太さにする",
+                            "x-hint": "太さを数値で書きます"
+                        },
+                        {
+                            "type": "array",
+                            "description": "深さで細くする指定。[基準の太さ, 深さ 0 で足す分, 1 段ごとに割る数] の 3 つ (既定は 1, 3, 2)",
+                            "x-hint": "lineWidth: の下に、基準の太さ、深さ 0 で足す分、1 段ごとに割る数を「- 1」の形で 3 つ並べます",
+                            "items": {
+                                "type": "number",
+                                "description": "lineWidthFactory に渡す値",
+                                "x-hint": "数値で書きます"
+                            }
+                        }
+                    ]
+                },
+                "htmlParser": {
+                    "type": "object",
+                    "description": "本文の HTML を切り出す規則。markmap-lib がそのまま読むので、markdag は値を解釈せずに渡す",
+                    "x-hint": "selector と selectorRules を書きます"
+                }
+            },
+            "additionalProperties": false
+        },
+        "title": {
+            "type": "string",
+            "description": "文書の題。ルートのノードの文字になるので、relations や branches からルートを指すときの名前にもなる",
+            "x-hint": "文字列で書きます"
+        }
+    },
+    "$defs": {
+        "relationKinds": {
+            "description": "線の種類ごとの式。キーは書かれた順に処理する",
+            "x-code": "relation-unknown-key",
+            "x-hint": "relations に書けるのは fork, join, chain, depends です",
+            "properties": {
+                "fork": {
+                    "description": "1 つのノードから複数のノードへ分かれる線",
+                    "$ref": "#/$defs/expressions"
+                },
+                "join": {
+                    "description": "複数のノードから 1 つのノードへ合流する線",
+                    "$ref": "#/$defs/expressions"
+                },
+                "chain": {
+                    "description": "ノードを書かれた順につなぐ線",
+                    "$ref": "#/$defs/expressions"
+                },
+                "depends": {
+                    "description": "依存を表す破線",
+                    "$ref": "#/$defs/expressions"
+                }
+            },
+            "additionalProperties": false
+        },
+        "expressions": {
+            "description": "式 1 つ、または式の一覧",
+            "x-code": "relation-not-string",
+            "x-severity": "error",
+            "x-hint": "「A --> B」の形の式を 1 つ書くか、「- A --> B」の形で 1 行ずつ並べます",
+            "oneOf": [
+                { "$ref": "#/$defs/expression" },
+                {
+                    "type": "array",
+                    "description": "式を 1 行ずつ並べたもの",
+                    "x-hint": "式を「- A --> B」の形で 1 行ずつ並べます",
+                    "items": { "$ref": "#/$defs/expression" }
+                }
+            ]
+        },
+        "expression": {
+            "type": "string",
+            "description": "--> で項を結んだ式。項はノードを指す文字列で、& でつないで複数書ける。項の文法 (/*, /**, (X), $id) の検査はスキーマでは行わない",
+            "x-code": "relation-not-string",
+            "x-severity": "error",
+            "x-hint": "「A --> B: C」のように「: 」を含む式は、行全体を \"…\" で囲みます",
+            "$ref": "#/$defs/arrow"
+        },
+        "arrow": {
+            "description": "半角の空白で挟んだ --> で項を結んだ式",
+            "x-code": "relation-syntax",
+            "x-severity": "error",
+            "x-hint": "「A --> B」のように、半角の空白で挟んだ --> で結びます (空白の直後の # から行末は YAML のコメントになります)",
+            "pattern": "[ \t]+-->[ \t]+"
+        },
+        "group": {
+            "type": "object",
+            "description": "1 つのグループの定義",
+            "x-code": "group-invalid",
+            "x-hint": "グループの名前の下に label, color, boundary, members を字下げして書きます",
+            "properties": {
+                "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "凡例と枠に出す名前。省略するとキーの名前をそのまま使う",
+                    "x-code": "group-invalid",
+                    "x-hint": "凡例と枠に出す名前を文字列で書きます"
+                },
+                "color": {
+                    "type": "string",
+                    "description": "グループの色。CSS の色として読める書き方 (#rgb, #rrggbb, #rrggbbaa, 色の名前, rgb() など)",
+                    "x-code": "group-invalid",
+                    "x-hint": "「color: \"#3B7DD8\"」のように、CSS の色を引用符で囲んで書きます (空白の直後の # から行末は YAML のコメントになるので、引用符がないと色が消えます)",
+                    "pattern": "^(#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|[a-zA-Z]+|[a-zA-Z-]+\\([^)]*\\))$"
+                },
+                "boundary": {
+                    "type": "boolean",
+                    "description": "true なら、このグループのメンバーを枠で囲む",
+                    "x-code": "group-invalid",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "members": {
+                    "type": "array",
+                    "description": "タグを付けずにメンバーにするノード。本文のタグでの指定と合わせて使える",
+                    "x-code": "group-invalid",
+                    "x-hint": "members: の下に、メンバーにするノードを「- 名前」の形で 1 行ずつ並べます",
+                    "items": { "$ref": "#/$defs/groupMember" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "nodeRef": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ノードを指す文字列。本文のノードの 1 行目か、行末に付けた $id",
+            "x-hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+        },
+        "groupMember": {
+            "type": "string",
+            "minLength": 1,
+            "description": "メンバーにするノードを指す文字列。本文のノードの 1 行目か、行末に付けた $id",
+            "x-code": "group-invalid",
+            "x-hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+        },
+        "cssColor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "CSS の色。#rrggbb のほか、色の名前や rgb() も書ける",
+            "x-hint": "「\"#2980b9\"」のように引用符で囲んで書きます (空白の直後の # から行末は YAML のコメントになります)"
+        },
+        "assetUrl": {
+            "type": "string",
+            "minLength": 1,
+            "description": "読み込むファイルの URL",
+            "x-hint": "URL を文字列で書きます"
+        },
+        "noDuplicates": {
+            "description": "同じ値を 2 回書けない一覧",
+            "x-hint": "同じ行が 2 回あります。重なった行は消せます",
+            "uniqueItems": true
+        }
+    }
+}
