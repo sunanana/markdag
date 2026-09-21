@@ -41,11 +41,17 @@ export const DETAILS_MODES: DetailsMode[] = ['click', 'hover', 'open'];
 export type LegendItem = 'groups' | 'branches';
 export const DEFAULT_LEGEND: LegendItem[] = ['groups', 'branches'];
 
+// 凡例を置く、図の領域の隅。先頭が既定
+export type LegendPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+export const LEGEND_POSITIONS: LegendPosition[] = ['top-right', 'top-left', 'bottom-right', 'bottom-left'];
+
 export interface GraphModel {
     // 文書 (frontmatter の markdag.details) が指定する詳細の見せ方。指定がなければ null
     detailsMode: DetailsMode | null;
-    // 凡例に出す項目 (frontmatter の markdag.legend)。空なら凡例を出さない
+    // 凡例に出す項目 (frontmatter の markdag.legend.display)。空なら凡例を出さない
     legend: LegendItem[];
+    // 凡例を置く隅 (frontmatter の markdag.legend.position)
+    legendPosition: LegendPosition;
     // 線をクリックして、その線と前後につながる線だけを残す操作を使えるか (frontmatter の markdag.edgeHighlight)
     edgeHighlight: boolean;
     // グループの枠をクリックして、そのグループのノードと線だけを残す操作を使えるか (frontmatter の markdag.groupHighlight)
@@ -763,9 +769,12 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
     const edgeHighlight = options.edgeHighlight !== false;
     const groupHighlight = options.groupHighlight !== false;
 
-    // legend: false で凡例を出さない。一覧で項目を選ぶ (書かれた順ではなく、既定の並び順で出す)
-    const wanted = options.legend;
+    // legend.display: false で凡例を出さない。一覧で項目を選ぶ (書かれた順ではなく、既定の並び順で出す)。
+    // legend.position: 凡例を置く隅。どちらも、使えない値は指定なしとして扱う (診断はスキーマの検証が出す)
+    const legendOptions = isRecord(options.legend) ? options.legend : {};
+    const wanted = legendOptions.display;
     const legend = wanted === false ? [] : Array.isArray(wanted) ? DEFAULT_LEGEND.filter((item) => wanted.includes(item)) : DEFAULT_LEGEND;
+    const legendPosition = LEGEND_POSITIONS.find((position) => position === legendOptions.position) ?? 'top-right';
 
     // branches: 色を分ける単位を、著者が起点のノードで指定する。起点の配下は起点の色になり、起点の中の起点はそこから別の色になる。
     // 書かれていないノードには色を付けない (このキーのない文書は、今までどおり colorFreezeLevel で色が決まる)
@@ -804,5 +813,5 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         }
     }
 
-    return { detailsMode, legend, edgeHighlight, groupHighlight, branches, relations, suppressRootLine, groups, groupsOf, diagnostics };
+    return { detailsMode, legend, legendPosition, edgeHighlight, groupHighlight, branches, relations, suppressRootLine, groups, groupsOf, diagnostics };
 }

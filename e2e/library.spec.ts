@@ -193,6 +193,43 @@ test.describe('タスク', () => {
     });
 });
 
+test.describe('凡例', () => {
+    const source = (legend: string[]): string =>
+        ['---', 'markdag:', ...legend, '    branches:', '        - A', 'groups:', '    team:', '        label: Team', '        color: "#3B7DD8"', '---', '', '# Root', '', '## A #team', '', '## B', ''].join('\n');
+
+    // 図の領域 (1000 x 600) の、どの隅に寄っているか
+    async function cornerOf(page: Page, legend: string[]): Promise<string> {
+        await open(page);
+        return page.evaluate((markdown) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.diagram = target.harness.markdag.render(container, markdown, { animate: false });
+            const area = container.getBoundingClientRect();
+            const box = container.querySelector('.mdag-legend')?.getBoundingClientRect();
+            if (!box || box.width === 0) return 'hidden';
+            const vertical = box.top - area.top < area.bottom - box.bottom ? 'top' : 'bottom';
+            const horizontal = box.left - area.left < area.right - box.right ? 'left' : 'right';
+            return `${vertical}-${horizontal}`;
+        }, source(legend));
+    }
+
+    test('指定がなければ右上に置く', async ({ page }) => {
+        expect(await cornerOf(page, [])).toBe('top-right');
+        expect(await cornerOf(page, ['    legend:', '        display:', '            - groups'])).toBe('top-right');
+    });
+
+    for (const position of ['top-right', 'top-left', 'bottom-right', 'bottom-left']) {
+        test(`position: ${position} で、その隅に置く`, async ({ page }) => {
+            expect(await cornerOf(page, ['    legend:', `        position: ${position}`])).toBe(position);
+        });
+    }
+
+    test('display: false なら、位置の指定があっても凡例を出さない', async ({ page }) => {
+        expect(await cornerOf(page, ['    legend:', '        position: bottom-left', '        display: false'])).toBe('hidden');
+    });
+});
+
 test.describe('詳細を開いて表示するタスクのノード', () => {
     // ノードの id は、Root = 1, 種別の判定 = 2, タスク = 3
     const markdown = [
@@ -220,6 +257,27 @@ test.describe('詳細を開いて表示するタスクのノード', () => {
             target.diagram = target.harness.markdag.render(container, source, { animate: false });
         }, markdown);
         await expect(page.locator(task)).toHaveAttribute('data-task', 'todo');
+    });
+
+    test('詳細と、そのあとに書いた HTML は、書いた順に上から並ぶ', async ({ page }) => {
+        const tops = await page.evaluate((selector) => {
+            const top = (part: string): number => document.querySelector(`${selector} ${part}`)?.getBoundingClientRect().top ?? Number.NaN;
+            return { label: top('.mdag-content'), details: top('.mdag-details'), nested: top('.nested') };
+        }, task);
+        expect(tops.label).toBeLessThanOrEqual(tops.details);
+        expect(tops.details).toBeLessThan(tops.nested);
+    });
+
+    test('詳細は内容の中の書かれた位置に残るが、参照用のテキストには入らず、開いて表示しない見せ方では隠れる', async ({ page }) => {
+        const node = await page.evaluate((source) => (window as unknown as TestWindow).harness.markdag.parseDocument(source).nodes[2], markdown);
+        expect(node?.html).toMatch(/<blockquote [^>]*class="mdag-details"/);
+        expect(node?.html.indexOf('mdag-details')).toBeLessThan(node?.html.indexOf('nested') ?? -1);
+        expect(node?.details).toContain('入力中にプレビューが');
+        expect(node?.refText).not.toContain('入力中にプレビューが');
+
+        await page.evaluate(() => (window as unknown as TestWindow).diagram.view.setOptions({ details: 'hover' }));
+        await expect(page.locator(`${task} .mdag-details`)).toBeHidden();
+        await expect(page.locator(`${task} .mdag-note-mark`)).toBeVisible();
     });
 
     test('詳細の文をクリックしても、ラベルのクリックと同じようにタスクが切り替わる', async ({ page }) => {

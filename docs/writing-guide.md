@@ -2,7 +2,7 @@
 
 A markdag document is a [markmap](https://markmap.js.org/)-style Markdown outline plus a YAML frontmatter. The outline is the tree. The frontmatter adds lines between nodes (`relations`), groups of nodes (`groups`), and display options (`markdag`).
 
-markdag is a prototype (0.1.0). The notation may change until v1. Everything on this page was checked against the current implementation.
+markdag is a prototype (0.x). The notation may change until v1. Everything on this page was checked against the current implementation.
 
 Complete documents are in [examples/](examples/). Their node names and comments are in Japanese.
 
@@ -82,9 +82,9 @@ Nodes are headings and list items. The first line of a node is what `relations`,
 | --- | --- | --- |
 | `#name` | End of the first line of a heading or list item | Puts the node and all its descendants in group `name` |
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
-| `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node |
+| `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node. With `details: open` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
-| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details: open`). A click inside a nested element that has its own control (a raw `<input>`, a link, a button) does not toggle the task. `[X]` is the same as `[x]` |
+| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details: open`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not toggle the task. `[X]` is the same as `[x]` |
 
 Rules:
 
@@ -162,10 +162,21 @@ groups:
 | Key | Values | Default |
 | --- | --- | --- |
 | `details` | `click`, `hover`, `open` | `hover` |
-| `legend` | `false`, or a list of `groups` and `branches` | both |
+| `legend.position` | `top-right`, `top-left`, `bottom-right`, `bottom-left` (the corner of the diagram area where the legend is placed) | `top-right` |
+| `legend.display` | `false`, or a list of `groups` and `branches` | both |
 | `branches` | List of nodes (one node each; no `/*`, `/**`, `(X)`) | none |
 | `edgeHighlight` | boolean | `true` |
 | `groupHighlight` | boolean | `true` |
+
+- `legend` is a mapping with the keys `position` and `display`. Writing the list or `false` directly under `legend` (the form used in 0.1.0) is reported as `option-invalid` and ignored.
+
+    ```yaml
+    markdag:
+        legend:
+            position: bottom-left
+            display:
+                - groups
+    ```
 
 - `branches` names the nodes where a color starts. Colors are assigned in the order written. Descendants take the color of the nearest branch start above them. A relation line takes the color of the branch of its source node.
 - When `branches` is present, a node under no branch start is drawn in gray, and so are the lines that start from it.

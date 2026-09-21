@@ -82,7 +82,8 @@ const svgElement = <K extends keyof SVGElementTagNameMap>(tag: K, className?: st
 const stop = (event: Event): void => event.stopPropagation();
 
 // クリックしても、チェックの切り替えに読み替えてはいけない要素 (それ自身が操作を受けるもの)
-const INTERACTIVE = 'a, button, input, select, textarea, label, summary, option, video, audio, iframe, [contenteditable], [onclick]';
+const CONTROLS = 'button, input, select, textarea, label, summary, option, video, audio, iframe, [contenteditable], [onclick]';
+const INTERACTIVE = `a, ${CONTROLS}`;
 const CHECKABLE = 'input[type="checkbox"], input[type="radio"]';
 
 // ノードの文字をクリックしたときに切り替えるチェックボックスを探す。クリックした場所から外側へたどり、
@@ -97,10 +98,11 @@ function findLoneCheckbox(content: Element, target: Element): HTMLInputElement |
 }
 
 // クリックした場所を囲む、自分の操作を持つ入れ子の部分 (HTML で直接書いたラジオボタンを囲む div など)。
-// area そのものは数えない。area の直下の文字 (タスクのラベルや詳細の文) のクリックでは null になる
+// area そのものは数えない。area の直下の文字 (タスクのラベル) や、詳細の文のクリックでは null になる。
+// リンクは文の中に混ざるものなので、リンクがあるだけの段落は、自分の操作を持つ部分とは見なさない
 function findNestedZone(area: Element, target: Element): Element | null {
     for (let scope: Element | null = target; scope && scope !== area; scope = scope.parentElement) {
-        if (scope.querySelector(INTERACTIVE)) return scope;
+        if (scope.querySelector(CONTROLS)) return scope;
     }
     return null;
 }
@@ -488,6 +490,8 @@ export class MarkdagView {
         this.legend.replaceChildren();
         const model = this.model;
         if (!model || !this.options.legend) return;
+        // 置く隅は文書の指定に従う。位置そのものはスタイルシートが決める
+        this.legend.dataset.position = model.legendPosition;
         const list = document.createElement('ul');
         const branches = model.legend.includes('branches') ? this.branchLegend() : [];
         if (branches.length > 0) {
@@ -637,21 +641,9 @@ export class MarkdagView {
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
         content.addEventListener('click', (event) => this.handleTextClick(node, content, event));
-        if (node.details === null) {
-            box.append(content);
-        } else {
-            // 開いて表示する場合の詳細は、タイトルの下に置く。ノードの大きさに含まれるので、配置もそのぶん広がる
-            const details = document.createElement('div');
-            details.className = 'mdag-details mdag-content';
-            details.innerHTML = node.details;
-            for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) details.addEventListener(type, stop);
-            // タスクのノードでは、開いて表示した詳細の文をクリックしても、ラベルと同じようにタスクが切り替わる
-            if (node.task) details.addEventListener('click', (event) => this.handleTextClick(node, details, event));
-            const main = document.createElement('div');
-            main.className = 'mdag-main';
-            main.append(content, details);
-            box.append(main);
-        }
+        // 詳細の引用ブロックは、内容の中の書かれた位置にある。開いて表示する場合はその場に出て、ノードの大きさに含まれるので、
+        // 配置もそのぶん広がる。タスクのノードでは、詳細の文のクリックも内容のクリックとして、タスクの切り替えになる
+        box.append(content);
         const plain = defs.filter((group) => group.color === null);
         if (plain.length > 0) {
             const labels = document.createElement('span');

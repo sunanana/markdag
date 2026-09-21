@@ -114,19 +114,53 @@ describe('model 層', () => {
         expect(invalid.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
     });
 
-    it('凡例に出す項目は frontmatter の markdag.legend で指定でき、指定がなければグループと枝を出す', () => {
+    it('凡例に出す項目は frontmatter の markdag.legend.display で指定でき、指定がなければグループと枝を出す', () => {
         const nodes = outline([['root', null]]);
         expect(buildModel(nodes, {}).legend).toEqual(['groups', 'branches']);
-        expect(buildModel(nodes, { markdag: { legend: true } }).legend).toEqual(['groups', 'branches']);
-        expect(buildModel(nodes, { markdag: { legend: false } }).legend).toEqual([]);
-        expect(buildModel(nodes, { markdag: { legend: ['branches'] } }).legend).toEqual(['branches']);
+        expect(buildModel(nodes, { markdag: { legend: {} } }).legend).toEqual(['groups', 'branches']);
+        expect(buildModel(nodes, { markdag: { legend: { display: true } } }).legend).toEqual(['groups', 'branches']);
+        expect(buildModel(nodes, { markdag: { legend: { display: false } } }).legend).toEqual([]);
+        expect(buildModel(nodes, { markdag: { legend: { display: ['branches'] } } }).legend).toEqual(['branches']);
 
-        const unknown = buildModel(nodes, { markdag: { legend: ['groups', 'lines'] } });
+        const unknown = buildModel(nodes, { markdag: { legend: { display: ['groups', 'lines'] } } });
         expect(unknown.legend).toEqual(['groups']);
         expect(unknown.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
-        const wrongType = buildModel(nodes, { markdag: { legend: 'all' } });
+        const wrongType = buildModel(nodes, { markdag: { legend: { display: 'all' } } });
         expect(wrongType.legend).toEqual(['groups', 'branches']);
         expect(wrongType.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
+    });
+
+    it('凡例を置く隅は frontmatter の markdag.legend.position で指定でき、指定がなければ右上に置く', () => {
+        const nodes = outline([['root', null]]);
+        expect(buildModel(nodes, {}).legendPosition).toBe('top-right');
+        expect(buildModel(nodes, { markdag: { legend: { display: ['groups'] } } }).legendPosition).toBe('top-right');
+        for (const position of ['top-right', 'top-left', 'bottom-right', 'bottom-left']) {
+            const model = buildModel(nodes, { markdag: { legend: { position } } });
+            expect(model.legendPosition).toBe(position);
+            expect(model.diagnostics).toEqual([]);
+        }
+
+        const invalid = buildModel(nodes, { markdag: { legend: { position: 'bottom-rigth' } } });
+        expect(invalid.legendPosition).toBe('top-right');
+        expect(invalid.diagnostics[0]).toMatchObject({
+            code: 'option-invalid',
+            message: 'markdag.legend.position に指定できるのは top-right, top-left, bottom-right, bottom-left です ("bottom-rigth")',
+        });
+        expect(invalid.diagnostics[0]?.hint).toContain('bottom-right');
+    });
+
+    it('一覧や真偽値を legend に直接書く前の形は、警告にして指定なしとして扱う', () => {
+        const nodes = outline([['root', null]]);
+        for (const old of [false, ['branches']]) {
+            const model = buildModel(nodes, { markdag: { legend: old } });
+            expect(model.legend).toEqual(['groups', 'branches']);
+            expect(model.legendPosition).toBe('top-right');
+            expect(model.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
+            expect(model.diagnostics[0]?.message).toContain('markdag.legend はキーと値の組で書きます');
+            expect(model.diagnostics[0]?.hint).toContain('display');
+        }
+        const unknownKey = buildModel(nodes, { markdag: { legend: { pos: 'top-left' } } });
+        expect(unknownKey.diagnostics.map((item) => item.code)).toEqual(['option-unknown']);
     });
 
     it('線をクリックしての強調は frontmatter の markdag.edgeHighlight で切れる (既定は使える)', () => {
@@ -302,10 +336,10 @@ describe('診断が指す frontmatter での位置', () => {
 
     it('ならびの項目が空になった行は、その項目の位置から行末までを指す', () => {
         const nodes = outline([['root', null]]);
-        const markdown = doc('---', 'markdag:', '    legend:', '        - groups', '        - #branches');
-        const model = buildModel(nodes, { markdag: { legend: ['groups', null] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    legend:', '        display:', '            - groups', '            - #branches');
+        const model = buildModel(nodes, { markdag: { legend: { display: ['groups', null] } } }, markdown);
         expect(model.legend).toEqual(['groups']);
-        expect(places(model)).toEqual([{ line: 5, column: 11, length: 9 }]);
+        expect(places(model)).toEqual([{ line: 6, column: 15, length: 9 }]);
     });
 
     it('文字列でない項目にも位置が付く', () => {
@@ -423,7 +457,7 @@ describe('frontmatter の形と型の検証', () => {
                 title: '小さな DAG',
                 markmap: { colorFreezeLevel: 2, color: ['#2980b9'] },
                 relations: { fork: ['企画 --> 設計/*'], depends: '画面設計 --> API設計' },
-                markdag: { details: 'open', legend: false, branches: ['企画', '実装'] },
+                markdag: { details: 'open', legend: { position: 'bottom-left', display: false }, branches: ['企画', '実装'] },
                 groups: { design: { label: '設計チーム', color: '#3B7DD8', boundary: true, members: ['画面設計'] } },
             }),
         ).toEqual([]);
@@ -455,16 +489,16 @@ describe('frontmatter の形と型の検証', () => {
 
     it('oneOf は値の型で枝を選び、どの枝の型にも合わなければ oneOf を書いた位置の手がかりを出す', () => {
         // 一覧の枝が選ばれるので、項目ごとの手がかりになる
-        expect(first({ markdag: { legend: ['groups', 'lines'] } })).toMatchObject({
-            message: 'markdag.legend[1] に指定できるのは groups, branches です ("lines")',
+        expect(first({ markdag: { legend: { display: ['groups', 'lines'] } } })).toMatchObject({
+            message: 'markdag.legend.display[1] に指定できるのは groups, branches です ("lines")',
             hint: '凡例に出せるのは groups と branches です',
         });
         // 真偽値の枝が選ばれるので、何も言わない
-        expect(codes({ markdag: { legend: true } })).toEqual([]);
-        expect(codes({ markdag: { legend: false } })).toEqual([]);
-        // 文字列は真偽値でも一覧でもないので、legend そのものの手がかりを出す
-        expect(first({ markdag: { legend: 'all' } })).toMatchObject({
-            message: 'markdag.legend には 真偽値、一覧 のどれかを書きます ("all")',
+        expect(codes({ markdag: { legend: { display: true } } })).toEqual([]);
+        expect(codes({ markdag: { legend: { display: false } } })).toEqual([]);
+        // 文字列は真偽値でも一覧でもないので、display そのものの手がかりを出す
+        expect(first({ markdag: { legend: { display: 'all' } } })).toMatchObject({
+            message: 'markdag.legend.display には 真偽値、一覧 のどれかを書きます ("all")',
             hint: '凡例を出さないなら false、項目を選ぶなら一覧で書きます',
         });
     });
@@ -507,7 +541,7 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
         ['groups が一覧', { groups: ['a', 'b'] }, ['group-invalid']],
         ['groups が文字列', { groups: 'abc' }, ['group-invalid']],
         ['markdag が文字列', { markdag: 'abc' }, ['option-invalid']],
-        ['凡例の項目が重なっている', { markdag: { legend: ['groups', 'groups'] } }, ['option-invalid']],
+        ['凡例の項目が重なっている', { markdag: { legend: { display: ['groups', 'groups'] } } }, ['option-invalid']],
         ['最上位のキーが大文字違い', { Markdag: { details: 'open' } }, ['option-unknown']],
         ['最上位のキーの書き間違い', { relation: { fork: ['A --> B'] } }, ['option-unknown']],
         ['markmap のオプションを最上位に置いた', { colorFreezeLevel: 2 }, ['option-misplaced']],

@@ -17,10 +17,12 @@ relations:
 markdag:
     # 詳細 (引用ブロック) の見せ方。click / hover / open
     details: hover
-    # 凡例に出す項目。出さないなら legend: false
+    # 凡例。position は置く隅 (top-right / top-left / bottom-right / bottom-left)、display は出す項目。出さないなら display: false
     legend:
-        - groups
-        - branches
+        position: top-right
+        display:
+            - groups
+            - branches
     # 色を分ける枝の起点。配下は起点の色を継ぎ、起点の中の起点 (フロントエンド) はそこから別の色になる
     branches:
         - 要件定義

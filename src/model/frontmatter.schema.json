@@ -24,27 +24,41 @@
                     "enum": ["click", "hover", "open"]
                 },
                 "legend": {
-                    "description": "凡例に出す項目。指定がなければ groups と branches の両方を出す",
-                    "x-hint": "凡例を出さないなら false、項目を選ぶなら一覧で書きます",
-                    "oneOf": [
-                        {
-                            "type": "boolean",
-                            "description": "false なら凡例を出さない。true なら既定の項目 (groups, branches) を出す",
-                            "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                    "type": "object",
+                    "description": "凡例の位置 (position) と、出す項目 (display)",
+                    "x-hint": "legend: の下に position と display を字下げして書きます。出す項目や false は display に書きます",
+                    "properties": {
+                        "position": {
+                            "type": "string",
+                            "description": "凡例を置く、図の領域の隅。指定がなければ右上 (top-right)",
+                            "x-hint": "top-right, top-left, bottom-right, bottom-left のどれかを書きます",
+                            "enum": ["top-right", "top-left", "bottom-right", "bottom-left"]
                         },
-                        {
-                            "type": "array",
-                            "description": "凡例に出す項目だけを並べたもの。空なら凡例を出さない",
-                            "x-hint": "legend: の下に、出す項目を「- groups」の形で 1 行ずつ並べます",
-                            "items": {
-                                "type": "string",
-                                "description": "groups はグループの色とラベル、branches は枝の色と起点の名前",
-                                "x-hint": "凡例に出せるのは groups と branches です",
-                                "enum": ["groups", "branches"]
-                            },
-                            "$ref": "#/$defs/noDuplicates"
+                        "display": {
+                            "description": "凡例に出す項目。指定がなければ groups と branches の両方を出す",
+                            "x-hint": "凡例を出さないなら false、項目を選ぶなら一覧で書きます",
+                            "oneOf": [
+                                {
+                                    "type": "boolean",
+                                    "description": "false なら凡例を出さない。true なら既定の項目 (groups, branches) を出す",
+                                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                                },
+                                {
+                                    "type": "array",
+                                    "description": "凡例に出す項目だけを並べたもの。空なら凡例を出さない",
+                                    "x-hint": "display: の下に、出す項目を「- groups」の形で 1 行ずつ並べます",
+                                    "items": {
+                                        "type": "string",
+                                        "description": "groups はグループの色とラベル、branches は枝の色と起点の名前",
+                                        "x-hint": "凡例に出せるのは groups と branches です",
+                                        "enum": ["groups", "branches"]
+                                    },
+                                    "$ref": "#/$defs/noDuplicates"
+                                }
+                            ]
                         }
-                    ]
+                    },
+                    "additionalProperties": false
                 },
                 "branches": {
                     "type": "array",

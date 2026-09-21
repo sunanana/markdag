@@ -10,6 +10,7 @@ export interface OutlineNode {
     parent: number | null;
     // ルートが 1
     depth: number;
+    // ノードの内容。詳細の引用ブロックは、書かれた位置に印 (クラス mdag-details) を付けて残してある
     html: string;
     // relations と groups から参照するときに照合する文字列 (1 行目の、装飾を除いた文字)
     refText: string;
@@ -22,7 +23,8 @@ export interface OutlineNode {
     lines: { start: number; end: number } | null;
     // タスクのリスト項目 (`- [ ]`, `- [x]`) の場合の、原文での行 (0 始まり) と状態。それ以外は null
     task: { line: number; checked: boolean } | null;
-    // リスト項目の中に Markdown の引用ブロック (`>`) で書かれた詳細の HTML。ノードには表示せず、求められたときに見せる
+    // リスト項目の中に Markdown の引用ブロック (`>`) で書かれた詳細の HTML (複数あれば、つなげたもの)。吹き出しで見せるのに使う。
+    // ノードの中に開いて見せるときは、html に残した引用ブロックを、書かれた位置でそのまま見せる
     details: string | null;
 }
 
@@ -142,15 +144,21 @@ function describeFirstLine(html: string): { refText: string; milestone: boolean 
     };
 }
 
-// ノードの内容から、詳細 (Markdown の引用ブロック) を切り離す。
+// 詳細の引用ブロックに付ける印 (クラス)。描画の側は、この印で詳細を隠したり、その場に開いて見せたりする
+const DETAILS_CLASS = 'mdag-details';
+
+// ノードの内容から、詳細 (Markdown の引用ブロック) を見分ける。引用ブロックは書かれた位置に残して印だけを付け (html)、
+// 参照用のテキストを取り出すための、詳細を除いた内容 (plain) と、詳細だけをまとめたもの (details) も返す。
 // HTML のタグで直接書いた blockquote は、変換時に付く行番号の属性を持たないので対象にならず、内容として表示される
-function splitDetails(html: string): { html: string; details: string | null } {
-    if (!html.includes('<blockquote')) return { html, details: null };
+function splitDetails(html: string): { html: string; plain: string; details: string | null } {
+    if (!html.includes('<blockquote')) return { html, plain: html, details: null };
     const body = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body;
     const quotes = [...body.querySelectorAll(':scope > blockquote[data-lines]')];
-    if (quotes.length === 0) return { html, details: null };
+    if (quotes.length === 0) return { html, plain: html, details: null };
+    for (const quote of quotes) quote.classList.add(DETAILS_CLASS);
+    const marked = body.innerHTML.trim();
     for (const quote of quotes) quote.remove();
-    return { html: body.innerHTML.trim(), details: quotes.map((quote) => quote.innerHTML.trim()).join('\n') };
+    return { html: marked, plain: body.innerHTML.trim(), details: quotes.map((quote) => quote.innerHTML.trim()).join('\n') };
 }
 
 // 変換器がノードに付けた行の範囲 (「開始,終了」の文字) を読む
@@ -227,8 +235,8 @@ export function parseDocument(original: string, { transformer }: ParseOptions): 
         const annotation = annotations.get(startLine);
         const task = taskAt(sourceLines, startLine, node.payload?.tag);
         const content = task === null ? node.content : drawLeadingMark(node.content, transformer);
-        const { html, details } = extracted ? splitDetails(content) : { html: content, details: null };
-        const firstLine = describeFirstLine(html);
+        const { html, plain, details } = extracted ? splitDetails(content) : { html: content, plain: content, details: null };
+        const firstLine = describeFirstLine(plain);
         const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
         nodes.push({
             id,

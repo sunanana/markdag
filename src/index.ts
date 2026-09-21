@@ -4,7 +4,7 @@ import { parseDocument as parseWith, type ParsedDocument, type ParseOptions } fr
 import { render as renderWith, type MarkdagDiagram, type RenderOptions as RequiredRenderOptions } from './render';
 
 export { buildModel, checkFrontmatter } from './model/model';
-export type { DetailsMode, Diagnostic, GraphModel, GroupDef, LegendItem, SourcePosition } from './model/model';
+export type { DetailsMode, Diagnostic, GraphModel, GroupDef, LegendItem, LegendPosition, SourcePosition } from './model/model';
 export { toggleTask } from './parse/document';
 export type { OutlineNode, ParsedDocument, ParseOptions, TransformerLike } from './parse/document';
 export { formatDiagnostics } from './render';

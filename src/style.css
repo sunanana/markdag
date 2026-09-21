@@ -35,8 +35,7 @@
 .mdag-note-mark { align-self: center; flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: var(--markdag-accent); font: bold 10px/14px serif; cursor: pointer; }
 .mdag-note-mark::before { content: 'i'; }
 .mdag-node[data-pinned] .mdag-note-mark { background: var(--markdag-accent); color: var(--markdag-bg); }
-/* 開いて表示する詳細。見せ方が open のときだけ出し、そのときは印を隠す */
-.mdag-main { display: flex; flex-direction: column; align-items: flex-start; }
+/* 詳細 (ノードの内容の中の、印の付いた引用ブロック)。見せ方が open のときだけ、書かれた位置にそのまま出し、そのときは印を隠す */
 .mdag-details { display: none; max-width: 340px; margin: 3px 0 4px; padding: 2px 0 2px 8px; border-left: 3px solid var(--markdag-border); font-size: 13px; line-height: 18px; white-space: normal; opacity: 0.85; }
 .mdag-details p { margin: 0 0 0.3em; }
 .mdag-details > :last-child { margin-bottom: 0; }
@@ -82,6 +81,9 @@
 
 /* 凡例。グループが多い文書では項目が増えるので、高さを区切って中でスクロールさせる */
 .mdag-legend { position: absolute; right: 10px; top: 10px; z-index: 4; max-width: 260px; max-height: calc(100% - 40px); overflow: auto; padding: 6px 10px; border: 1px solid var(--markdag-border); border-radius: 6px; background: color-mix(in srgb, var(--markdag-panel) 92%, transparent); font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text); }
+/* 置く隅は文書が指定する (既定は右上)。上下と左右のどちら側に寄せるかだけを切り替える */
+.mdag-legend[data-position$="-left"] { right: auto; left: 10px; }
+.mdag-legend[data-position^="bottom-"] { top: auto; bottom: 10px; }
 .mdag-legend:empty { display: none; }
 .mdag-legend ul { margin: 0; padding: 0; list-style: none; }
 .mdag-legend li { display: flex; align-items: center; gap: 6px; }

@@ -2,7 +2,7 @@
 
 markdag takes a Markdown string and draws the diagram inside an element you give it. It is used like markmap: `render(element, markdown)`. It does not return an SVG string. The diagram is built from absolutely positioned HTML (the nodes) and SVG layers (lines, frames, fold circles), because nodes can contain arbitrary HTML such as video, iframes and CSS animations.
 
-markdag is a prototype (0.1.0). The API may change until v1. It runs in the browser: parsing the body uses `DOMParser`.
+markdag is a prototype (0.x). The API may change until v1. It runs in the browser: parsing the body uses `DOMParser`.
 
 ## Install
 
@@ -80,7 +80,7 @@ Options:
 | --- | --- | --- | --- |
 | `theme` | `'light' \| 'dark'` | `'light'` | Background and the colors that depend on it |
 | `details` | `'auto' \| 'click' \| 'hover' \| 'open'` | `'auto'` | How node details are shown. `auto` follows `markdag.details` in the document |
-| `legend` | `boolean` | `true` | Show the legend. Which items appear follows `markdag.legend` in the document |
+| `legend` | `boolean` | `true` | Show the legend. Which items appear and the corner where it is placed follow `markdag.legend.display` and `markdag.legend.position` in the document |
 | `animate` | `boolean` | `true` | Animate fold and relayout |
 | `injectStyle` | `boolean` | `true` | Add the stylesheet to `<head>` |
 | `transformer` | `TransformerLike` | markmap-lib's standard `Transformer` | The Markdown-to-tree transformer. Required in `markdag/core` |
@@ -133,7 +133,8 @@ draw(true);
 - `setDocument(parsed, model, fit)`: with `fit` false, zoom and pan are kept, and the reader's fold state is kept when the tree shape and the document's initial fold state are unchanged. With `fit` true, the fold state goes back to the document's initial state and the diagram is fitted.
 - `toggleTask(source, line)` flips `[ ]` / `[x]` (`[X]`) on that line and keeps line endings. A line outside the source returns the source unchanged.
 - A task is a list item or a heading whose first line starts with `[ ]`, `[x]` or `[X]`. `node.task.line` is that source line.
-- `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details: open`). It does not fire for a click inside a nested element that contains its own control (a raw `<input>`, a link, a button): there, a click on the text toggles that element's single checkbox or radio button instead.
+- `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `open`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
+- `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details: open`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
 - Each `OutlineNode` has `id` (document order, root is 1), `lines` (`{ start, end }`, 0-based source lines, `end` exclusive, or `null`) and `task`. Node elements carry the same range as `data-lines="start,end"`, next to `data-id`.
 - CRLF documents are parsed the same as LF documents.

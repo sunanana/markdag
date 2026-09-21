@@ -41,8 +41,10 @@ markdag:
     edgeHighlight: true
     groupHighlight: true
     legend:
-        - groups
-        - branches
+        position: top-right
+        display:
+            - groups
+            - branches
     branches:
         - 企画
         - デザイン
