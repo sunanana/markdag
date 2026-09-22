@@ -1,5 +1,7 @@
 // 変換器を利用者が渡す入口。既定の入口と同じものを公開するが、解析と描画は変換器の指定を必須にし、
 // markmap-lib を import しない。自分の構成の変換器だけを成果物に入れたい利用者 (外部への通信を避けたい場合など) のためのもの。
+export { HOOK_EVENTS } from './model/hooks';
+export type { BeforeHookEvent, HookApi, HookContext, HookContexts, HookDecoration, HookDocument, HookEdge, HookEvent, HookGroup, HookLayoutInfo, HookModule, HookNode, HookTransform, HookTraversal, OnHookEvent, ResolvedHook, ResolvedHooks, ValueHookEvent } from './model/hooks';
 export { buildModel, checkFrontmatter } from './model/model';
 export type { Diagnostic, DisplayMode, GraphModel, GroupDef, LegendItem, LegendPosition, ModelOptions, SourcePosition, TagDisplayMode } from './model/model';
 export { formatTag, PRIMITIVES, suggestTagKeys, suggestTagValues } from './model/tags';

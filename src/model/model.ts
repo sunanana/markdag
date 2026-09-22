@@ -6,6 +6,7 @@ import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document, type
 import type { LayoutInputRelation, RelationKind } from '../layout/input-types';
 import type { NodeTag, OutlineNode, SourcePosition } from '../parse/document';
 import schemaSource from './frontmatter.schema.json';
+import { resolveHooks, rulesModule, type ResolvedHooks } from './hooks';
 import { lintTags, resolveTagKeys, type TagKeyDef, type TagLintOptions, type TypeSource } from './tags';
 import { closest, isRecord } from './util';
 
@@ -71,6 +72,8 @@ export interface GraphModel {
     tagsOf: Map<number, NodeTag[]>;
     // キーごとの解決済みの定義 (frontmatter の markdag.tags.keys と markdag.types)。定義のないキーは入らない
     tagKeys: TagKeyDef[];
+    // 文書が宣言し (frontmatter の markdag.hooks)、呼び出し側が渡したフック。宣言の順に並ぶ
+    hooks: ResolvedHooks;
     diagnostics: Diagnostic[];
 }
 
@@ -78,6 +81,9 @@ export interface ModelOptions {
     // markdag.types.$ref で参照したファイルの中身。$ref に書いた文字列をキーに、YAML を読んだ値 (読めなければ null) を渡す。
     // markdag はファイルを読まないので、呼び出し側が読む
     types?: Record<string, unknown>;
+    // markdag.hooks.$ref で参照したモジュール。$ref に書いた文字列をキーに、import した結果を渡す。
+    // types と違って中身はコードなので、読み込むかどうかの判断も呼び出し側に置く (markdag は import も eval もしない)
+    hookRefs?: Record<string, unknown>;
 }
 
 interface Selector {
@@ -811,6 +817,22 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         diagnostics.push({ severity: issue.severity, code: issue.code, message: issue.message, at: issue.at ?? (issue.path ? locator.value(issue.path) : null), hint: issue.hint });
     }
 
+    // hooks: 文書は使うフックの名前だけを宣言し、実体は呼び出し側が渡す。ここでは宣言と実体を突き合わせて診断を出す
+    const hooks = resolveHooks(options.hooks, extra.hookRefs);
+    for (const issue of hooks.issues) {
+        report(issue.severity, issue.code, issue.message, { at: issue.path ? locator.value(issue.path) : null, hint: issue.hint });
+    }
+    // rules: コードを書かずに使える規則。組み込みのフックにして、宣言したフックより先に評価する
+    const rules = rulesModule(options.rules);
+    (rules?.groups ?? []).forEach((name, index) => {
+        if (groups.some((group) => group.id === name)) return;
+        report('warning', 'option-invalid', `markdag.rules.taskToggle.readonlyGroups: グループ「${name}」は、この文書のどのノードにも付いていません`, {
+            at: locator.value(['markdag', 'rules', 'taskToggle', 'readonlyGroups', index]),
+            hint: closest(name, groups.map((group) => group.id)) === null ? '本文で %名前 を付けるか、markdag.groups に定義します' : `もしかして「${closest(name, groups.map((group) => group.id)) ?? ''}」`,
+        });
+    });
+    const allHooks = rules === null ? hooks.hooks : [{ ref: 'markdag.rules', module: rules.module }, ...hooks.hooks];
+
     const detailsOptions = isRecord(options.details) ? options.details : {};
     const detailsMode: DisplayMode | null = DISPLAY_MODES.includes(detailsOptions.display as DisplayMode) ? (detailsOptions.display as DisplayMode) : null;
     // edgeHighlight: false と書いたときだけ、線をクリックしての強調を使えなくする
@@ -861,5 +883,21 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         }
     }
 
-    return { detailsMode, legend, legendPosition, edgeHighlight, groupHighlight, branches, relations, suppressRootLine, groups, groupsOf, tagDisplay, tagsOf, tagKeys: resolved.keys, diagnostics };
+    return {
+        detailsMode,
+        legend,
+        legendPosition,
+        edgeHighlight,
+        groupHighlight,
+        branches,
+        relations,
+        suppressRootLine,
+        groups,
+        groupsOf,
+        tagDisplay,
+        tagsOf,
+        tagKeys: resolved.keys,
+        hooks: { hooks: allHooks, options: hooks.options },
+        diagnostics,
+    };
 }

@@ -29,7 +29,9 @@ docs/
 ├── usage.md                How to install the library and render a diagram in a page: API, options, styling, driving the view from an application
 └── examples/
     ├── notation.md         Every notation in one short document
-    └── large-project.md    A large document (138 nodes, 33 groups)
+    ├── large-project.md    A large document (138 nodes, 33 groups)
+    ├── hooks.md            A document that uses the built-in rules and declares hooks
+    └── task-guard.hooks.js The hooks it declares
 ```
 
 The examples are written in Japanese. `docs/writing-guide.md` has an English one.

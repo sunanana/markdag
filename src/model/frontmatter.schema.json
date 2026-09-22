@@ -5,7 +5,7 @@
         "markdag": {
             "type": ["object", "null"],
             "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、タグ (tags)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、グループやタグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に relations, groups, tags, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
             "properties": {
                 "relations": {
                     "type": "object",
@@ -71,6 +71,79 @@
                             "description": "タグのキーごとの定義。キーがタグのキーで、値の型 (type) と、そのキーの使い方 (multiple, unique) を書く。書いたキーだけを検査する",
                             "x-hint": "keys: の下にタグのキーを字下げして書き、さらにその下に type などを書きます",
                             "additionalProperties": { "$ref": "#/$defs/tagKey" }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "rules": {
+                    "type": "object",
+                    "description": "コードを書かずに使える操作の規則。フック (hooks) と同じ仕組みで動き、フックより先に評価する",
+                    "x-hint": "rules: の下に taskToggle と fold を字下げして書きます",
+                    "properties": {
+                        "taskToggle": {
+                            "type": "object",
+                            "description": "タスクのチェックを切り替えるときの規則",
+                            "x-hint": "taskToggle: の下に requireUpstreamDone と readonlyGroups を字下げして書きます",
+                            "properties": {
+                                "requireUpstreamDone": {
+                                    "type": "boolean",
+                                    "description": "上流 (そのノードと祖先に入ってくる線をさかのぼったもの) のタスクが終わるまで、チェックを付けさせない。外すほうは止めない",
+                                    "x-hint": "使うなら true と書きます。yes は YAML では文字列になります"
+                                },
+                                "readonlyGroups": {
+                                    "type": "array",
+                                    "description": "このグループに属するノードのタスクは切り替えさせない",
+                                    "x-hint": "readonlyGroups: の下に、グループの名前を「- 確定済み」の形で 1 行ずつ並べます",
+                                    "items": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "グループの名前 (% を付けずに書く)",
+                                        "x-hint": "本文の %名前 や markdag.groups のキーと同じ名前を、% なしで書きます"
+                                    },
+                                    "$ref": "#/$defs/noDuplicates"
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "fold": {
+                            "type": "object",
+                            "description": "枝を開閉するときの規則",
+                            "x-hint": "fold: の下に keepMilestonesOpen を字下げして書きます",
+                            "properties": {
+                                "keepMilestonesOpen": {
+                                    "type": "boolean",
+                                    "description": "マイルストーン (**太字** の見出し) の枝を、開閉の円で閉じさせない",
+                                    "x-hint": "使うなら true と書きます。yes は YAML では文字列になります"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "hooks": {
+                    "type": "object",
+                    "description": "操作のコールバックを書いたモジュール (JavaScript か、読み込む側が変換する TypeScript)。文書はここで名前を宣言するだけで、読み込みは呼び出し側が行う (markdag はコードを読み込まない)",
+                    "x-hint": "hooks: の下に $ref と options を字下げして書きます",
+                    "properties": {
+                        "$ref": {
+                            "description": "フックを書いたモジュール。文書からの相対パスを 1 つか一覧で書く。一覧は書かれた順に呼ばれる",
+                            "x-hint": "「$ref: ./flow.hooks.js」のように文書からの相対パスを書くか、「- ./a.hooks.js」の形で 1 行ずつ並べます",
+                            "oneOf": [
+                                { "$ref": "#/$defs/hookPath" },
+                                {
+                                    "type": "array",
+                                    "description": "呼ぶ順に並べたモジュールの一覧",
+                                    "x-hint": "$ref: の下に、相対パスを「- ./a.hooks.js」の形で 1 行ずつ並べます",
+                                    "items": { "$ref": "#/$defs/hookPath" },
+                                    "$ref": "#/$defs/noDuplicates"
+                                }
+                            ]
+                        },
+                        "options": {
+                            "type": "object",
+                            "description": "フックに渡す設定。フックの中では ctx.options で読む。中身は文書とフックの取り決めなので、markdag は検査しない",
+                            "x-hint": "options: の下に、フックが読むキーと値を字下げして書きます"
                         }
                     },
                     "additionalProperties": false
@@ -387,6 +460,12 @@
             "description": "型の定義を書いた YAML ファイルの、文書からの相対パス",
             "x-code": "type-invalid",
             "x-hint": "「./types.yaml」のように、文書からの相対パスを文字列で書きます"
+        },
+        "hookPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "フックを書いたモジュール (.js か、読み込む側が変換する .ts) の、文書からの相対パス",
+            "x-hint": "「./flow.hooks.js」のように、文書からの相対パスを文字列で書きます"
         },
         "typeName": {
             "type": "string",

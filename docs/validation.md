@@ -20,6 +20,14 @@ The exit code is 1 when there is at least one `error`, 0 otherwise, and 2 when t
 
 The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates, and the values of the tags in the body when `markdag.tags.keys` is defined. Files referenced by `markdag.types.$ref` are read relative to the document. It also draws the diagram, so a document that makes rendering throw fails here too.
 
+Modules referenced by `markdag.hooks.$ref` are **not** loaded unless you pass `--hooks`, since checking a document would otherwise run the code it points at. Without the flag, each of them is reported as `hooks-unresolved`.
+
+```sh
+npm run check -- --hooks path/to/document.md
+```
+
+A module written in TypeScript is transpiled with Vite's transformer before it is loaded; it is not type-checked, and type-only imports are dropped. When a module cannot be read, transpiled or imported, the reason is printed on stderr and the library reports `hooks-unresolved`.
+
 To check only the shape of the frontmatter from Node, without a browser, use `checkFrontmatter` (see [usage.md](usage.md)). It cannot resolve references: `Desing --> Build` passes it, because resolving a name needs the node tree.
 
 ## Reading the output
@@ -51,7 +59,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `yaml-syntax` | error | YAML | The frontmatter is not valid YAML. All of it is ignored |
 | `option-unknown` | warning | Shape and type | Unknown key under `markdag` or `markmap`, or a top-level key that looks like a typo of a known key |
 | `option-misplaced` | warning | Shape and type | A key written at the wrong level: `relations`, `groups` or `branches` outside `markdag` (the top-level `relations` and `groups` are the form used up to 0.2.0), or `fork` directly under `markdag`. It is ignored |
-| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node |
+| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node, and a `markdag.rules.taskToggle.readonlyGroups` name that is on no node |
 | `relation-unknown-key` | warning | Shape and type | A key under `markdag.relations` other than `fork`, `join`, `chain`, `depends` |
 | `relation-not-string` | error | Shape and type | A relation expression that YAML did not read as a string (usually `: ` inside it) |
 | `relation-syntax` | error | Shape and type | No ` --> ` with spaces around it, an empty term, or `(X)` combined with `/*` |
@@ -66,6 +74,11 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `tag-multiple` | `lint` | Tags | Several values on a key without `multiple: true` |
 | `tag-unique` | `lint` | Tags | The same value on several nodes for a key with `unique: true`. Reported on each of them |
 | `tag-unknown-key` | `lint` | Tags | A key that is not in `markdag.tags.keys`, when `unknownKey: deny` |
+| `hooks-unresolved` | warning | Hooks | A module in `markdag.hooks.$ref` was not passed to `render` (`npm run check` loads them only with `--hooks`). Its hooks do not run |
+| `hook-unknown-export` | warning | Hooks | A hook module exports a function under a name that is not reserved, or a `default` export. It is not called |
+| `hook-invalid-export` | warning | Hooks | A reserved name is exported as something other than a function |
+| `hook-failed` | warning | Hooks | A hook threw, or hooks nested deeper than four levels. Raised while the reader works, so it arrives through `onDiagnostic` |
+| `hook-rejected` | info | Hooks | A `before*` hook, or a rule in `markdag.rules`, cancelled an operation. Also through `onDiagnostic` |
 | `ref-not-found` | error | References | No node matches the reference |
 | `ref-ambiguous` | error | References | Two or more nodes match the reference, or the same `$id` is on several nodes |
 | `ref-prefix` | info | References | The reference matched by prefix, not exactly |

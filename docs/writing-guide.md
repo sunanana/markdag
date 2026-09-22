@@ -237,6 +237,44 @@ markdag:
 - `unknownKey` says what to do with a key that is not in `keys`: `allow` (default: the tag is free, as without any definition) or `deny` (`tag-unknown-key`, at the `lint` severity).
 - Tags are data on the node: they are not inherited, they do not draw frames or colors, and they are not in the legend. Applications read them from `GraphModel.tagsOf` and the definitions from `GraphModel.tagKeys` (see [usage.md](usage.md)).
 
+### rules
+
+```yaml
+markdag:
+    rules:
+        taskToggle:
+            requireUpstreamDone: true
+            readonlyGroups:
+                - 確定済み
+        fold:
+            keepMilestonesOpen: true
+```
+
+- `rules` are built-in rules for what the reader may do. They need no JavaScript, so they work in any application that renders the document.
+- `taskToggle.requireUpstreamDone`: a task cannot be checked while a task it waits for is still open. "Waits for" follows the lines from `relations`, starting at the node and at each of its ancestors, as far as they go. Lines are usually drawn between headings, and this is what makes a list item under a heading wait for what the heading waits for. Unchecking is never blocked.
+- `taskToggle.readonlyGroups`: tasks on nodes in these groups cannot be toggled at all. Write the names without `%`. A name that is on no node in the document is reported as `option-invalid`.
+- `fold.keepMilestonesOpen`: the fold circle does not close a milestone (`## **Release**`). Methods such as `setFolded` still do.
+- A blocked action is reported as `hook-rejected` (severity `info`) with the reason, which the application receives through `onDiagnostic`; the diagram itself does not change.
+- `rules` run before the hooks in `hooks`, so a hook can only add to them, not undo them.
+
+### hooks
+
+```yaml
+markdag:
+    hooks:
+        $ref: ./task-guard.hooks.js
+        options:
+            transitive: true
+```
+
+- `hooks` declares JavaScript that runs on a few operations: before a task is checked, after the fold state changed, and so on. It is for documents that need a rule the notation cannot express, such as "this task cannot be checked while the task it depends on is open".
+- The document only names the module. markdag never reads or imports it: the application that renders the document resolves the path, imports it and hands the result to markdag. A document alone therefore cannot make any code run, and a `$ref` nobody loaded is reported as `hooks-unresolved`.
+- `npm run check` loads them only when you pass `--hooks`, because checking a document would otherwise run the code it points at.
+- `options` is free-form and is passed to the hooks as `ctx.options`. markdag does not check its contents.
+- Write the module in JavaScript unless you know that the application which loads hooks transpiles TypeScript. markdag never transpiles: a `.ts` module works only where the loader (a bundler, or `npm run check -- --hooks`) turns it into JavaScript first, and a `.ts` that nobody transpiles is reported as `hooks-unresolved`.
+- The module exports functions under reserved names (`beforeTaskToggle`, `onFoldChange`, `decorateNode`, ...). See [usage.md](usage.md) for the list, what each one receives, how a `before*` hook cancels an operation, and what `transformSource` and `decorateNode` return. `docs/examples/hooks.md` is a working example.
+- When `rules` already covers what you need, use `rules` instead: it needs no code and therefore no decision from the application about whether to run it.
+
 ### Display options
 
 The other keys under `markdag`:
@@ -291,6 +329,7 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - A top-level node (a direct child of the root) that is the target of any relation loses its line from the root. This is intended: the node is positioned after its predecessors instead.
 - A relation that duplicates a tree line or an earlier relation is skipped with a `duplicate-edge` warning.
 - A node whose first line is a table, a code block or an HTML block has no text to match, so it cannot be referenced by name and cannot take a tag or `$id`. It is still included in `X/*` and `X/**`.
+- Under one heading, do not mix list items with deeper headings. When a heading has list items and is then followed by a deeper heading, the transformer (markmap-lib) drops those list items without a diagnostic. Give the list its own subheading.
 
 ## 7. Not supported yet
 

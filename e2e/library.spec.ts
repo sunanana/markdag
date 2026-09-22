@@ -1,7 +1,7 @@
 // ライブラリの公開の API を、実際のブラウザで確かめる。解析は DOM を使い、描画はノードの実測のサイズを使うので、単体テストでは確かめられない。
 import { expect, test, type Page } from '@playwright/test';
 import type { Harness } from './harness';
-import type { MarkdagDiagram, OutlineNode } from '../src/index';
+import type { Diagnostic, HookModule, MarkdagDiagram, OutlineNode } from '../src/index';
 
 interface HookLog {
     fold: Array<{ folded: number[]; byUser: boolean }>;
@@ -557,5 +557,201 @@ test.describe('グループの印とタグ', () => {
         const open = withTagMode('hover').replace('markdag:\n', 'markdag:\n    details:\n        display: always\n');
         expect((await labelsOf(page, open)).tags).toEqual(ALL_TAGS);
         await expect(page.locator('#a .mdag-note-mark').first()).toBeHidden();
+    });
+});
+
+test.describe('フック', () => {
+    // ノードの id は Root = 1, Design = 2, Build = 3
+    const GUARDED = ['---', 'markdag:', '    relations:', '        chain:', '            - Design --> Build', '    hooks:', '        $ref: ./guard.hooks.js', '---', '', '# Root', '', '## [ ] Design', '', '## [ ] Build', ''].join('\n');
+
+    interface HookWindow extends TestWindow {
+        changes: string[];
+        notes: string[];
+    }
+
+    // 文書が宣言したフックの実体は、呼び出し側が渡す。ここではテストの中で組み立てて hookRefs に入れる
+    async function renderGuarded(page: Page, markdown = GUARDED, pass = true): Promise<void> {
+        await open(page);
+        await page.evaluate(
+            ({ source, withModule }) => {
+                const target = window as unknown as HookWindow;
+                const container = document.getElementById('a');
+                if (!container) throw new Error('container is missing');
+                target.changes = [];
+                target.notes = [];
+                const guard: HookModule = {
+                    beforeTaskToggle: (context) => {
+                        if (!context.next) return;
+                        const blockers = context.doc.upstream(context.node.id).filter((node) => node.task !== null && !node.task.checked);
+                        if (blockers.length === 0) return;
+                        context.reject(blockers.map((node) => node.text).join(', '));
+                        return false;
+                    },
+                    onTaskToggle: (context) => void target.notes.push(`toggle ${context.node.text} ${String(context.next)} ${String(context.byUser)}`),
+                    onDocument: (context) => void target.notes.push(`document ${String(context.doc.nodes().length)}`),
+                };
+                target.diagram = target.harness.markdag.render(container, source, {
+                    animate: false,
+                    hookRefs: withModule ? { './guard.hooks.js': guard } : {},
+                    onChange: (next) => target.changes.push(next),
+                    onDiagnostic: (diagnostic: Diagnostic) => target.notes.push(`${diagnostic.code} ${diagnostic.message}`),
+                });
+            },
+            { source: markdown, withModule: pass },
+        );
+    }
+
+    const notesOf = (page: Page): Promise<string[]> => page.evaluate(() => (window as unknown as HookWindow).notes);
+    const changesOf = (page: Page): Promise<string[]> => page.evaluate(() => (window as unknown as HookWindow).changes);
+
+    test('beforeTaskToggle が false を返すと、原文は書き換わらず、取りやめの診断が出る', async ({ page }) => {
+        await renderGuarded(page);
+        const build = page.locator('#a .mdag-node[data-id="3"]');
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'todo');
+        expect(await changesOf(page)).toEqual([]);
+        expect(await notesOf(page)).toContain('hook-rejected ./guard.hooks.js の beforeTaskToggle が操作を取りやめました: Design');
+    });
+
+    test('上流を終えれば通り、onTaskToggle には切り替えたあとのノードが渡る', async ({ page }) => {
+        await renderGuarded(page);
+        const design = page.locator('#a .mdag-node[data-id="2"]');
+        const build = page.locator('#a .mdag-node[data-id="3"]');
+        await design.locator('.mdag-content').click();
+        await expect(design).toHaveAttribute('data-task', 'done');
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'done');
+        expect(await changesOf(page)).toHaveLength(2);
+        const notes = await notesOf(page);
+        expect(notes.filter((note) => note.startsWith('toggle'))).toEqual(['toggle Design true true', 'toggle Build true true']);
+        // 描き直すたびに onDocument が呼ばれる (最初の描画と、切り替え 2 回)
+        expect(notes.filter((note) => note.startsWith('document'))).toEqual(['document 3', 'document 3', 'document 3']);
+    });
+
+    // グループ、詳細、折りたためる枝のある文書。id は Root = 1, Design = 2, Child A = 3, Build = 4
+    const RICH = [
+        '---',
+        'markdag:',
+        '    groups:',
+        '        design:',
+        '            label: 設計',
+        '            color: "#3B7DD8"',
+        '            boundary: true',
+        '    details:',
+        '        display: click',
+        '---',
+        '',
+        '# Root',
+        '',
+        '## Design %design',
+        '',
+        '- Child A',
+        '    > 詳細の文',
+        '',
+        '## Build',
+        '',
+    ].join('\n');
+
+    // こちらは呼び出し側が直接渡すフック (文書には宣言がない)
+    async function renderWatched(page: Page): Promise<void> {
+        await open(page);
+        await page.evaluate((source) => {
+            const target = window as unknown as HookWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.changes = [];
+            target.notes = [];
+            const watch: HookModule = {
+                onNodeClick: (context) => void target.notes.push(`click ${context.node.text} ${String(context.asTaskToggle)}`),
+                beforeFold: (context) => {
+                    target.notes.push(`fold ${context.node.text} ${String(context.folded)}`);
+                    return false;
+                },
+                onSelectGroup: (context) => void target.notes.push(`group ${context.group?.id ?? 'none'} ${String(context.group?.members.length ?? 0)}`),
+                beforeDetailsShow: (context) => {
+                    target.notes.push(`details ${context.node.text} ${String(context.pinned)}`);
+                    return false;
+                },
+            };
+            target.diagram = target.harness.markdag.render(container, source, { animate: false, hooks: watch });
+        }, RICH);
+    }
+
+    test('beforeFold が false を返すと、開閉の円をクリックしても枝は閉じない', async ({ page }) => {
+        await renderWatched(page);
+        const child = page.locator('#a .mdag-node[data-id="3"]');
+        await expect(child).toBeVisible();
+        await page.locator('#a .mdag-fold[data-id="2"]').click();
+        await expect(child).toBeVisible();
+        expect(await notesOf(page)).toContain('fold Design true');
+    });
+
+    test('グループの選択、詳細の取りやめ、ノードのクリックがフックに届く', async ({ page }) => {
+        await renderWatched(page);
+        // 枠のラベルは 1px の SVG の層に描かれていて、クリックの前に層をスクロールしようとするブラウザがある。
+        // 図はスクロールされると元に戻すので、click では位置がずれる。ここでは click のイベントだけを送る
+        await page.locator('#a .mdag-frame-label[data-group="design"]').dispatchEvent('click');
+        // Design とその配下の Child A が、このグループのメンバー
+        expect(await notesOf(page)).toContain('group design 2');
+
+        await page.locator('#a .mdag-node[data-id="3"] .mdag-note-mark').click();
+        await expect(page.locator('#a .mdag-popover')).toBeHidden();
+        expect(await notesOf(page)).toContain('details Child A true');
+
+        // タスクでないノードのクリックは、切り替えとしては扱われない
+        await page.locator('#a .mdag-node[data-id="4"] .mdag-content').click();
+        expect(await notesOf(page)).toContain('click Build false');
+    });
+
+    // コードを書かずに使う規則だけの文書。id は Root = 1, Design = 2, Build = 3
+    const RULED = ['---', 'markdag:', '    relations:', '        chain:', '            - Design --> Build', '    rules:', '        taskToggle:', '            requireUpstreamDone: true', '---', '', '# Root', '', '## [ ] Design', '', '## [ ] Build', ''].join('\n');
+
+    test('markdag.rules だけで、フックのファイルなしに上流の完了を求められる', async ({ page }) => {
+        await renderGuarded(page, RULED, false);
+        const design = page.locator('#a .mdag-node[data-id="2"]');
+        const build = page.locator('#a .mdag-node[data-id="3"]');
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'todo');
+        expect(await notesOf(page)).toContain('hook-rejected markdag.rules の beforeTaskToggle が操作を取りやめました: 先に終えるもの: Design');
+
+        await design.locator('.mdag-content').click();
+        await expect(design).toHaveAttribute('data-task', 'done');
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'done');
+    });
+
+    test('transformSource で足したノードに、decorateNode の飾りが付く', async ({ page }) => {
+        await open(page);
+        await page.evaluate((source) => {
+            const target = window as unknown as HookWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.changes = [];
+            target.notes = [];
+            const extend: HookModule = {
+                transformSource: (context) => `${context.source}## Extra\n`,
+                decorateNode: (context) => (context.node.text === 'Extra' ? { className: 'added', title: 'フックが足したノード', badge: '自動' } : undefined),
+            };
+            target.diagram = target.harness.markdag.render(container, source, { animate: false, hooks: extend, onChange: (next) => target.changes.push(next) });
+        }, ['---', 'markdag:', '---', '', '# Root', '', '## [ ] Design', ''].join('\n'));
+
+        const extra = page.locator('#a .mdag-node[data-id="3"]');
+        await expect(extra).toHaveClass(/added/);
+        await expect(extra.locator('.mdag-badge')).toHaveText('自動');
+        await expect(extra.locator('.mdag-box')).toHaveAttribute('title', 'フックが足したノード');
+        // 足したのは末尾なので、もとからある行の番号は変わらず、タスクは切り替えられる
+        await page.locator('#a .mdag-node[data-id="2"] .mdag-content').click();
+        await expect(page.locator('#a .mdag-node[data-id="2"]')).toHaveAttribute('data-task', 'done');
+        // 書き戻すのは原文のほうで、フックが足した行は入らない
+        expect(await changesOf(page)).toEqual([['---', 'markdag:', '---', '', '# Root', '', '## [x] Design', ''].join('\n')]);
+    });
+
+    test('宣言だけでモジュールが渡されていなければ、フックは動かず警告になる', async ({ page }) => {
+        await renderGuarded(page, GUARDED, false);
+        const codes = await page.evaluate(() => (window as unknown as HookWindow).diagram.diagnostics.map((item) => item.code));
+        expect(codes).toEqual(['hooks-unresolved']);
+        const build = page.locator('#a .mdag-node[data-id="3"]');
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'done');
     });
 });

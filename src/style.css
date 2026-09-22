@@ -27,7 +27,9 @@
 .mdag-box { position: relative; display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto; }
 .mdag-bands { display: inline-flex; gap: 2px; }
 .mdag-bands i { display: block; width: 4px; border-radius: 2px; }
-.mdag-labels, .mdag-tags { align-self: center; font-size: 11px; color: var(--markdag-muted); }
+.mdag-labels, .mdag-tags, .mdag-badge { align-self: center; font-size: 11px; color: var(--markdag-muted); }
+/* decorateNode が返した短い文字。色や枠はフックが付けるクラスで決める */
+.mdag-badge { border: 1px solid var(--markdag-border); border-radius: 8px; padding: 0 5px; }
 /* タグの見せ方。always ならノードの中に出す。hover と click では詳細と同じ吹き出しに入れるので、ノードの中には出さない。
    詳細をノードの中に開いているときは吹き出しを使わないので、そのときもノードの中に出す */
 .mdag-tags { display: none; }

@@ -3,6 +3,8 @@ import { defaultTransformer } from './parse/default-transformer';
 import { parseDocument as parseWith, type ParsedDocument, type ParseOptions } from './parse/document';
 import { render as renderWith, type MarkdagDiagram, type RenderOptions as RequiredRenderOptions } from './render';
 
+export { HOOK_EVENTS } from './model/hooks';
+export type { BeforeHookEvent, HookApi, HookContext, HookContexts, HookDecoration, HookDocument, HookEdge, HookEvent, HookGroup, HookLayoutInfo, HookModule, HookNode, HookTransform, HookTraversal, OnHookEvent, ResolvedHook, ResolvedHooks, ValueHookEvent } from './model/hooks';
 export { buildModel, checkFrontmatter } from './model/model';
 export type { Diagnostic, DisplayMode, GraphModel, GroupDef, LegendItem, LegendPosition, ModelOptions, SourcePosition, TagDisplayMode } from './model/model';
 export { formatTag, PRIMITIVES, suggestTagKeys, suggestTagValues } from './model/tags';

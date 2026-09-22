@@ -9,6 +9,7 @@ import { boundsOf, layoutChildrenOf, layoutGraph, MARKMAP_DEFAULTS, type PlacedE
 import { project, type VisibleGraph } from '../layout/project';
 import type { OutlineNode, ParsedDocument } from '../parse/document';
 import { computeFrames, countIntruders, frameOutline, frameSpacing, LABEL_HEIGHT, type Frame } from './frames';
+import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
 import { formatTag } from '../model/tags';
 
@@ -52,6 +53,24 @@ export interface ViewTransform {
 export interface ViewHooks {
     // タスクのリスト項目がクリックされた。状態は原文が持つので、切り替えは呼び出し側が原文を書き換えて行う
     onToggleTask?: (node: OutlineNode) => void;
+    // ノードの文字がクリックされた。asTaskToggle は、そのクリックをタスクの切り替えとして扱ったか。
+    // リンクや、自分の操作を持つ入れ子の部分のクリックでは呼ばない
+    onNodeClick?: (node: OutlineNode, asTaskToggle: boolean) => void;
+    // 開閉の円がクリックされた。folded は切り替えたあとの状態。false を返すと、その開閉を行わない。
+    // メソッド (setFolded, expandAll, revealNode ほか) による変更は、この受け口を通らない
+    beforeFold?: (node: OutlineNode, folded: boolean) => boolean;
+    // 線を選ぶ、または選択を解く直前。解くときの edge は null。false を返すと、選択をそのままにする
+    beforeSelectEdge?: (edge: PlacedEdge | null, byUser: boolean) => boolean;
+    onSelectEdge?: (edge: PlacedEdge | null, byUser: boolean) => void;
+    // グループを選ぶ、または選択を解く直前。解くときの id は null
+    beforeSelectGroup?: (id: string | null, byUser: boolean) => boolean;
+    onSelectGroup?: (id: string | null, byUser: boolean) => void;
+    // 詳細の吹き出しを出す直前。pinned は、印のクリックで出したままにするか。false を返すと出さない
+    beforeDetailsShow?: (node: OutlineNode, pinned: boolean, byUser: boolean) => boolean;
+    onDetailsShow?: (node: OutlineNode, pinned: boolean, byUser: boolean) => void;
+    onDetailsHide?: (node: OutlineNode, pinned: boolean) => void;
+    // ノードに足す飾り (クラス、説明、短い文字) を返す。要素を作り直したときと refreshDecorations で呼ぶ
+    decorateNode?: (node: OutlineNode) => HookDecoration | null;
     onLayout?: (snapshot: LayoutSnapshot) => void;
     // 枝の開閉が変わった。folded は閉じているノードの id (昇順)。byUser は、見る人の操作 (開閉の円のクリック) によるものか。
     // メソッドの呼び出しによる変更でも呼ぶ (byUser は false)。文書の差し替えで開閉が初期の状態に戻るときは呼ばない
@@ -162,6 +181,8 @@ export class MarkdagView {
     private thicken = false;
     private elements = new Map<number, HTMLDivElement>();
     private boxes = new Map<number, HTMLElement>();
+    // ノードに今付けている飾り。付け直すときに前のものを外すために控える
+    private decorations = new Map<number, HookDecoration>();
     // 文書の差し替えをまたいで引き継ぐ、ノードの中のチェックボックスの状態 (要素を作ったときに戻す)
     private carriedChecks = new Map<number, boolean[]>();
     private lastSizes = new Map<number, string>();
@@ -219,8 +240,8 @@ export class MarkdagView {
             (event) => {
                 if (event.key !== 'Escape') return;
                 this.hidePopover();
-                this.selectGroup(null);
-                this.selectEdge(null);
+                this.applySelectGroup(null, true);
+                this.applySelectEdge(null, true);
             },
             { signal },
         );
@@ -228,8 +249,8 @@ export class MarkdagView {
         this.viewport.addEventListener('click', (event) => {
             const target = event.target instanceof Element ? event.target : null;
             if (target?.closest('.mdag-edge-hit, .mdag-box, .mdag-fold, [data-group]')) return;
-            if (this.selectedGroup !== null) this.selectGroup(null);
-            if (this.selectedEdge !== null) this.selectEdge(null);
+            this.applySelectGroup(null, true);
+            this.applySelectEdge(null, true);
         });
         // グループの枠とラベルのクリック。枠は毎回描き直すので、層でまとめて受ける。
         // 図をドラッグして動かしたときに、離した場所のグループを選んでしまわないようにする
@@ -241,7 +262,7 @@ export class MarkdagView {
             framePress = null;
             if (!target || moved) return;
             const id = target.dataset.group ?? null;
-            this.selectGroup(this.selectedGroup === id ? null : id);
+            this.applySelectGroup(this.selectedGroup === id ? null : id, true);
         });
         document.addEventListener(
             'pointerdown',
@@ -296,6 +317,7 @@ export class MarkdagView {
         this.nodeLayer.innerHTML = '';
         this.elements.clear();
         this.boxes.clear();
+        this.decorations.clear();
         this.lastSizes.clear();
         this.displayed.clear();
 
@@ -321,7 +343,7 @@ export class MarkdagView {
         const kept = shown && sameShape ? this.nodes[shown.id - 1] : undefined;
         const hasBody = kept !== undefined && (kept.details !== null || this.tagsInPopover(kept));
         if (kept && hasBody && this.detailsMode() !== 'always' && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
-            this.showPopover(kept, shown?.pinned ?? false);
+            this.showPopover(kept, shown?.pinned ?? false, false);
         }
     }
 
@@ -689,6 +711,7 @@ export class MarkdagView {
         badge.textContent = `#${node.id}`;
         element.append(badge);
 
+        this.applyDecoration(node, element, box);
         this.restoreChecks(node.id, box);
         outer.append(box);
         element.append(outer);
@@ -699,6 +722,39 @@ export class MarkdagView {
         return element;
     }
 
+    // 飾りを付け直す。フックの外の状態が変わって、返す飾りが変わったときに呼ぶ
+    refreshDecorations(): void {
+        for (const [id, element] of this.elements) {
+            const node = this.nodes[id - 1];
+            const box = this.boxes.get(id);
+            if (node && box) this.applyDecoration(node, element, box);
+        }
+        this.scheduleUpdate();
+    }
+
+    // decorateNode が返したものをノードに反映する。前に付けたものは先に外す
+    private applyDecoration(node: OutlineNode, element: HTMLElement, box: HTMLElement): void {
+        const previous = this.decorations.get(node.id);
+        if (previous?.className) element.classList.remove(...previous.className.split(/\s+/).filter(Boolean));
+        box.querySelector(':scope > .mdag-badge')?.remove();
+        const decoration = this.hooks.decorateNode?.(node) ?? null;
+        this.decorations.delete(node.id);
+        if (decoration === null) {
+            box.removeAttribute('title');
+            return;
+        }
+        this.decorations.set(node.id, decoration);
+        if (decoration.className) element.classList.add(...decoration.className.split(/\s+/).filter(Boolean));
+        if (decoration.title) box.title = decoration.title;
+        else box.removeAttribute('title');
+        if (decoration.badge) {
+            const badge = document.createElement('span');
+            badge.className = 'mdag-badge';
+            badge.textContent = decoration.badge;
+            box.append(badge);
+        }
+    }
+
     // ノードの文字 (内容か、開いて表示した詳細) のクリックを、チェックの切り替えに読み替える。
     // タスクのノードでは、タスクを切り替える。ただし、自分の操作を持つ入れ子の部分の中のクリックは、その部分のものとして扱い、
     // タスクは切り替えない。タスクでないノードでは、HTML で直接書いたチェックボックスを切り替える
@@ -706,6 +762,7 @@ export class MarkdagView {
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest(INTERACTIVE) || (window.getSelection()?.toString() ?? '') !== '') return;
         const zone = node.task ? findNestedZone(area, target) : area;
+        this.hooks.onNodeClick?.(node, zone === null);
         if (zone === null) this.hooks.onToggleTask?.(node);
         else findLoneCheckbox(zone, target)?.click();
     }
@@ -736,7 +793,8 @@ export class MarkdagView {
         if (this.detailsMode() === 'always') this.hidePopover();
     }
 
-    private showPopover(node: OutlineNode, pinned: boolean): void {
+    private showPopover(node: OutlineNode, pinned: boolean, byUser = true): void {
+        if (this.hooks.beforeDetailsShow?.(node, pinned, byUser) === false) return;
         window.clearTimeout(this.popoverTimer);
         if (this.popoverNode) this.elements.get(this.popoverNode.id)?.removeAttribute('data-pinned');
         this.popoverNode = node;
@@ -755,6 +813,7 @@ export class MarkdagView {
         this.popover.replaceChildren(body);
         this.popover.hidden = false;
         this.positionPopover();
+        this.hooks.onDetailsShow?.(node, pinned, byUser);
     }
 
     private scheduleHidePopover(): void {
@@ -765,10 +824,13 @@ export class MarkdagView {
 
     private hidePopover(): void {
         window.clearTimeout(this.popoverTimer);
-        if (this.popoverNode) this.elements.get(this.popoverNode.id)?.removeAttribute('data-pinned');
+        const shown = this.popoverNode;
+        const pinned = this.popoverPinned;
+        if (shown) this.elements.get(shown.id)?.removeAttribute('data-pinned');
         this.popoverNode = null;
         this.popoverPinned = false;
         this.popover.hidden = true;
+        if (shown) this.hooks.onDetailsHide?.(shown, pinned);
     }
 
     // タイトルのすぐ下に、タイトルの左端にそろえて置く (開いて表示する場合の詳細と同じ位置)。
@@ -970,7 +1032,7 @@ export class MarkdagView {
             const moved = down !== null && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 4;
             down = null;
             if (moved) return;
-            this.selectEdge(this.selectedEdge === key ? null : key);
+            this.applySelectEdge(this.selectedEdge === key ? null : key, true);
         });
         return hit;
     }
@@ -978,10 +1040,20 @@ export class MarkdagView {
     // 線を選ぶと、その線と、前後につながる線だけを残す。
     // 前 = その線の出発点に入ってくる線、後 = その線の行き先から出ていく線
     selectEdge(key: string | null): void {
+        this.applySelectEdge(key, false);
+    }
+
+    private applySelectEdge(key: string | null, byUser: boolean): void {
+        if (key === this.selectedEdge) return;
+        const edge = this.find(key) ?? null;
+        if (this.hooks.beforeSelectEdge?.(edge, byUser) === false) return;
         this.selectedEdge = key;
-        // 線とグループの強調は同時にかけない。あとから選んだほうだけを残す
+        // 線とグループの強調は同時にかけない。あとから選んだほうだけを残し、外れたほうも解除として知らせる
+        const clearedGroup = key !== null && this.selectedGroup !== null;
         if (key !== null) this.selectedGroup = null;
         this.applyHighlight();
+        this.hooks.onSelectEdge?.(edge, byUser);
+        if (clearedGroup) this.hooks.onSelectGroup?.(null, byUser);
     }
 
     private find(key: string | null): PlacedEdge | undefined {
@@ -1008,9 +1080,18 @@ export class MarkdagView {
 
     // 選んだグループの枠の中のノードと、そこに出入りする線、その線の反対側のノードを残す
     selectGroup(id: string | null): void {
+        this.applySelectGroup(id, false);
+    }
+
+    private applySelectGroup(id: string | null, byUser: boolean): void {
+        if (id === this.selectedGroup) return;
+        if (this.hooks.beforeSelectGroup?.(id, byUser) === false) return;
         this.selectedGroup = id;
+        const clearedEdge = id !== null && this.selectedEdge !== null;
         if (id !== null) this.selectedEdge = null;
         this.applyHighlight();
+        this.hooks.onSelectGroup?.(id, byUser);
+        if (clearedEdge) this.hooks.onSelectEdge?.(null, byUser);
     }
 
     private applyHighlight(): void {
@@ -1134,8 +1215,11 @@ export class MarkdagView {
             if (this.folded.has(node.id)) circle.style.fill = this.colorOf.get(node.id) ?? '';
             for (const type of ['mousedown', 'touchstart', 'dblclick']) circle.addEventListener(type, stop);
             circle.addEventListener('click', () => {
-                if (this.folded.has(node.id)) this.folded.delete(node.id);
-                else this.folded.add(node.id);
+                const closing = !this.folded.has(node.id);
+                const outline = this.nodes[node.id - 1];
+                if (outline && this.hooks.beforeFold?.(outline, closing) === false) return;
+                if (closing) this.folded.add(node.id);
+                else this.folded.delete(node.id);
                 this.commitFold(true, this.options.animate);
             });
             this.controlLayer.append(circle);

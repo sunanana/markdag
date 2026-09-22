@@ -86,8 +86,13 @@ Options:
 | `transformer` | `TransformerLike` | markmap-lib's standard `Transformer` | The Markdown-to-tree transformer. Required in `markdag/core` |
 | `types` | `Record<string, unknown>` | none | The files referenced by `markdag.types.$ref`, keyed by the path exactly as written in the document, each parsed from YAML (`null` when it could not be read). markdag does not read files; see [Tag types from other files](#tag-types-from-other-files) |
 | `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]` or `## [ ]`) and the source text changes |
-| `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [Hooks](#hooks)) |
-| `onTransform` | `(transform: { x, y, k }, byUser: boolean) => void` | none | Called when pan or zoom changes (see [Hooks](#hooks)) |
+| `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [View callbacks](#view-callbacks)) |
+| `onTransform` | `(transform: { x, y, k }, byUser: boolean) => void` | none | Called when pan or zoom changes (see [View callbacks](#view-callbacks)) |
+| `onLayout` | `(snapshot: LayoutSnapshot) => void` | none | Called when a layout pass finished (see [View callbacks](#view-callbacks)) |
+| `hookRefs` | `Record<string, unknown>` | none | The modules referenced by `markdag.hooks.$ref`, keyed by the path exactly as written in the document. markdag does not import anything; see [Hooks](#hooks) |
+| `hooks` | `HookModule \| HookModule[]` | none | Hooks the application passes itself. They run after the ones the document declared |
+| `onDiagnostic` | `(diagnostic: Diagnostic) => void` | none | A diagnostic raised while a hook ran (`hook-rejected`, `hook-failed`). Diagnostics of the document itself are in `diagnostics` |
+| `onHookError` | `(error: unknown, info: { event, ref }) => void` | none | A hook threw. The hook is skipped and the rest keep running |
 
 Colors are CSS custom properties on `.markdag` (`--markdag-bg`, `--markdag-accent`, `--markdag-border`, `--markdag-edge-tree`, and markmap's `--markmap-*`). Override them on the container or an ancestor.
 
@@ -175,18 +180,134 @@ Methods of `MarkdagView` (also reachable as `diagram.view`):
 | `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`) |
 | `destroy()` | Remove the diagram and its listeners |
 
-### Hooks
+### View callbacks
 
-Hooks are passed to the `MarkdagView` constructor. `render` forwards `onFoldChange` and `onTransform` from its options.
+These are passed to the `MarkdagView` constructor. `render` forwards `onFoldChange`, `onTransform` and `onLayout` from its options, and calls the [hooks](#hooks) the document declared with the same events.
 
 | Hook | When |
 | --- | --- |
 | `onToggleTask(node)` | The reader clicked a task item. The view does not change the state: rewrite the source and call `setDocument` |
+| `onNodeClick(node, asTaskToggle)` | The reader clicked the node text, outside a link or a nested control |
+| `beforeFold(node, folded)` | The reader clicked a fold circle. Return `false` to keep the branch as it is. Not called for `setFolded`, `expandAll`, `resetFold`, `revealNode` and `focusNode` |
+| `beforeSelectEdge(edge, byUser)` / `onSelectEdge` | A line is about to be highlighted, or the highlight cleared (`edge` is `null`). `false` keeps the current selection |
+| `beforeSelectGroup(id, byUser)` / `onSelectGroup` | The same for a group frame (`id` is `null` when clearing). A line and a group are never highlighted together: selecting one clears the other, and the cleared one is reported with `null` too |
+| `beforeDetailsShow(node, pinned, byUser)` / `onDetailsShow` | The details popover is about to open. `false` keeps it closed |
+| `onDetailsHide(node, pinned)` | The popover closed, including when a redraw closed it |
 | `onFoldChange(folded, byUser)` | The fold state changed. `byUser` is `true` for a click on a fold circle, `false` for `setFolded`, `revealNode`, `focusNode`, `expandAll` and `resetFold`. Not called when `setDocument` resets the fold state, and not called when `setFolded` is given the current state |
 | `onTransform(transform, byUser)` | Pan or zoom changed. `byUser` is `true` for drag, wheel and pinch, `false` for `setTransform`, `panBy`, `zoomBy`, `fit` and `focusNode` |
 | `onLayout(snapshot)` | A layout pass finished. Also called from `setDocument` and after images load, so it does not tell you that the reader folded a branch |
 
 Several diagrams can live on one page. SVG marker ids are prefixed per instance, so each diagram's arrowheads keep their own colors.
+
+## Hooks
+
+A document can declare callbacks for a few operations, and the application supplies the code. markdag never reads or imports a file: `markdag.hooks.$ref` only names the module, and the application resolves the path, imports it and passes the result as `hookRefs`, keyed by the path exactly as written.
+
+```yaml
+---
+markdag:
+    hooks:
+        $ref: ./task-guard.hooks.js
+        # Free-form settings, read as ctx.options inside the hooks. markdag does not check them
+        options:
+            transitive: true
+---
+```
+
+```ts
+const module = await import(new URL('./task-guard.hooks.js', documentUrl).href);
+render(container, markdown, { hookRefs: { './task-guard.hooks.js': { ...module } } });
+```
+
+Some of what hooks are used for needs no code at all: `markdag.rules` (see the [writing guide](writing-guide.md)) is a small set of built-in rules that run through the same machinery, before the hooks the document declares. Prefer them when they fit, because a document carrying rules works everywhere, including where the application does not load hooks.
+
+A hook is ordinary page code: it can touch the DOM and the network, and it is not sandboxed. Load hooks only for documents you trust. A `$ref` that is missing from `hookRefs` is reported as `hooks-unresolved` and nothing runs, so a document cannot make code run on its own. The application can also pass its own hooks with the `hooks` option, with no declaration in the document; they run after the declared ones, so the application has the last word.
+
+A hook module exports functions under reserved names. A function exported under any other name is reported as `hook-unknown-export` with the closest reserved name as a hint, and `default` exports are not picked up.
+
+```js
+/** @type {import('markdag').HookModule['beforeTaskToggle']} */
+export function beforeTaskToggle(ctx) {
+    if (!ctx.next) return;
+    const blockers = ctx.doc.upstream(ctx.node.id).filter((node) => node.task !== null && !node.task.checked);
+    if (blockers.length === 0) return;
+    ctx.reject(`finish first: ${blockers.map((node) => node.text).join(', ')}`);
+    return false;
+}
+```
+
+`docs/examples/hooks.md` and `docs/examples/task-guard.hooks.js` are a working pair.
+
+The types are exported, so a module can be written in TypeScript: `HookContext<'beforeTaskToggle'>` is the context of one hook, and `HookModule`, `HookNode`, `HookDocument`, `HookApi`, `HookDecoration`, `HookEdge` and `HookGroup` cover the rest.
+
+```ts
+import type { HookContext } from 'markdag';
+
+export function beforeTaskToggle(ctx: HookContext<'beforeTaskToggle'>): boolean | void {
+    if (ctx.next && ctx.node.tags.every((tag) => tag.key !== 'estimate')) {
+        ctx.reject('add #estimate first');
+        return false;
+    }
+}
+```
+
+markdag itself never transpiles anything, so a `.ts` module runs only where the code that loads it turns TypeScript into JavaScript: an application bundler, or `npm run check -- --hooks`, which uses Vite's transformer (no type checking; type-only imports are dropped). An application that loads hook files at run time has to bring its own transpiler, or accept `.js` only. Keep a hook module self-contained: `check` loads the file on its own, so a value import of another file cannot be resolved there.
+
+### Reserved names
+
+`before*` runs before the operation and cancels it by returning `false`. Anything else it returns (including `undefined`) lets the operation happen. `on*` runs after; its return value is ignored.
+
+| Hook | When | Extra fields on the context |
+| --- | --- | --- |
+| `beforeUpdate` | Before `diagram.update(markdown)` replaces the source | `next`, `previous` |
+| `beforeTaskToggle` | Before a click on a task rewrites the source | `node`, `next` (the state after the toggle), `line` |
+| `beforeFold` | Before a click on a fold circle opens or closes a branch. Fold changes made by a method (`setFolded`, `expandAll`, `revealNode`, `focusNode`) do not go through it | `node`, `folded` (the state after the click) |
+| `beforeSelectEdge` | Before a line is highlighted, or the highlight is cleared | `edge` (`null` when clearing) |
+| `beforeSelectGroup` | Before a group is highlighted, or the highlight is cleared | `group` (`null` when clearing) |
+| `beforeDetailsShow` | Before the details popover opens | `node`, `pinned` |
+| `onDocument` | After a document was parsed, built and set on the view. Also after every redraw | |
+| `onNodeClick` | A click on the node text that was not on a link or on a nested control | `node`, `asTaskToggle` |
+| `onTaskToggle` | After the source was rewritten and the diagram redrawn | `node`, `next`, `line` |
+| `onFoldChange` | After the fold state changed | `folded` (the ids that are now folded) |
+| `onSelectEdge` / `onSelectGroup` | After the highlight changed | `edge` / `group` |
+| `onDetailsShow` / `onDetailsHide` | After the details popover opened or closed | `node`, `pinned` |
+| `onTransform` | After pan or zoom changed | `transform` |
+| `onLayout` | After a layout pass finished | `layout` (`totalNodes`, `visibleNodes`, `layoutMs`, `excludedEdges`) |
+| `onDestroy` | Before `diagram.destroy()` removes the diagram | |
+| `transformSource` | Before the source is parsed. Return a string to parse and draw that instead | `source` (the text so far) |
+| `decorateNode` | While a node's element is built. Return `{ className, title, badge }` to add to it | `node` |
+
+`edge` is `{ kind, from, to, proxied }`: `kind` is `tree` for a tree line and the relation kind otherwise, `from` and `to` are the nodes the line is drawn between, and `proxied` says that a folded branch replaced one of them with the node that stands in for it. `group` is `{ id, label, color, members }`, where `members` are the ids of the nodes in the group, inherited ones included.
+
+`transformSource` and `decorateNode` return a value instead of a verdict. Modules run in order: each `transformSource` receives what the previous one returned, and the decorations are merged (`className` values are appended to each other, `title` and `badge` come from the last hook that returned one). A hook that returns nothing changes nothing.
+
+The text a `transformSource` hook returns is what gets parsed and drawn; the source the application owns is untouched, and `update` and `onChange` keep working on it. Node lines then refer to the rewritten text, so a click on a task is refused (with a `hook-rejected` diagnostic) when the rewrite moved that line. Adding at the end keeps every existing task clickable.
+
+`decorateNode` runs when a node's element is built, which happens on every document change. Call `ctx.api.refreshDecorations()` when something outside the document changed and the decorations need to be computed again. The `badge` text is rendered as a `span.mdag-badge` inside the node, next to the tags, and `className` lands on the `.mdag-node` element so a stylesheet can pick it up.
+
+Hooks are synchronous. A `before*` hook has to answer while the operation waits, so returning a promise does not delay anything; to ask for a confirmation, cancel the operation and call `ctx.api.update(...)` once the answer is in.
+
+### The context
+
+Every hook takes one object, so new fields can be added without breaking existing hooks.
+
+| Field | Meaning |
+| --- | --- |
+| `event` | The name of the hook, for a function used for several events |
+| `byUser` | `true` when a reader's action started it, `false` for a method call |
+| `byHook` | `true` when another hook started it through `ctx.api` |
+| `options` | `markdag.hooks.options` from the document |
+| `reject(message)` | Records why a `before*` hook is cancelling. It ends up in the `hook-rejected` diagnostic |
+| `doc` | The document (below) |
+| `api` | What a hook can do to the diagram (below) |
+
+`ctx.doc` is a read-only view of the document: `source`, `frontmatter`, `diagnostics`, `node(id)`, `nodes()`, and `upstream(id, options?)` / `downstream(id, options?)`, which follow the lines added by `markdag.relations`. Pass `{ tree: true }` to include the tree parent and children as well, and `{ transitive: true }` to follow the lines as far as they go.
+
+A node is a copy, not the internal one: `id`, `refId`, `text` (the reference text), `depth`, `parent`, `children`, `groups` (inherited ones included), `tags`, `task` (`{ checked, line }` or `null`), `milestone`, `lines`, and `folded` / `visible`, which are read at the moment you look at them. The node HTML is not exposed.
+
+`ctx.api` has `focusNode(id, scale?)`, `revealNode(id)`, `setFolded(ids)`, `getFolded()`, `fit()`, `getTransform()`, `setTransform(transform)` and `update(markdown)`. `setFolded` and the rest do not go through `beforeFold`, so a hook that blocks folding can still fold the diagram itself. A change started this way does not run the `before*` hooks again, and the `on*` hooks it triggers get `byHook: true`. Nesting deeper than four levels is dropped with a `hook-failed` diagnostic.
+
+Modules run in the order they are declared, the application's own hooks last. A `before*` hook that returns `false` ends the round: the hooks after it are not called. A hook that throws is skipped, with a `hook-failed` diagnostic and a call to `onHookError`; the other hooks and the diagram carry on. These diagnostics arrive through `onDiagnostic` because they happen while the reader works, not when the document is rendered; the ones about the declaration itself (`hooks-unresolved`, `hook-unknown-export`, `hook-invalid-export`) are part of `diagnostics`.
 
 ## Diagnostics without rendering
 
