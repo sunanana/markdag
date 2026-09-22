@@ -20,7 +20,7 @@ The exit code is 1 when there is at least one `error`, 0 otherwise, and 2 when t
 
 The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates, and the values of the tags in the body when `markdag.tags.keys` is defined. Files referenced by `markdag.types.$ref` are read relative to the document. It also draws the diagram, so a document that makes rendering throw fails here too.
 
-Modules referenced by `markdag.hooks.$ref` are **not** loaded unless you pass `--hooks`, since checking a document would otherwise run the code it points at. Without the flag, each of them is reported as `hooks-unresolved`.
+Modules referenced by `markdag.hooks.$ref` are **not** loaded unless you pass `--hooks`, since checking a document would otherwise run the code it points at. Without the flag, each of them is reported as `hooks-unresolved` with severity `info` (the check does not load hooks); with the flag, a module that cannot be loaded is a `warning`.
 
 ```sh
 npm run check -- --hooks path/to/document.md
@@ -74,7 +74,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `tag-multiple` | `lint` | Tags | Several values on a key without `multiple: true` |
 | `tag-unique` | `lint` | Tags | The same value on several nodes for a key with `unique: true`. Reported on each of them |
 | `tag-unknown-key` | `lint` | Tags | A key that is not in `markdag.tags.keys`, when `unknownKey: deny` |
-| `hooks-unresolved` | warning | Hooks | A module in `markdag.hooks.$ref` was not passed to `render` (`npm run check` loads them only with `--hooks`). Its hooks do not run |
+| `hooks-unresolved` | info / warning | Hooks | A module in `markdag.hooks.$ref` was not passed to `render`, so its hooks do not run. `info` when the application does not load hooks at all (no `hookRefs`; `npm run check` without `--hooks`), `warning` when it does and this module was missing or unreadable |
 | `hook-unknown-export` | warning | Hooks | A hook module exports a function under a name that is not reserved, or a `default` export. It is not called |
 | `hook-invalid-export` | warning | Hooks | A reserved name is exported as something other than a function |
 | `hook-failed` | warning | Hooks | A hook threw, or hooks nested deeper than four levels. Raised while the reader works, so it arrives through `onDiagnostic` |

@@ -746,6 +746,55 @@ test.describe('フック', () => {
         expect(await changesOf(page)).toEqual([['---', 'markdag:', '---', '', '# Root', '', '## [x] Design', ''].join('\n')]);
     });
 
+    test('render を使わない経路でも、createHookBridge で規則とフックが効き、アプリの受け口も呼ばれる', async ({ page }) => {
+        await open(page);
+        await page.evaluate((source) => {
+            const target = window as unknown as HookWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.changes = [];
+            target.notes = [];
+            const { core } = target.harness;
+            const transformer = target.harness.createTransformer();
+            // 本文はアプリ (このテスト) が持つ
+            let text = source;
+            const draw = (fit: boolean): void => {
+                const parsed = core.parseDocument(text, { transformer });
+                const model = core.buildModel(parsed.nodes, parsed.frontmatter, text);
+                bridge.setDocument(parsed, model, fit);
+            };
+            const bridge = core.createHookBridge({
+                source: () => text,
+                onDiagnostic: (diagnostic) => target.notes.push(`${diagnostic.code} ${diagnostic.message}`),
+                hooks: { onTaskToggle: (context) => void target.notes.push(`toggle ${context.node.text} ${String(context.next)}`) },
+                viewHooks: {
+                    onToggleTask: (node) => {
+                        if (!node.task) return;
+                        text = core.toggleTask(text, node.task.line);
+                        target.changes.push(text);
+                        draw(false);
+                    },
+                },
+            });
+            const view = new core.MarkdagView(container, bridge.viewHooks);
+            view.setOptions({ animate: false });
+            bridge.attach(view);
+            draw(true);
+        }, RULED);
+        const design = page.locator('#a .mdag-node[data-id="2"]');
+        const build = page.locator('#a .mdag-node[data-id="3"]');
+        // 規則が止めるときは、アプリの onToggleTask は呼ばれない
+        await build.locator('.mdag-content').click();
+        await expect(build).toHaveAttribute('data-task', 'todo');
+        expect(await notesOf(page)).toContain('hook-rejected markdag.rules の beforeTaskToggle が操作を取りやめました: 先に終えるもの: Design');
+        expect(await changesOf(page)).toEqual([]);
+        // 通るときは、アプリが書き換えて描き直したあとに onTaskToggle が来る
+        await design.locator('.mdag-content').click();
+        await expect(design).toHaveAttribute('data-task', 'done');
+        expect(await changesOf(page)).toHaveLength(1);
+        expect(await notesOf(page)).toContain('toggle Design true');
+    });
+
     test('宣言だけでモジュールが渡されていなければ、フックは動かず警告になる', async ({ page }) => {
         await renderGuarded(page, GUARDED, false);
         const codes = await page.evaluate(() => (window as unknown as HookWindow).diagram.diagnostics.map((item) => item.code));

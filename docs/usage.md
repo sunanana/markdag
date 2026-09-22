@@ -147,6 +147,56 @@ draw(true);
 - `GraphModel.tagKeys` is the resolved definition of each key in `markdag.tags.keys` (`{ key, alternatives, multiple, unique, description }`; each alternative is a built-in `primitive` plus the constraints stacked from the named types). The values of the tags are checked against it in `buildModel`; the results are in `diagnostics`, positioned at the tag in the body.
 - `suggestTagKeys(model.tagKeys, prefix)` and `suggestTagValues(model.tagKeys, key, prefix)` give completion candidates for an editor: the defined keys with their `description`, and for a key the `values` of an `enum` or `true` / `false` for a `boolean`. `formatTag(tag)` writes a tag back in the body notation. The model layer (`buildModel`, `checkFrontmatter`, these helpers) does not touch the DOM and runs in Node.
 
+### Hooks and rules without `render`
+
+`render` wires the [hooks](#hooks) and `markdag.rules` into the view through `createHookBridge`. An application that connects the three steps itself uses the same bridge: it turns the view's callbacks into hook calls, keeps the read-only document the hooks see, and reports what a hook cancelled through `onDiagnostic`.
+
+```ts
+import { buildModel, createHookBridge, MarkdagView, parseDocument, toggleTask } from 'markdag';
+
+let source = markdownText;
+const bridge = createHookBridge({
+    source: () => source,
+    onDiagnostic: (diagnostic) => showTransient(diagnostic), // hook-rejected, hook-failed
+    update: (next) => {
+        // ctx.api.update: the application owns the text, so it replaces it and redraws
+        source = next;
+        draw(false);
+    },
+    viewHooks: {
+        // The application's own callbacks. onToggleTask is called only after beforeTaskToggle allowed the toggle
+        onToggleTask: (node) => {
+            if (!node.task) return;
+            source = toggleTask(source, node.task.line);
+            draw(false);
+        },
+        onFoldChange: (folded, byUser) => saveFoldState(folded),
+    },
+});
+const view = new MarkdagView(container, bridge.viewHooks);
+bridge.attach(view);
+
+function draw(fit: boolean) {
+    let parsed = parseDocument(source);
+    let model = buildModel(parsed.nodes, parsed.frontmatter, source, { hookRefs });
+    // Only needed when transformSource hooks are in use: parse the rewritten text instead
+    const rendered = bridge.transform(model, source);
+    if (rendered !== source) {
+        parsed = parseDocument(rendered);
+        model = buildModel(parsed.nodes, parsed.frontmatter, rendered, { hookRefs });
+    }
+    bridge.setDocument(parsed, model, fit); // calls view.setDocument, then onDocument
+    return model.diagnostics;
+}
+draw(true);
+```
+
+- `bridge.viewHooks` is a complete `ViewHooks`: pass it to the constructor as it is. The `viewHooks` option holds the application's own callbacks; the bridge calls them first and then the hooks, and a `before*` callback of the application that returns `false` cancels before any hook runs.
+- `bridge.setDocument(parsed, model, fit)` replaces `view.setDocument`. It swaps in the hooks the document declares (and the `markdag.rules`), rebuilds the document the hooks see, calls `view.setDocument` and then `onDocument`.
+- `bridge.beforeUpdate(next)` runs the `beforeUpdate` hooks; call it before replacing the source from outside (an editor). `bridge.destroy()` reports `onDestroy` and destroys the view.
+- `hookRefs` is optional. Without it, `markdag.rules` still work and a declared `markdag.hooks.$ref` is reported as `hooks-unresolved` with severity `info`: the application simply does not load hooks. With `hookRefs`, a path that is missing or `null` is a `warning`.
+- `bridge.transform(model, source)` is only needed for `transformSource`; skip it when the application does not support that hook.
+
 ### Tag types from other files
 
 `markdag.types.$ref` names YAML files whose content is merged into `markdag.types`. markdag never reads a file: the application resolves each path (relative to the document), reads and parses it, and passes the result as the `types` option, keyed by the path exactly as written:
@@ -221,7 +271,7 @@ render(container, markdown, { hookRefs: { './task-guard.hooks.js': { ...module }
 
 Some of what hooks are used for needs no code at all: `markdag.rules` (see the [writing guide](writing-guide.md)) is a small set of built-in rules that run through the same machinery, before the hooks the document declares. Prefer them when they fit, because a document carrying rules works everywhere, including where the application does not load hooks.
 
-A hook is ordinary page code: it can touch the DOM and the network, and it is not sandboxed. Load hooks only for documents you trust. A `$ref` that is missing from `hookRefs` is reported as `hooks-unresolved` and nothing runs, so a document cannot make code run on its own. The application can also pass its own hooks with the `hooks` option, with no declaration in the document; they run after the declared ones, so the application has the last word.
+A hook is ordinary page code: it can touch the DOM and the network, and it is not sandboxed. Load hooks only for documents you trust. A `$ref` that is missing from `hookRefs` is reported as `hooks-unresolved` and nothing runs, so a document cannot make code run on its own. The severity says whose problem it is: `info` when the application passed no `hookRefs` at all (it does not load hooks), `warning` when it did and this module was missing or could not be read. The application can also pass its own hooks with the `hooks` option, with no declaration in the document; they run after the declared ones, so the application has the last word.
 
 A hook module exports functions under reserved names. A function exported under any other name is reported as `hook-unknown-export` with the closest reserved name as a hint, and `default` exports are not picked up.
 

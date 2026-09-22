@@ -1,6 +1,6 @@
 {
     "name": "markdag",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "description": "Turn Markdown into a DAG diagram",
     "license": "MIT",
     "repository": {

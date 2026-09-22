@@ -1,9 +1,9 @@
 // Markdown の文字列を受け取り、渡された要素の中に図を描く。
 // 解析、モデルの組み立て、描画をつなぎ、スタイルシートの差し込みと、数式やコードの色付けに要る外部のスタイルシートの読み込みを受け持つ。
 // 原文はここが持ち、タスクの項目のクリックでは原文を書き換えて描き直す。変換器は呼び出し側から受け取る。
-import type { PlacedEdge } from './layout/layout';
-import { createHookDocument, HookRunner, type HookApi, type HookDocument, type HookEdge, type HookEvent, type HookGroup, type HookModule, type ResolvedHook } from './model/hooks';
-import { buildModel, type Diagnostic, type GraphModel, type ModelOptions } from './model/model';
+import { createHookBridge } from './bridge';
+import type { HookEvent, HookModule } from './model/hooks';
+import { buildModel, type Diagnostic, type ModelOptions } from './model/model';
 import { parseDocument, toggleTask, type ParseOptions } from './parse/document';
 import styleSheet from './style.css?inline';
 import { MarkdagView, type ViewHooks, type ViewOptions } from './view/view';
@@ -31,9 +31,6 @@ export interface MarkdagDiagram {
     resetFold(): void;
     destroy(): void;
 }
-
-// 原文の 1 行 (0 始まり)。範囲の外は null
-const lineAt = (text: string, index: number): string | null => text.split(/\r?\n/)[index] ?? null;
 
 const STYLE_MARK = 'data-markdag-style';
 const ASSET_MARK = 'data-markdag-asset';
@@ -76,56 +73,41 @@ export function render(container: HTMLElement, markdown: string, options: Render
 
     // 文書に書かれたままの原文。タスクの切り替えと update が書き換えるのはこちら
     let source = markdown;
-    // transformSource が差し替えたあとの、実際に解析して描いた文。フックがなければ原文と同じ
-    let rendered = markdown;
     let diagnostics: Diagnostic[] = [];
-    let current: GraphModel | null = null;
-    // 最後に描いた文書の窓口。フックに渡すのはこれで、図の内部の構造は渡さない。
-    // 最初の transformSource はまだ何も描いていない時点で呼ぶので、空の文書を入れておく
-    let hookDoc: HookDocument = createHookDocument({ nodes: [], model: buildModel([], {}), frontmatter: {}, source: () => source, folded: () => [], diagnostics: () => diagnostics });
-    // 呼び出し側が直接渡したフックは、文書が宣言したフックのあとに呼ぶ (アプリ側が最後に判断できるようにする)
-    const ownHooks: ResolvedHook[] = (Array.isArray(hooks) ? hooks : hooks ? [hooks] : []).map((module, index) => ({ ref: `render の hooks[${index}]`, module }));
-    const api: HookApi = {
-        focusNode: (id, scale) => view.focusNode(id, scale ?? view.getTransform().k),
-        refreshDecorations: () => view.refreshDecorations(),
-        revealNode: (id) => view.revealNode(id),
-        setFolded: (ids) => view.setFolded(ids),
-        getFolded: () => view.getFolded(),
-        fit: () => view.fit(),
-        getTransform: () => view.getTransform(),
-        setTransform: (transform) => view.setTransform(transform),
+    // フックと規則の配線は橋渡しに任せ、ここは本文の持ち主として書き換えと描き直しを受け持つ
+    const bridge = createHookBridge({
+        source: () => source,
+        diagnostics: () => diagnostics,
+        hooks,
+        onDiagnostic,
+        onHookError,
         update: (next) => {
             source = next;
             draw(false);
             onChange?.(source);
         },
-    };
-    const runner = new HookRunner({ doc: () => hookDoc, api, onDiagnostic, onError: onHookError });
-    // 図の内部の線とグループを、フックに渡す形に直す。端点が今の文書にないものは渡さない
-    const hookEdge = (placed: PlacedEdge | null): HookEdge | null => {
-        if (placed === null) return null;
-        const from = hookDoc.node(placed.edge.source);
-        const to = hookDoc.node(placed.edge.target);
-        return from && to ? { kind: placed.edge.kind, from, to, proxied: placed.edge.proxied } : null;
-    };
-    const hookGroup = (id: string | null): HookGroup | null => {
-        if (id === null) return null;
-        const def = current?.groups.find((group) => group.id === id);
-        const members = [...(current?.groupsOf ?? [])].flatMap(([node, ids]) => (ids.includes(id) ? [node] : []));
-        return { id, label: def?.label ?? id, color: def?.color ?? null, members };
-    };
+        viewHooks: {
+            onToggleTask: (node) => {
+                if (!node.task) return;
+                source = toggleTask(source, node.task.line);
+                draw(false);
+                onChange?.(source);
+            },
+            onFoldChange,
+            onTransform,
+            onLayout,
+        },
+    });
 
     const draw = (fit: boolean): Diagnostic[] => {
         // 使うフックは文書の frontmatter が決めるので、まず原文を読んでフックをそろえる
         let parsed = parseDocument(source, { transformer });
         let model = buildModel(parsed.nodes, parsed.frontmatter, source, { types, hookRefs });
-        runner.setHooks([...model.hooks.hooks, ...ownHooks], model.hooks.options);
         // transformSource が原文を差し替えたときだけ、差し替えたほうで読み直す
-        rendered = runner.transform(source);
+        const rendered = bridge.transform(model, source);
         if (rendered !== source) {
             parsed = parseDocument(rendered, { transformer });
             model = buildModel(parsed.nodes, parsed.frontmatter, rendered, { types, hookRefs });
-            runner.setHooks([...model.hooks.hooks, ...ownHooks], model.hooks.options);
         }
         // frontmatter に markdag のキーがない文書は markmap と同じ表示になり、タグや $id は文字のまま残る。
         // 書き手が気づけるよう、診断として知らせる
@@ -142,85 +124,12 @@ export function render(container: HTMLElement, markdown: string, options: Render
               ];
         loadStyleUrls(parsed.styleUrls);
         diagnostics = [...model.diagnostics, ...notes];
-        current = model;
-        hookDoc = createHookDocument({
-            nodes: parsed.nodes,
-            model,
-            frontmatter: parsed.frontmatter,
-            source: () => source,
-            folded: () => view.getFolded(),
-            diagnostics: () => diagnostics,
-        });
-        view.setDocument(parsed, model, fit);
-        runner.emit('onDocument', {});
+        bridge.setDocument(parsed, model, fit);
         return diagnostics;
     };
 
-    const view = new MarkdagView(container, {
-        onToggleTask: (node) => {
-            if (!node.task) return;
-            const { line, checked } = node.task;
-            // 行は差し替えたほうの文で数えている。原文の同じ行が違う内容なら、書き換える先を決められない
-            if (rendered !== source && lineAt(rendered, line) !== lineAt(source, line)) {
-                onDiagnostic?.({
-                    severity: 'info',
-                    code: 'hook-rejected',
-                    message: 'transformSource が原文の行をずらしているので、このタスクは切り替えられません',
-                    at: null,
-                    hint: '原文の行を保ったまま書き換えるか (足すなら末尾に足す)、タスクを切り替えない文書にします',
-                });
-                return;
-            }
-            const target = hookDoc.node(node.id);
-            if (target && !runner.before('beforeTaskToggle', { node: target, next: !checked, line }, true)) return;
-            source = toggleTask(source, line);
-            draw(false);
-            onChange?.(source);
-            const toggled = hookDoc.node(node.id);
-            if (toggled) runner.emit('onTaskToggle', { node: toggled, next: !checked, line }, true);
-        },
-        onNodeClick: (node, asTaskToggle) => {
-            const target = hookDoc.node(node.id);
-            if (target) runner.emit('onNodeClick', { node: target, asTaskToggle }, true);
-        },
-        beforeFold: (node, folded) => {
-            const target = hookDoc.node(node.id);
-            return target === null || runner.before('beforeFold', { node: target, folded }, true);
-        },
-        beforeSelectEdge: (edge, byUser) => runner.before('beforeSelectEdge', { edge: hookEdge(edge) }, byUser),
-        onSelectEdge: (edge, byUser) => runner.emit('onSelectEdge', { edge: hookEdge(edge) }, byUser),
-        beforeSelectGroup: (id, byUser) => runner.before('beforeSelectGroup', { group: hookGroup(id) }, byUser),
-        onSelectGroup: (id, byUser) => runner.emit('onSelectGroup', { group: hookGroup(id) }, byUser),
-        beforeDetailsShow: (node, pinned, byUser) => {
-            const target = hookDoc.node(node.id);
-            return target === null || runner.before('beforeDetailsShow', { node: target, pinned }, byUser);
-        },
-        onDetailsShow: (node, pinned, byUser) => {
-            const target = hookDoc.node(node.id);
-            if (target) runner.emit('onDetailsShow', { node: target, pinned }, byUser);
-        },
-        onDetailsHide: (node, pinned) => {
-            const target = hookDoc.node(node.id);
-            if (target) runner.emit('onDetailsHide', { node: target, pinned });
-        },
-        decorateNode: (node) => {
-            const target = hookDoc.node(node.id);
-            return target === null ? null : runner.decorate(target);
-        },
-        onFoldChange: (folded, byUser) => {
-            onFoldChange?.(folded, byUser);
-            runner.emit('onFoldChange', { folded }, byUser);
-        },
-        onTransform: (transform, byUser) => {
-            onTransform?.(transform, byUser);
-            runner.emit('onTransform', { transform }, byUser);
-        },
-        onLayout: (snapshot) => {
-            onLayout?.(snapshot);
-            const { totalNodes, visibleNodes, layoutMs, excludedEdges } = snapshot;
-            runner.emit('onLayout', { layout: { totalNodes, visibleNodes, layoutMs, excludedEdges } });
-        },
-    });
+    const view = new MarkdagView(container, bridge.viewHooks);
+    bridge.attach(view);
     if (container.clientHeight === 0) container.style.height = FALLBACK_HEIGHT;
     view.setOptions(viewOptions);
     draw(true);
@@ -231,16 +140,13 @@ export function render(container: HTMLElement, markdown: string, options: Render
             return diagnostics;
         },
         update(next: string) {
-            if (!runner.before('beforeUpdate', { next, previous: source })) return diagnostics;
+            if (!bridge.beforeUpdate(next)) return diagnostics;
             source = next;
             return draw(false);
         },
         fit: () => view.fit(),
         expandAll: () => view.expandAll(),
         resetFold: () => view.resetFold(),
-        destroy: () => {
-            runner.emit('onDestroy', {});
-            view.destroy();
-        },
+        destroy: () => bridge.destroy(),
     };
 }

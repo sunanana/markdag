@@ -308,14 +308,18 @@ export function resolveHooks(raw: unknown, provided: Record<string, unknown> | u
         if (!isRecord(loaded)) {
             // TypeScript のフックは markdag では変換しないので、読み込む側に変換器が要ることを添える
             const typescript = /\.[cm]?tsx?$/.test(ref) ? '。.ts は markdag では変換しないので、読み込む側で JavaScript にしてから渡します (変換器がなければ .js で書きます)' : '';
+            // hookRefs を渡していないアプリはフックを読み込まない方針なので、文書の誤りではなく知らせるだけにする。
+            // 渡しているのに見つからない、または読めなかったものは、書き手が直せる問題として警告にする
             issues.push({
-                severity: 'warning',
+                severity: provided === undefined ? 'info' : 'warning',
                 code: 'hooks-unresolved',
                 message: `markdag.hooks.$ref「${ref}」は読み込まれていないので、このフックは動きません`,
                 hint:
-                    loaded === undefined
-                        ? `markdag はコードを読み込みません。呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)${typescript}`
-                        : `モジュールとして読めるか (名前付きの export があるか) 確かめます${typescript}`,
+                    provided === undefined
+                        ? `このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)${typescript}`
+                        : loaded === undefined
+                          ? `呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)${typescript}`
+                          : `モジュールとして読めるか (名前付きの export があるか) 確かめます${typescript}`,
                 path,
             });
             return;

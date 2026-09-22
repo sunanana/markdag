@@ -88,17 +88,25 @@ function runnerOf(modules: Array<[string, HookModule]>, doc: HookDocument = docu
 const taskFields = { node: documentOf().node(4)!, next: true, line: 3 };
 
 describe('フックの宣言の解決', () => {
-    it('呼び出し側がモジュールを渡していなければ、フックは動かないと警告する', () => {
+    it('hookRefs を渡さないアプリでは、フックは動かないと info で知らせる', () => {
         const resolved = resolveHooks({ $ref: './flow.hooks.js' }, undefined);
         expect(resolved.hooks).toEqual([]);
         expect(resolved.issues).toEqual([
             {
-                severity: 'warning',
+                severity: 'info',
                 code: 'hooks-unresolved',
                 message: 'markdag.hooks.$ref「./flow.hooks.js」は読み込まれていないので、このフックは動きません',
-                hint: 'markdag はコードを読み込みません。呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)',
+                hint: 'このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)',
                 path: ['markdag', 'hooks', '$ref'],
             },
+        ]);
+    });
+
+    it('hookRefs を渡しているのに見つからないモジュールは警告にする', () => {
+        const resolved = resolveHooks({ $ref: ['./a.hooks.js', './b.hooks.js'] }, { './b.hooks.js': null });
+        expect(resolved.issues.map((issue) => [issue.severity, issue.hint])).toEqual([
+            ['warning', '呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)'],
+            ['warning', 'モジュールとして読めるか (名前付きの export があるか) 確かめます'],
         ]);
     });
 
@@ -143,7 +151,7 @@ describe('フックの宣言の解決', () => {
 
         const withoutModule = buildModel(NODES, frontmatter);
         expect(withoutModule.hooks.hooks).toEqual([]);
-        expect(withoutModule.diagnostics.map((item) => item.code)).toEqual(['hooks-unresolved']);
+        expect(withoutModule.diagnostics.map((item) => [item.severity, item.code])).toEqual([['info', 'hooks-unresolved']]);
     });
 });
 

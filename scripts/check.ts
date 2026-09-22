@@ -12,7 +12,7 @@ interface ReportedDiagnostic {
     severity: 'error' | 'warning' | 'info';
 }
 interface MarkdagGlobal {
-    render(container: HTMLElement, markdown: string, options: { types: Record<string, unknown>; hookRefs: Record<string, unknown> }): { diagnostics: ReportedDiagnostic[] };
+    render(container: HTMLElement, markdown: string, options: { types: Record<string, unknown>; hookRefs?: Record<string, unknown> }): { diagnostics: ReportedDiagnostic[] };
     formatDiagnostics(diagnostics: ReportedDiagnostic[]): string;
 }
 
@@ -44,7 +44,7 @@ function loadTypeRefs(file: string, markdown: string): Record<string, unknown> {
 }
 
 // markdag.hooks.$ref が指すモジュールの中身。文書が指すコードをそのまま実行することになるので、
-// --hooks を付けたときだけ読む。付けなければ、ライブラリが hooks-unresolved の警告を出す。
+// --hooks を付けたときだけ読む。付けなければ hookRefs を渡さず、ライブラリが hooks-unresolved を info で知らせる。
 // TypeScript で書かれたものは vite の変換器 (oxc) で JavaScript にする (型の検査はしない。型だけの import は外れる)
 async function loadHookSources(file: string, markdown: string): Promise<Array<{ ref: string; code: string | null }>> {
     const sources: Array<{ ref: string; code: string | null }> = [];
@@ -116,15 +116,15 @@ try {
         for (const failure of failures) console.error(`フックを読み込めませんでした: ${failure}`);
     }
     const result = await page.evaluate(
-        ({ source, types }) => {
+        ({ source, types, loadHooks }) => {
             const { render, formatDiagnostics } = (window as unknown as { markdag: MarkdagGlobal }).markdag;
             const container = document.getElementById('diagram');
             if (!container) throw new Error('container is missing');
-            const hookRefs = (window as unknown as { hookRefs?: Record<string, unknown> }).hookRefs ?? {};
+            const hookRefs = loadHooks ? ((window as unknown as { hookRefs?: Record<string, unknown> }).hookRefs ?? {}) : undefined;
             const { diagnostics } = render(container, source, { types, hookRefs });
             return { text: formatDiagnostics(diagnostics), errors: diagnostics.filter((item) => item.severity === 'error').length };
         },
-        { source: markdown, types: loadTypeRefs(file, markdown) },
+        { source: markdown, types: loadTypeRefs(file, markdown), loadHooks: withHooks },
     );
     console.log(result.text === '' ? 'no diagnostics' : result.text);
     process.exitCode = result.errors > 0 ? 1 : 0;

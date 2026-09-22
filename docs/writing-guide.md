@@ -268,7 +268,7 @@ markdag:
 ```
 
 - `hooks` declares JavaScript that runs on a few operations: before a task is checked, after the fold state changed, and so on. It is for documents that need a rule the notation cannot express, such as "this task cannot be checked while the task it depends on is open".
-- The document only names the module. markdag never reads or imports it: the application that renders the document resolves the path, imports it and hands the result to markdag. A document alone therefore cannot make any code run, and a `$ref` nobody loaded is reported as `hooks-unresolved`.
+- The document only names the module. markdag never reads or imports it: the application that renders the document resolves the path, imports it and hands the result to markdag. A document alone therefore cannot make any code run, and a `$ref` nobody loaded is reported as `hooks-unresolved` (`info` in an application that does not load hooks, `warning` when the application tried and the module was missing).
 - `npm run check` loads them only when you pass `--hooks`, because checking a document would otherwise run the code it points at.
 - `options` is free-form and is passed to the hooks as `ctx.options`. markdag does not check its contents.
 - Write the module in JavaScript unless you know that the application which loads hooks transpiles TypeScript. markdag never transpiles: a `.ts` module works only where the loader (a bundler, or `npm run check -- --hooks`) turns it into JavaScript first, and a `.ts` that nobody transpiles is reported as `hooks-unresolved`.
