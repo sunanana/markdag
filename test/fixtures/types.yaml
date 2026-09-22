@@ -1,0 +1,7 @@
+# test/fixtures/typed.md が $ref で読む、タグの値の型
+priority:
+    type: enum
+    values: [high, medium, low]
+ticket:
+    type: string
+    pattern: "^T-\\d+$"

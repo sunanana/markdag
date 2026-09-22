@@ -4,8 +4,8 @@
     "properties": {
         "markdag": {
             "type": ["object", "null"],
-            "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、タグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に relations, groups, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、タグ (tags)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、グループやタグや $id の抽出だけが有効になる)",
+            "x-hint": "markdag: の下に relations, groups, tags, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
             "properties": {
                 "relations": {
                     "type": "object",
@@ -17,10 +17,63 @@
                 },
                 "groups": {
                     "type": "object",
-                    "description": "グループの定義。キーがグループの名前で、本文では #名前 のタグで付ける。ここに定義のないタグは、色のない文字のラベルになる",
+                    "description": "グループの定義。キーがグループの名前で、本文では %名前 で付ける。ここに定義のないグループは、色のない文字のラベルになる",
                     "x-code": "group-invalid",
                     "x-hint": "groups: の下にグループの名前を字下げして書き、さらにその下に label, color, boundary, members を書きます",
                     "additionalProperties": { "$ref": "#/$defs/group" }
+                },
+                "types": {
+                    "type": "object",
+                    "description": "タグの値の型の定義。キーが型の名前で、tags.keys の type から名前で指す。$ref で別のファイルの定義を読み込める (読むのは呼び出し側)",
+                    "x-hint": "types: の下に型の名前を字下げして書き、さらにその下に type と制約 (values, pattern, min, max など) を書きます",
+                    "properties": {
+                        "$ref": {
+                            "description": "型の定義を書いた別の YAML ファイル。文書からの相対パスを 1 つか一覧で書く。一覧はあとのものが勝ち、この文書の定義がさらに優先する",
+                            "x-hint": "「$ref: ./types.yaml」のように文書からの相対パスを書くか、「- ./a.yaml」の形で 1 行ずつ並べます",
+                            "oneOf": [
+                                { "$ref": "#/$defs/refPath" },
+                                {
+                                    "type": "array",
+                                    "description": "読み込む順に並べたファイルの一覧",
+                                    "x-hint": "$ref: の下に、相対パスを「- ./a.yaml」の形で 1 行ずつ並べます",
+                                    "items": { "$ref": "#/$defs/refPath" }
+                                }
+                            ]
+                        }
+                    },
+                    "additionalProperties": { "$ref": "#/$defs/tagType" }
+                },
+                "tags": {
+                    "type": "object",
+                    "description": "タグ (本文の #キー:値) の表示と検査のオプション。タグそのものは定義なしで使える",
+                    "x-hint": "tags: の下に display, lint, unknownKey, keys を字下げして書きます",
+                    "properties": {
+                        "display": {
+                            "type": "string",
+                            "description": "タグの見せ方。always は本文に書いたとおりにノードの中に出す、hover はノードに重ねると出す、click は印のクリックで出す、never は出さない。指定がなければ always",
+                            "x-hint": "always, hover, click, never のどれかを書きます",
+                            "enum": ["always", "hover", "click", "never"]
+                        },
+                        "lint": {
+                            "type": "string",
+                            "description": "keys の定義に合わないタグを、どの重大度で知らせるか。指定がなければ warning。error でもタグは書いたまま残り、図も描く",
+                            "x-hint": "warning か error と書きます",
+                            "enum": ["warning", "error"]
+                        },
+                        "unknownKey": {
+                            "type": "string",
+                            "description": "keys に定義のないキーの扱い。allow (指定なしと同じ。自由に使える) か deny (lint の重大度で知らせる)",
+                            "x-hint": "allow か deny と書きます",
+                            "enum": ["allow", "deny"]
+                        },
+                        "keys": {
+                            "type": "object",
+                            "description": "タグのキーごとの定義。キーがタグのキーで、値の型 (type) と、そのキーの使い方 (multiple, unique) を書く。書いたキーだけを検査する",
+                            "x-hint": "keys: の下にタグのキーを字下げして書き、さらにその下に type などを書きます",
+                            "additionalProperties": { "$ref": "#/$defs/tagKey" }
+                        }
+                    },
+                    "additionalProperties": false
                 },
                 "edgeHighlight": {
                     "type": "boolean",
@@ -33,10 +86,18 @@
                     "x-hint": "使わないなら false と書きます。yes は YAML では文字列になります"
                 },
                 "details": {
-                    "type": "string",
-                    "description": "ノードの詳細 (本文の引用ブロック) の見せ方。click は印のクリックで吹き出しを開く、hover はノードに重ねても開く、open は最初からノードの中に開いて表示する",
-                    "x-hint": "click は印のクリック、hover はノードに重ねる、open は最初から開いて表示します",
-                    "enum": ["click", "hover", "open"]
+                    "type": "object",
+                    "description": "ノードの詳細 (本文の引用ブロック) の見せ方",
+                    "x-hint": "details: の下に display を字下げして書きます",
+                    "properties": {
+                        "display": {
+                            "type": "string",
+                            "description": "always は最初からノードの中に開いて表示する、hover はノードに重ねると吹き出しを出す、click は印のクリックで吹き出しを出す。指定がなければ hover",
+                            "x-hint": "always は最初から開いて表示、hover はノードに重ねる、click は印のクリックです",
+                            "enum": ["always", "hover", "click"]
+                        }
+                    },
+                    "additionalProperties": false
                 },
                 "legend": {
                     "type": "object",
@@ -316,6 +377,123 @@
                     "x-code": "group-invalid",
                     "x-hint": "members: の下に、メンバーにするノードを「- 名前」の形で 1 行ずつ並べます",
                     "items": { "$ref": "#/$defs/groupMember" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "refPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "型の定義を書いた YAML ファイルの、文書からの相対パス",
+            "x-code": "type-invalid",
+            "x-hint": "「./types.yaml」のように、文書からの相対パスを文字列で書きます"
+        },
+        "typeName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "型の名前。string, number, integer, boolean, enum, date, datetime, time, duration, nodeId のどれかか、types に定義した名前",
+            "x-code": "type-invalid",
+            "x-hint": "型の名前を文字列で書きます (string, number, integer, boolean, enum, date, datetime, time, duration, nodeId、または types の名前)"
+        },
+        "typeSpec": {
+            "description": "基底の型。名前を 1 つ書くか、一覧で並べる (どれかに合えば通る)。省略すると string",
+            "x-code": "type-invalid",
+            "x-hint": "「type: string」のように 1 つ書くか、「- enum」の形で 1 行ずつ並べます",
+            "oneOf": [
+                { "$ref": "#/$defs/typeName" },
+                {
+                    "type": "array",
+                    "description": "どれかに合えば通る型の一覧",
+                    "x-code": "type-invalid",
+                    "x-hint": "type: の下に、型の名前を「- enum」の形で 1 行ずつ並べます",
+                    "items": { "$ref": "#/$defs/typeName" }
+                }
+            ]
+        },
+        "enumValues": {
+            "type": "array",
+            "description": "enum で許す値の一覧。派生した型に書くと、基底の一覧を置き換える",
+            "x-code": "type-invalid",
+            "x-hint": "values: の下に、許す値を「- high」の形で 1 行ずつ並べます",
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "description": "enum の値 1 つ",
+                "x-code": "type-invalid",
+                "x-hint": "値を文字列で書きます (数字だけの値は「\"1\"」のように引用符で囲みます)"
+            },
+            "$ref": "#/$defs/noDuplicates"
+        },
+        "regex": {
+            "type": "string",
+            "minLength": 1,
+            "description": "string の値が合うべき正規表現 (JavaScript の文法)",
+            "x-code": "type-invalid",
+            "x-hint": "正規表現を文字列で書きます (\\ は YAML の引用符の中では \\\\ と書きます)"
+        },
+        "charCount": {
+            "type": "integer",
+            "description": "string の値の文字数の限度",
+            "x-code": "type-invalid",
+            "x-hint": "文字数を整数で書きます"
+        },
+        "bound": {
+            "description": "値の限度。number と integer では数値、date, datetime, time, duration ではその型と同じ書き方の文字列",
+            "x-code": "type-invalid",
+            "x-hint": "number なら数値、日付や時間なら「\"2026-10-01\"」のように引用符で囲んだ文字列で書きます",
+            "oneOf": [
+                { "type": "number", "description": "number と integer の限度", "x-code": "type-invalid", "x-hint": "数値で書きます" },
+                { "type": "string", "minLength": 1, "description": "日付や時間の限度", "x-code": "type-invalid", "x-hint": "その型と同じ書き方で書きます" }
+            ]
+        },
+        "hintText": {
+            "type": "string",
+            "description": "編集側のヒントに出す説明",
+            "x-code": "type-invalid",
+            "x-hint": "説明を文字列で書きます"
+        },
+        "tagType": {
+            "type": "object",
+            "description": "型の定義。基底の型 (type) に制約を足したもの。制約は基底の型に合うものだけ書ける",
+            "x-code": "type-invalid",
+            "x-hint": "型の名前の下に type と制約 (values, pattern, minLength, maxLength, min, max, description) を字下げして書きます",
+            "properties": {
+                "type": { "$ref": "#/$defs/typeSpec" },
+                "values": { "$ref": "#/$defs/enumValues" },
+                "pattern": { "$ref": "#/$defs/regex" },
+                "minLength": { "$ref": "#/$defs/charCount" },
+                "maxLength": { "$ref": "#/$defs/charCount" },
+                "min": { "$ref": "#/$defs/bound" },
+                "max": { "$ref": "#/$defs/bound" },
+                "description": { "$ref": "#/$defs/hintText" }
+            },
+            "additionalProperties": false
+        },
+        "tagKey": {
+            "type": "object",
+            "description": "タグのキー 1 つの定義。型の欄 (type と制約) に、そのキーの使い方 (multiple, unique) を足したもの",
+            "x-code": "type-invalid",
+            "x-hint": "タグのキーの下に type と制約、multiple, unique, description を字下げして書きます",
+            "properties": {
+                "type": { "$ref": "#/$defs/typeSpec" },
+                "values": { "$ref": "#/$defs/enumValues" },
+                "pattern": { "$ref": "#/$defs/regex" },
+                "minLength": { "$ref": "#/$defs/charCount" },
+                "maxLength": { "$ref": "#/$defs/charCount" },
+                "min": { "$ref": "#/$defs/bound" },
+                "max": { "$ref": "#/$defs/bound" },
+                "description": { "$ref": "#/$defs/hintText" },
+                "multiple": {
+                    "type": "boolean",
+                    "description": "true なら、, で区切って複数の値を書ける。指定がなければ 1 つだけ",
+                    "x-code": "type-invalid",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "unique": {
+                    "type": "boolean",
+                    "description": "true なら、同じ値をこの文書の中の 2 つ以上のノードに書けない",
+                    "x-code": "type-invalid",
+                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
                 }
             },
             "additionalProperties": false

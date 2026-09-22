@@ -1,7 +1,7 @@
 // ライブラリの公開の API を、実際のブラウザで確かめる。解析は DOM を使い、描画はノードの実測のサイズを使うので、単体テストでは確かめられない。
 import { expect, test, type Page } from '@playwright/test';
 import type { Harness } from './harness';
-import type { MarkdagDiagram } from '../src/index';
+import type { MarkdagDiagram, OutlineNode } from '../src/index';
 
 interface HookLog {
     fold: Array<{ folded: number[]; byUser: boolean }>;
@@ -20,7 +20,7 @@ const DOC = [
     '',
     '# Root',
     '',
-    '## Design #design',
+    '## Design %design',
     '',
     '- [ ] Task A',
     '- [x] Task B',
@@ -62,7 +62,7 @@ test.describe('解析', () => {
         expect(parsed.nodes.map((node) => node.refText)).toEqual(['Root', 'Design', 'Task A', 'Task B', 'Build', 'Deep', 'Leaf']);
         expect(parsed.nodes.map((node) => node.lines?.start)).toEqual([7, 9, 11, 12, 14, 16, 18]);
         for (const node of parsed.nodes) expect(node.lines?.end).toBeGreaterThan(node.lines?.start ?? Number.NaN);
-        expect(parsed.nodes[1]?.tags).toEqual(['design']);
+        expect(parsed.nodes[1]?.groups).toEqual(['design']);
         expect(parsed.nodes[4]?.refId).toBe('api');
         expect(parsed.nodes[2]?.task).toEqual({ line: 11, checked: false });
     });
@@ -73,7 +73,7 @@ test.describe('解析', () => {
             (sources) => sources.map((source) => (window as unknown as TestWindow).harness.markdag.parseDocument(source).nodes),
             [DOC, DOC.replace(/\n/g, '\r\n')],
         );
-        expect(crlf?.[1]?.tags).toEqual(['design']);
+        expect(crlf?.[1]?.groups).toEqual(['design']);
         expect(crlf?.[1]?.refText).toBe('Design');
         expect(crlf?.[4]?.refId).toBe('api');
         expect(crlf).toEqual(lf);
@@ -112,7 +112,7 @@ const TASKS = [
     '',
     '# [x] Root',
     '',
-    '## [ ] Heading task #tag',
+    '## [ ] Heading task %tag',
     '',
     '- [X] Upper',
     '- [x] Lower',
@@ -139,7 +139,7 @@ test.describe('タスク', () => {
             { line: 12, checked: true },
             null,
         ]);
-        expect(nodes[1]?.tags).toEqual(['tag']);
+        expect(nodes[1]?.groups).toEqual(['tag']);
         for (const node of nodes) expect(node.html.startsWith('<svg')).toBe(node.task !== null);
         // 完了の絵は、大文字でも、最初の見出しでも、ほかの完了のタスクと同じ
         const iconOf = (html: string | undefined): string => /^<svg[\s\S]*?<\/svg>/.exec(html ?? '')?.[0] ?? '';
@@ -195,7 +195,7 @@ test.describe('タスク', () => {
 
 test.describe('凡例', () => {
     const source = (legend: string[]): string =>
-        ['---', 'markdag:', ...legend, '    branches:', '        - A', '    groups:', '        team:', '            label: Team', '            color: "#3B7DD8"', '---', '', '# Root', '', '## A #team', '', '## B', ''].join('\n');
+        ['---', 'markdag:', ...legend, '    branches:', '        - A', '    groups:', '        team:', '            label: Team', '            color: "#3B7DD8"', '---', '', '# Root', '', '## A %team', '', '## B', ''].join('\n');
 
     // 図の領域 (1000 x 600) の、どの隅に寄っているか
     async function cornerOf(page: Page, legend: string[]): Promise<string> {
@@ -235,7 +235,8 @@ test.describe('詳細を開いて表示するタスクのノード', () => {
     const markdown = [
         '---',
         'markdag:',
-        '    details: open',
+        '    details:',
+        '        display: always',
         '---',
         '',
         '# Root',
@@ -441,5 +442,120 @@ test.describe('図の操作', () => {
             expect(diagram.used.length).toBeGreaterThan(0);
             for (const reference of diagram.used) expect(diagram.ids.map((id) => `url(#${id})`)).toContain(reference);
         }
+    });
+});
+
+test.describe('グループの印とタグ', () => {
+    // ノードの id は、Root = 1, A = 2, B = 3, C = 4, D = 5, E = 6, F = 7, G = 8
+    const TAGGED = [
+        '---',
+        'markdag:',
+        '    groups:',
+        '        qa:',
+        '            label: QA',
+        '---',
+        '',
+        '# Root',
+        '',
+        '## A %qa #owner:alice,bob #urgent $a',
+        '- B #owner:"山田 太郎" #secret:yes',
+        '- C Issue #123',
+        '- D %50',
+        '- E \\%qa',
+        '- F #owner:',
+        '- G #owner:alice #owner:carol',
+        '',
+    ].join('\n');
+
+    test('%名前 はグループ、#キー:値 はタグになり、数字だけの名前、値の空いたタグ、\\ を付けた印は文字のまま残る', async ({ page }) => {
+        await open(page);
+        const parsed = await page.evaluate((markdown) => (window as unknown as TestWindow).harness.markdag.parseDocument(markdown), TAGGED);
+        const node = (id: number): OutlineNode | undefined => parsed.nodes[id - 1];
+        expect(node(2)?.groups).toEqual(['qa']);
+        expect(node(2)?.tags).toEqual([
+            { key: 'owner', values: ['alice', 'bob'], at: { line: 10, column: 10, length: 16 } },
+            { key: 'urgent', values: [], at: { line: 10, column: 27, length: 7 } },
+        ]);
+        expect(node(2)?.refId).toBe('a');
+        expect(node(2)?.refText).toBe('A');
+        // 桁と長さは文字数で数える (全角の文字も 1)
+        expect(node(3)?.tags).toEqual([
+            { key: 'owner', values: ['山田 太郎'], at: { line: 11, column: 5, length: 14 } },
+            { key: 'secret', values: ['yes'], at: { line: 11, column: 20, length: 11 } },
+        ]);
+        expect(node(3)?.refText).toBe('B');
+        expect(node(4)?.tags).toEqual([]);
+        expect(node(4)?.refText).toBe('C Issue #123');
+        expect(node(5)?.groups).toEqual([]);
+        expect(node(5)?.refText).toBe('D %50');
+        expect(node(6)?.groups).toEqual([]);
+        expect(node(6)?.refText).toBe('E %qa');
+        expect(node(7)?.tags).toEqual([]);
+        expect(node(7)?.refText).toBe('F #owner:');
+        expect(node(8)?.tags).toEqual([{ key: 'owner', values: ['alice', 'carol'], at: { line: 16, column: 5, length: 12 } }]);
+    });
+
+    // ノードごとの、色のないグループの文字ラベルと、実際に見えているタグ
+    async function labelsOf(page: Page, markdown: string): Promise<{ groups: Record<string, string>; tags: Record<string, string> }> {
+        await open(page);
+        return page.evaluate((source) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.diagram = target.harness.markdag.render(container, source, { animate: false });
+            const collect = (selector: string, shownOnly: boolean): Record<string, string> => {
+                const entries: Array<[string, string]> = [];
+                for (const node of container.querySelectorAll<HTMLElement>('.mdag-node')) {
+                    const found = node.querySelector<HTMLElement>(selector);
+                    if (!found || (shownOnly && getComputedStyle(found).display === 'none')) continue;
+                    entries.push([node.dataset.id ?? '', found.textContent ?? '']);
+                }
+                return Object.fromEntries(entries);
+            };
+            return { groups: collect('.mdag-labels', false), tags: collect('.mdag-tags', true) };
+        }, markdown);
+    }
+
+    const ALL_TAGS = { '2': '#owner:alice,bob #urgent', '3': '#owner:"山田 太郎" #secret:yes', '8': '#owner:alice,carol' };
+
+    test('色のないグループとタグは、ノードの中に書いたとおりの文字で出す', async ({ page }) => {
+        const { groups, tags } = await labelsOf(page, TAGGED);
+        // グループの文字ラベルは、配下にも継承するので全部のノードに出る (ルートを除く)
+        expect(groups).toEqual({ '2': '%QA', '3': '%QA', '4': '%QA', '5': '%QA', '6': '%QA', '7': '%QA', '8': '%QA' });
+        expect(tags).toEqual(ALL_TAGS);
+    });
+
+    const withTagMode = (mode: string): string => TAGGED.replace('markdag:\n', `markdag:\n    tags:\n        display: ${mode}\n`);
+
+    test('markdag.tags.display は、タグの出し方をまとめて決める (グループの文字はいつも出る)', async ({ page }) => {
+        // always だけがノードの中に出す。hover と click は詳細と同じ吹き出しに入れるので、ノードの中には出さない
+        expect((await labelsOf(page, withTagMode('always'))).tags).toEqual(ALL_TAGS);
+        expect((await labelsOf(page, withTagMode('never'))).tags).toEqual({});
+        expect((await labelsOf(page, withTagMode('click'))).tags).toEqual({});
+        expect((await labelsOf(page, withTagMode('hover'))).tags).toEqual({});
+        // グループの文字は、どの見せ方でも出る
+        expect(Object.keys((await labelsOf(page, withTagMode('never'))).groups)).toHaveLength(7);
+    });
+
+    test('hover と click のタグは、詳細と同じ印と吹き出しに出る (タグだけのノードにも印が出る)', async ({ page }) => {
+        await labelsOf(page, withTagMode('click'));
+        // 専用の印は作らず、詳細と同じ i の印を使う
+        await expect(page.locator('#a .mdag-tag-mark')).toHaveCount(0);
+        const node = page.locator('#a .mdag-node[data-id="2"]');
+        const popover = page.locator('#a .mdag-popover');
+        await expect(popover).toBeHidden();
+        await node.locator('.mdag-note-mark').click();
+        await expect(popover).toBeVisible();
+        await expect(popover).toHaveText('#owner:alice,bob #urgent');
+        await node.locator('.mdag-note-mark').click();
+        await expect(popover).toBeHidden();
+        // タグのないノードには印が出ない
+        await expect(page.locator('#a .mdag-node[data-id="4"] .mdag-note-mark')).toBeHidden();
+    });
+
+    test('詳細をノードの中に開く文書では、吹き出しを使わないのでタグもノードの中に出る', async ({ page }) => {
+        const open = withTagMode('hover').replace('markdag:\n', 'markdag:\n    details:\n        display: always\n');
+        expect((await labelsOf(page, open)).tags).toEqual(ALL_TAGS);
+        await expect(page.locator('#a .mdag-note-mark').first()).toBeHidden();
     });
 });

@@ -9,7 +9,8 @@ import { boundsOf, layoutChildrenOf, layoutGraph, MARKMAP_DEFAULTS, type PlacedE
 import { project, type VisibleGraph } from '../layout/project';
 import type { OutlineNode, ParsedDocument } from '../parse/document';
 import { computeFrames, countIntruders, frameOutline, frameSpacing, LABEL_HEIGHT, type Frame } from './frames';
-import type { DetailsMode, GraphModel } from '../model/model';
+import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
+import { formatTag } from '../model/tags';
 
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
 // 兄弟の並びは結果の縦の位置から決め、動きの補間はしない
@@ -21,7 +22,7 @@ export interface ViewOptions {
     showIds: boolean;
     animate: boolean;
     // 詳細の見せ方。auto は文書の指定 (なければ hover) に従う。それ以外は、見る人の選択を文書の指定より優先する
-    details: 'auto' | DetailsMode;
+    details: 'auto' | DisplayMode;
     // 凡例を図の右上に出すか。出す項目は文書の指定に従う
     legend: boolean;
     // 背景の明暗。線の縁取りや吹き出しの色が、これに合わせて変わる
@@ -318,7 +319,8 @@ export class MarkdagView {
         // 原文の書き換えで描き直しになり、そのたびに消えて出直すと、ちらついて見える。隠すのも出し直すのも同じ処理の中なので、
         // 画面には消えた状態が出ない。重ねて開いた吹き出しは、ポインタがまだそのノードの上にあるときだけ残す
         const kept = shown && sameShape ? this.nodes[shown.id - 1] : undefined;
-        if (kept && kept.details !== null && this.detailsMode() !== 'open' && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
+        const hasBody = kept !== undefined && (kept.details !== null || this.tagsInPopover(kept));
+        if (kept && hasBody && this.detailsMode() !== 'always' && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
             this.showPopover(kept, shown?.pinned ?? false);
         }
     }
@@ -644,15 +646,27 @@ export class MarkdagView {
         // 詳細の引用ブロックは、内容の中の書かれた位置にある。開いて表示する場合はその場に出て、ノードの大きさに含まれるので、
         // 配置もそのぶん広がる。タスクのノードでは、詳細の文のクリックも内容のクリックとして、タスクの切り替えになる
         box.append(content);
-        const plain = defs.filter((group) => group.color === null);
+        // 色のないグループは、文字のラベルで常に見せる
+        const plain = defs.filter((group) => group.color === null).map((group) => `%${group.label}`);
         if (plain.length > 0) {
-            const labels = document.createElement('span');
-            labels.className = 'mdag-labels';
-            labels.textContent = plain.map((group) => `#${group.label}`).join(' ');
-            box.append(labels);
+            const groupLabels = document.createElement('span');
+            groupLabels.className = 'mdag-labels';
+            groupLabels.textContent = plain.join(' ');
+            box.append(groupLabels);
         }
-        if (node.details !== null) {
-            // 詳細はノードには表示せず、印だけを出す。ノードに重ねると吹き出しを出し、印のクリックで出したままにする
+        // タグは本文に書いたとおりに見せる。always ならノードの中、hover と click なら詳細と同じ吹き出しの中 (どちらに出すかは CSS が決める)
+        const tags = model?.tagsOf.get(node.id) ?? [];
+        if (tags.length > 0) {
+            element.dataset.hasTags = '';
+            const tagLabels = document.createElement('span');
+            tagLabels.className = 'mdag-tags';
+            tagLabels.textContent = tags.map(formatTag).join(' ');
+            box.append(tagLabels);
+        }
+        if (node.details !== null) element.dataset.hasDetails = '';
+        if (node.details !== null || tags.length > 0) {
+            // 詳細とタグはノードには表示せず、印だけを出す。ノードに重ねると吹き出しを出し、印のクリックで出したままにする。
+            // 印を出すかどうかは、見せ方に合わせて CSS が決める
             const mark = document.createElement('button');
             mark.type = 'button';
             mark.className = 'mdag-note-mark';
@@ -664,7 +678,7 @@ export class MarkdagView {
             });
             box.append(mark);
             box.addEventListener('pointerenter', () => {
-                if (this.popoverPinned || this.detailsMode() !== 'hover') return;
+                if (this.popoverPinned || this.popoverTrigger() !== 'hover') return;
                 window.clearTimeout(this.popoverTimer);
                 this.popoverTimer = window.setTimeout(() => this.showPopover(node, false), 250);
             });
@@ -696,14 +710,30 @@ export class MarkdagView {
         else findLoneCheckbox(zone, target)?.click();
     }
 
-    private detailsMode(): DetailsMode {
+    private detailsMode(): DisplayMode {
         return this.options.details === 'auto' ? (this.model?.detailsMode ?? 'hover') : this.options.details;
     }
 
-    // 見せ方は CSS で切り替える。open ではノードの中の詳細を表示し、印と吹き出しは使わない
+    private tagMode(): TagDisplayMode {
+        return this.model?.tagDisplay ?? 'always';
+    }
+
+    // 吹き出しを出すきっかけ。詳細とタグのどちらかが hover なら、ノードに重ねただけで出す
+    private popoverTrigger(): 'hover' | 'click' {
+        return this.detailsMode() === 'hover' || this.tagMode() === 'hover' ? 'hover' : 'click';
+    }
+
+    // ノードの中に出すのではなく吹き出しに入れるタグがあるか (印を出すかの判断にも使う)
+    private tagsInPopover(node: OutlineNode): boolean {
+        const mode = this.tagMode();
+        return (mode === 'hover' || mode === 'click') && this.detailsMode() !== 'always' && (this.model?.tagsOf.get(node.id)?.length ?? 0) > 0;
+    }
+
+    // 見せ方は CSS で切り替える。always ではノードの中の詳細を表示し、印と吹き出しは使わない。タグも同じ仕組みで出し分ける
     private applyDetailsMode(): void {
         this.root.dataset.details = this.detailsMode();
-        if (this.detailsMode() === 'open') this.hidePopover();
+        this.root.dataset.tags = this.tagMode();
+        if (this.detailsMode() === 'always') this.hidePopover();
     }
 
     private showPopover(node: OutlineNode, pinned: boolean): void {
@@ -712,10 +742,16 @@ export class MarkdagView {
         this.popoverNode = node;
         this.popoverPinned = pinned;
         this.elements.get(node.id)?.toggleAttribute('data-pinned', pinned);
-        // 開いて表示する場合の詳細と同じ要素を入れて、見た目をそろえる
+        // 開いて表示する場合の詳細と同じ要素を入れて、見た目をそろえる。タグも詳細の一部として、そのあとに並べる
         const body = document.createElement('div');
         body.className = 'mdag-details mdag-content';
         body.innerHTML = node.details ?? '';
+        if (this.tagsInPopover(node)) {
+            const line = document.createElement('p');
+            line.className = 'mdag-popover-tags';
+            line.textContent = (this.model?.tagsOf.get(node.id) ?? []).map(formatTag).join(' ');
+            body.append(line);
+        }
         this.popover.replaceChildren(body);
         this.popover.hidden = false;
         this.positionPopover();
@@ -774,7 +810,7 @@ export class MarkdagView {
                 const box = visible.has(node.id) ? this.boxes.get(node.id) : undefined;
                 const [width, height] = box ? this.sizeOf(box, animated) : [0, 0];
                 if (box) this.lastSizes.set(node.id, `${width}x${height}`);
-                return { id: node.id, label: node.refText, width, height, tags: node.tags };
+                return { id: node.id, label: node.refText, width, height, groups: node.groups };
             }),
             treeEdges: this.nodes.flatMap((node) => (node.parent === null ? [] : [{ source: node.parent, target: node.id }])),
             relations: model.relations,

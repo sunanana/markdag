@@ -14,6 +14,6 @@
         "skipLibCheck": true,
         "noEmit": true
     },
-    "include": ["src", "spike", "test", "e2e", "types", "viewer", "vite.config.ts", "playwright.config.ts"],
+    "include": ["src", "spike", "test", "e2e", "types", "viewer", "docs/ignore", "vite.config.ts", "playwright.config.ts"],
     "exclude": ["node_modules", "dist", "sample", "spike/**/out"]
 }

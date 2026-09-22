@@ -24,24 +24,35 @@
 /* ノードの要素は .mdag-outer と同じ幅の透明な帯になる。クリックを受けると、relations の配置で同じ高さの右側に来たノードを覆うので、受けるのは箱だけにする */
 .mdag-node { position: absolute; left: 0; top: 0; cursor: auto; pointer-events: none; }
 .mdag-outer { width: var(--markmap-max-width); text-align: left; pointer-events: none; }
-.mdag-box { display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto; }
+.mdag-box { position: relative; display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto; }
 .mdag-bands { display: inline-flex; gap: 2px; }
 .mdag-bands i { display: block; width: 4px; border-radius: 2px; }
-.mdag-labels { align-self: center; font-size: 11px; color: var(--markdag-muted); }
+.mdag-labels, .mdag-tags { align-self: center; font-size: 11px; color: var(--markdag-muted); }
+/* タグの見せ方。always ならノードの中に出す。hover と click では詳細と同じ吹き出しに入れるので、ノードの中には出さない。
+   詳細をノードの中に開いているときは吹き出しを使わないので、そのときもノードの中に出す */
+.mdag-tags { display: none; }
+.markdag[data-tags="always"] .mdag-tags { display: inline; }
+.markdag[data-details="always"]:not([data-tags="never"]) .mdag-tags { display: inline; }
 /* タスクの項目は、記号でも文字でもクリックで状態を切り替えられる */
 .mdag-node[data-task] .mdag-content { cursor: pointer; }
 .mdag-node[data-milestone] .mdag-content::before { content: '◆ '; color: var(--markdag-accent); }
-/* 詳細を持つノードの印と、詳細の吹き出し */
-.mdag-note-mark { align-self: center; flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: var(--markdag-accent); font: bold 10px/14px serif; cursor: pointer; }
+/* 詳細かタグを持つノードの印と、その吹き出し (タグは hover と click のときだけ吹き出しに入る) */
+.mdag-note-mark { display: none; align-self: center; flex: none; width: 16px; height: 16px; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: var(--markdag-accent); font: bold 10px/14px serif; cursor: pointer; }
 .mdag-note-mark::before { content: 'i'; }
+.mdag-node[data-has-details] .mdag-note-mark { display: block; }
+.markdag:not([data-details="always"])[data-tags="hover"] .mdag-node[data-has-tags] .mdag-note-mark,
+.markdag:not([data-details="always"])[data-tags="click"] .mdag-node[data-has-tags] .mdag-note-mark { display: block; }
 .mdag-node[data-pinned] .mdag-note-mark { background: var(--markdag-accent); color: var(--markdag-bg); }
-/* 詳細 (ノードの内容の中の、印の付いた引用ブロック)。見せ方が open のときだけ、書かれた位置にそのまま出し、そのときは印を隠す */
+/* 詳細 (ノードの内容の中の、印の付いた引用ブロック)。見せ方が always のときだけ、書かれた位置にそのまま出し、そのときは印を隠す */
 .mdag-details { display: none; max-width: 340px; margin: 3px 0 4px; padding: 2px 0 2px 8px; border-left: 3px solid var(--markdag-border); font-size: 13px; line-height: 18px; white-space: normal; opacity: 0.85; }
 .mdag-details p { margin: 0 0 0.3em; }
 .mdag-details > :last-child { margin-bottom: 0; }
 .mdag-details ul, .mdag-details ol { margin: 0 0 0.3em; padding-left: 1.3em; }
-.markdag[data-details="open"] .mdag-details { display: block; }
-.markdag[data-details="open"] .mdag-note-mark { display: none; }
+.markdag[data-details="always"] .mdag-details { display: block; }
+.markdag[data-details="always"] .mdag-note-mark { display: none; }
+/* 吹き出しに入れたタグ。詳細の文のあとに、少し離して置く */
+.mdag-popover-tags { margin: 0; color: var(--markdag-muted); font-size: 11px; }
+.mdag-details > .mdag-popover-tags:not(:first-child) { margin-top: 0.4em; }
 /* 吹き出しの中身は、開いて表示する場合と同じ .mdag-details。線の上でも読めるよう、背景と細い枠だけを足す */
 .mdag-popover { position: absolute; left: 0; top: 0; z-index: 5; transform-origin: 0 0; padding: 3px 10px 3px 6px; border: 1px solid var(--markdag-border); border-radius: 6px; background: var(--markdag-bg); box-shadow: 0 4px 16px rgb(0 0 0 / 0.22); }
 .mdag-popover[hidden] { display: none; }

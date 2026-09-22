@@ -4,21 +4,18 @@
 // 簡易版なので、(X) の枝の枠は未対応で X 自身として扱う。全角スペースの警告は出さない。
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document, type Pair } from 'yaml';
 import type { LayoutInputRelation, RelationKind } from '../layout/input-types';
-import type { OutlineNode } from '../parse/document';
+import type { NodeTag, OutlineNode, SourcePosition } from '../parse/document';
 import schemaSource from './frontmatter.schema.json';
+import { lintTags, resolveTagKeys, type TagKeyDef, type TagLintOptions, type TypeSource } from './tags';
+import { closest, isRecord } from './util';
 
-// 原文での位置。行と桁は 1 始まりで、桁と長さは文字数で数える
-export interface SourcePosition {
-    line: number;
-    column: number;
-    length: number;
-}
+export type { SourcePosition } from '../parse/document';
 
 export interface Diagnostic {
     severity: 'error' | 'warning' | 'info';
     code: string;
     message: string;
-    // 原文の frontmatter での位置。場所を特定できなかったものは null
+    // 原文での位置 (frontmatter の指定か、本文のタグ)。場所を特定できなかったものは null
     at: SourcePosition | null;
     // 直し方の手がかり (近い名前、書き方の例)
     hint: string | null;
@@ -29,13 +26,17 @@ export interface GroupDef {
     label: string;
     color: string | null;
     boundary: boolean;
-    // frontmatter の markdag.groups に定義があるか (定義のないタグは文字ラベルになる)
+    // frontmatter の markdag.groups に定義があるか (定義のないグループは文字ラベルになる)
     defined: boolean;
 }
 
-// ノードの詳細の見せ方。click = 印のクリックで吹き出しを開く。hover = ノードに重ねても開く。open = 最初からノードの中に開いて表示する
-export type DetailsMode = 'click' | 'hover' | 'open';
-export const DETAILS_MODES: DetailsMode[] = ['click', 'hover', 'open'];
+// ノードに添えるもの (詳細、タグ) の見せ方。always = 最初からノードの中に出す。hover = ノードに重ねたときに出す。click = 印のクリックで出す
+export type DisplayMode = 'always' | 'hover' | 'click';
+export const DISPLAY_MODES: DisplayMode[] = ['always', 'hover', 'click'];
+
+// タグの見せ方。出さない (never) を選べる点だけが詳細と違う
+export type TagDisplayMode = DisplayMode | 'never';
+export const TAG_DISPLAY_MODES: TagDisplayMode[] = [...DISPLAY_MODES, 'never'];
 
 // 凡例に出す項目。groups はグループの色とラベル、branches は枝の色と起点の名前
 export type LegendItem = 'groups' | 'branches';
@@ -46,8 +47,8 @@ export type LegendPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom
 export const LEGEND_POSITIONS: LegendPosition[] = ['top-right', 'top-left', 'bottom-right', 'bottom-left'];
 
 export interface GraphModel {
-    // 文書 (frontmatter の markdag.details) が指定する詳細の見せ方。指定がなければ null
-    detailsMode: DetailsMode | null;
+    // 文書 (frontmatter の markdag.details.display) が指定する詳細の見せ方。指定がなければ null
+    detailsMode: DisplayMode | null;
     // 凡例に出す項目 (frontmatter の markdag.legend.display)。空なら凡例を出さない
     legend: LegendItem[];
     // 凡例を置く隅 (frontmatter の markdag.legend.position)
@@ -62,9 +63,21 @@ export interface GraphModel {
     relations: LayoutInputRelation[];
     suppressRootLine: number[];
     groups: GroupDef[];
-    // ノードごとの所属。groups の定義順、そのあとに定義のないタグを書かれた順
+    // ノードごとの所属。groups の定義順、そのあとに定義のないグループを書かれた順
     groupsOf: Map<number, string[]>;
+    // タグの見せ方 (frontmatter の markdag.tags.display)。指定がなければ always
+    tagDisplay: TagDisplayMode;
+    // ノードごとのタグ (そのノードに書かれたものだけ、書かれた順。配下には継承しない)
+    tagsOf: Map<number, NodeTag[]>;
+    // キーごとの解決済みの定義 (frontmatter の markdag.tags.keys と markdag.types)。定義のないキーは入らない
+    tagKeys: TagKeyDef[];
     diagnostics: Diagnostic[];
+}
+
+export interface ModelOptions {
+    // markdag.types.$ref で参照したファイルの中身。$ref に書いた文字列をキーに、YAML を読んだ値 (読めなければ null) を渡す。
+    // markdag はファイルを読まないので、呼び出し側が読む
+    types?: Record<string, unknown>;
 }
 
 interface Selector {
@@ -90,36 +103,6 @@ function splitPath(ref: string): string[] {
         } else current += char;
     });
     return [...segments, current];
-}
-
-// 2 つの文字列の編集距離 (文字単位)。隣り合う 2 文字の入れ替え (chain と chian) も 1 回と数える
-function editDistance(a: string[], b: string[]): number {
-    let beforePrevious: number[] = [];
-    let previous = Array.from({ length: b.length + 1 }, (_, index) => index);
-    for (let i = 1; i <= a.length; i++) {
-        const current = [i];
-        for (let j = 1; j <= b.length; j++) {
-            let best = Math.min((previous[j] ?? 0) + 1, (current[j - 1] ?? 0) + 1, (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
-            if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) best = Math.min(best, (beforePrevious[j - 2] ?? 0) + 1);
-            current[j] = best;
-        }
-        beforePrevious = previous;
-        previous = current;
-    }
-    return previous[b.length] ?? 0;
-}
-
-// 書き間違いらしい入力に対して、いちばん近い候補を 1 つ返す。離れた候補しかなければ null
-function closest(input: string, candidates: string[]): string | null {
-    const source = [...input];
-    const limit = source.length <= 2 ? 1 : Math.max(1, Math.floor(source.length / 3));
-    let best: { text: string; score: number } | null = null;
-    for (const candidate of new Set(candidates)) {
-        if (candidate === input || candidate === '') continue;
-        const score = editDistance(source, [...candidate]);
-        if (score <= limit && (best === null || score < best.score)) best = { text: candidate, score };
-    }
-    return best?.text ?? null;
 }
 
 // frontmatter の中での場所を指す道すじ。文字はマップのキー、数はならびの添字
@@ -272,9 +255,6 @@ interface SchemaIssue {
     // そのキーが下の階層に書くはずのものなら、under に置き場所 (そこからの親のキーの道すじ) が入る
     unknown?: { key: string; known: string[]; under?: string[] };
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const IS_TYPE: Record<string, (value: unknown) => boolean> = {
     object: isRecord,
@@ -627,7 +607,7 @@ function checkShape(kind: RelationKind, terms: Array<{ selectors: Selector[]; id
     return null;
 }
 
-export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unknown>, markdown?: string): GraphModel {
+export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unknown>, markdown?: string, extra: ModelOptions = {}): GraphModel {
     const diagnostics: Diagnostic[] = [];
     const resolver = new Resolver(nodes);
     const locator = new FrontmatterLocator(markdown);
@@ -748,9 +728,9 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         .filter((id) => topLevel.has(id))
         .sort((a, b) => a - b);
 
-    // groups: 直接のタグ、members の指定、祖先からの継承の 3 つを合わせる
+    // groups: 本文の %名前、members の指定、祖先からの継承の 3 つを合わせる
     const groups: GroupDef[] = [];
-    const direct = new Map<number, Set<string>>(nodes.map((node) => [node.id, new Set(node.tags)]));
+    const direct = new Map<number, Set<string>>(nodes.map((node) => [node.id, new Set(node.groups)]));
     for (const [id, raw] of Object.entries(isRecord(options.groups) ? options.groups : {})) {
         const def = isRecord(raw) ? raw : {};
         groups.push({
@@ -781,9 +761,9 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         }
     }
     for (const node of nodes) {
-        for (const tag of node.tags) {
-            if (!groups.some((group) => group.id === tag)) {
-                groups.push({ id: tag, label: tag, color: null, boundary: false, defined: false });
+        for (const name of node.groups) {
+            if (!groups.some((group) => group.id === name)) {
+                groups.push({ id: name, label: name, color: null, boundary: false, defined: false });
             }
         }
     }
@@ -795,7 +775,44 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         groupsOf.set(node.id, [...all].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)));
     }
 
-    const detailsMode: DetailsMode | null = DETAILS_MODES.includes(options.details as DetailsMode) ? (options.details as DetailsMode) : null;
+    // tags: 定義なしで使え、配下には継承しない。見せ方は文書がまとめて決める (キーごとの指定はない)
+    const tagOptionsRaw = isRecord(options.tags) ? options.tags : {};
+    const tagDisplay = TAG_DISPLAY_MODES.includes(tagOptionsRaw.display as TagDisplayMode) ? (tagOptionsRaw.display as TagDisplayMode) : 'always';
+    const tagsOf = new Map<number, NodeTag[]>();
+    for (const node of nodes) {
+        tagsOf.set(
+            node.id,
+            node.tags.map((tag) => ({ key: tag.key, values: [...tag.values], at: { ...tag.at } })),
+        );
+    }
+
+    // types と tags.keys: 型をキーごとの定義に解決し、本文のタグを検査する。$ref のファイルは呼び出し側が読んで extra.types に渡す
+    const typesRaw = isRecord(options.types) ? options.types : {};
+    const refs = typeof typesRaw.$ref === 'string' ? [typesRaw.$ref] : Array.isArray(typesRaw.$ref) ? typesRaw.$ref.filter((item): item is string => typeof item === 'string') : [];
+    const sources: TypeSource[] = [];
+    let unresolved = false;
+    refs.forEach((ref, index) => {
+        const loaded = extra.types?.[ref];
+        if (isRecord(loaded)) {
+            sources.push({ label: ref, defs: loaded, path: null });
+            return;
+        }
+        unresolved = true;
+        report('warning', 'types-unresolved', `markdag.types.$ref「${ref}」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)`, {
+            at: locator.value(Array.isArray(typesRaw.$ref) ? ['markdag', 'types', '$ref', index] : ['markdag', 'types', '$ref']),
+            hint: loaded === undefined ? '呼び出し側が読んで buildModel の types に渡します (npm run check は文書の場所からの相対で読みます)' : 'ファイルが YAML のキーと値の組として読めるか確かめます',
+        });
+    });
+    const { $ref: _ref, ...ownTypes } = typesRaw;
+    sources.push({ label: 'markdag.types', defs: ownTypes, path: ['markdag', 'types'] });
+    const resolved = resolveTagKeys(sources, isRecord(tagOptionsRaw.keys) ? tagOptionsRaw.keys : {}, ['markdag', 'tags', 'keys'], unresolved);
+    const lint: TagLintOptions = { severity: tagOptionsRaw.lint === 'error' ? 'error' : 'warning', unknownKey: tagOptionsRaw.unknownKey === 'deny' ? 'deny' : 'allow' };
+    for (const issue of [...resolved.issues, ...lintTags(nodes, resolved.keys, lint)]) {
+        diagnostics.push({ severity: issue.severity, code: issue.code, message: issue.message, at: issue.at ?? (issue.path ? locator.value(issue.path) : null), hint: issue.hint });
+    }
+
+    const detailsOptions = isRecord(options.details) ? options.details : {};
+    const detailsMode: DisplayMode | null = DISPLAY_MODES.includes(detailsOptions.display as DisplayMode) ? (detailsOptions.display as DisplayMode) : null;
     // edgeHighlight: false と書いたときだけ、線をクリックしての強調を使えなくする
     const edgeHighlight = options.edgeHighlight !== false;
     const groupHighlight = options.groupHighlight !== false;
@@ -844,5 +861,5 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         }
     }
 
-    return { detailsMode, legend, legendPosition, edgeHighlight, groupHighlight, branches, relations, suppressRootLine, groups, groupsOf, diagnostics };
+    return { detailsMode, legend, legendPosition, edgeHighlight, groupHighlight, branches, relations, suppressRootLine, groups, groupsOf, tagDisplay, tagsOf, tagKeys: resolved.keys, diagnostics };
 }

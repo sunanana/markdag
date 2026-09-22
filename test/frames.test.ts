@@ -9,7 +9,7 @@ import type { GroupDef } from '../src/model/model';
 const PARENTS: Array<number | null> = [null, 1, 2, 3, 3, 2, 6, 6, 1];
 const input: LayoutInput = {
     name: 'nested-groups',
-    nodes: PARENTS.map((_, index) => ({ id: index + 1, label: `n${index + 1}`, width: 40, height: 20, tags: [] })),
+    nodes: PARENTS.map((_, index) => ({ id: index + 1, label: `n${index + 1}`, width: 40, height: 20, groups: [] })),
     treeEdges: PARENTS.flatMap((parent, index) => (parent === null ? [] : [{ source: parent, target: index + 1 }])),
     relations: [],
     suppressRootLine: [],

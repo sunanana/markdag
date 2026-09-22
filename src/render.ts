@@ -1,12 +1,12 @@
 // Markdown の文字列を受け取り、渡された要素の中に図を描く。
 // 解析、モデルの組み立て、描画をつなぎ、スタイルシートの差し込みと、数式やコードの色付けに要る外部のスタイルシートの読み込みを受け持つ。
 // 原文はここが持ち、タスクの項目のクリックでは原文を書き換えて描き直す。変換器は呼び出し側から受け取る。
-import { buildModel, type Diagnostic } from './model/model';
+import { buildModel, type Diagnostic, type ModelOptions } from './model/model';
 import { parseDocument, toggleTask, type ParseOptions } from './parse/document';
 import styleSheet from './style.css?inline';
 import { MarkdagView, type ViewHooks, type ViewOptions } from './view/view';
 
-export interface RenderOptions extends Partial<ViewOptions>, ParseOptions, Pick<ViewHooks, 'onFoldChange' | 'onTransform'> {
+export interface RenderOptions extends Partial<ViewOptions>, ParseOptions, ModelOptions, Pick<ViewHooks, 'onFoldChange' | 'onTransform'> {
     // 図のスタイルシートを、ページの head に差し込むか。自分でスタイルシートを読み込むページでは false にする
     injectStyle?: boolean;
     // タスクの項目のクリックなどで、原文が書き換わったときに呼ぶ
@@ -61,14 +61,14 @@ export function formatDiagnostics(diagnostics: Diagnostic[]): string {
 }
 
 export function render(container: HTMLElement, markdown: string, options: RenderOptions): MarkdagDiagram {
-    const { injectStyle = true, onChange, transformer, onFoldChange, onTransform, ...viewOptions } = options;
+    const { injectStyle = true, onChange, transformer, onFoldChange, onTransform, types, ...viewOptions } = options;
     if (injectStyle) injectStyleSheet();
 
     let source = markdown;
     let diagnostics: Diagnostic[] = [];
     const draw = (fit: boolean): Diagnostic[] => {
         const parsed = parseDocument(source, { transformer });
-        const model = buildModel(parsed.nodes, parsed.frontmatter, source);
+        const model = buildModel(parsed.nodes, parsed.frontmatter, source, { types });
         // frontmatter に markdag のキーがない文書は markmap と同じ表示になり、タグや $id は文字のまま残る。
         // 書き手が気づけるよう、診断として知らせる
         const notes: Diagnostic[] = parsed.extracted

@@ -8,7 +8,7 @@ export interface VisibleNode {
     label: string;
     width: number;
     height: number;
-    tags: string[];
+    groups: string[];
     // Markdown のツリーでの深さ。ルートが 1 (markmap の数え方に合わせる)
     depth: number;
     treeParent: number | null;

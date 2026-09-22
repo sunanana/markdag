@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { OutlineNode } from '../src/parse/document';
+import type { NodeTag, OutlineNode } from '../src/parse/document';
 import { buildModel, checkFrontmatter } from '../src/model/model';
+import { suggestTagKeys, suggestTagValues } from '../src/model/tags';
 
-// [参照用のテキスト, 親の位置 (0 始まり。ルートは null), タグ, $id]
-type Row = [string, number | null, string[]?, string?];
+// [参照用のテキスト, 親の位置 (0 始まり。ルートは null), グループ, $id, タグ]
+type Row = [string, number | null, string[]?, string?, NodeTag[]?];
 
 function outline(rows: Row[]): OutlineNode[] {
     const nodes: OutlineNode[] = [];
-    rows.forEach(([refText, parentIndex, tags, refId], index) => {
+    rows.forEach(([refText, parentIndex, groups, refId, tags], index) => {
         const parent = parentIndex === null ? null : (nodes[parentIndex] ?? null);
         nodes.push({
             id: index + 1,
@@ -16,6 +17,7 @@ function outline(rows: Row[]): OutlineNode[] {
             html: refText,
             refText,
             refId: refId ?? null,
+            groups: groups ?? [],
             tags: tags ?? [],
             milestone: false,
             foldHint: 0,
@@ -107,11 +109,12 @@ describe('model 層', () => {
         expect(pairs(model, 'join')).toEqual(['3>6', '5>6']);
     });
 
-    it('詳細の見せ方は frontmatter の markdag.details で指定でき、使えない値は警告にして指定なしとして扱う', () => {
+    it('詳細の見せ方は frontmatter の markdag.details.display で指定でき、使えない値は警告にして指定なしとして扱う', () => {
         const nodes = outline([['root', null]]);
         expect(buildModel(nodes, {}).detailsMode).toBeNull();
-        expect(buildModel(nodes, { markdag: { details: 'open' } }).detailsMode).toBe('open');
-        const invalid = buildModel(nodes, { markdag: { details: 'always' } });
+        expect(buildModel(nodes, { markdag: { details: {} } }).detailsMode).toBeNull();
+        expect(buildModel(nodes, { markdag: { details: { display: 'always' } } }).detailsMode).toBe('always');
+        const invalid = buildModel(nodes, { markdag: { details: { display: 'open' } } });
         expect(invalid.detailsMode).toBeNull();
         expect(invalid.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
     });
@@ -464,7 +467,8 @@ describe('frontmatter の形と型の検証', () => {
                 markdag: {
                     relations: { fork: ['企画 --> 設計/*'], depends: '画面設計 --> API設計' },
                     groups: { design: { label: '設計チーム', color: '#3B7DD8', boundary: true, members: ['画面設計'] } },
-                    details: 'open',
+                    tags: { display: 'never' },
+                    details: { display: 'always' },
                     legend: { position: 'bottom-left', display: false },
                     branches: ['企画', '実装'],
                 },
@@ -479,6 +483,8 @@ describe('frontmatter の形と型の検証', () => {
         expect(first({ markdag: { relations: { fork: ['A -> B'] } } })).toMatchObject({ severity: 'error', code: 'relation-syntax' });
         expect(first({ markdag: { relations: { flow: ['A --> B'] } } })).toMatchObject({ severity: 'warning', code: 'relation-unknown-key' });
         expect(first({ markdag: { groups: { a: { color: 3 } } } })).toMatchObject({ severity: 'warning', code: 'group-invalid' });
+        expect(first({ markdag: { tags: { display: 'yes' } } })).toMatchObject({ severity: 'warning', code: 'option-invalid' });
+        expect(first({ markdag: { tags: { displa: true } } })).toMatchObject({ severity: 'warning', code: 'option-unknown', hint: 'もしかして「display」' });
         expect(first({ markdag: { branches: 'A' } })).toMatchObject({ severity: 'warning', code: 'option-invalid' });
         expect(first({ markdag: { branch: ['A'] } })).toMatchObject({ severity: 'warning', code: 'option-unknown' });
     });
@@ -516,9 +522,9 @@ describe('frontmatter の形と型の検証', () => {
         expect(first({ markdag: { relations: { chian: ['A --> B'] } } })?.hint).toBe('もしかして「chain」');
         expect(first({ markdag: { branch: ['A'] } })?.hint).toBe('もしかして「branches」');
         expect(first({ markdag: { groups: { a: { colour: '#fff' } } } })?.hint).toBe('もしかして「color」');
-        expect(first({ markdag: { details: 'hoverr' } })?.hint).toBe('もしかして「hover」');
+        expect(first({ markdag: { details: { display: 'hoverr' } } })?.hint).toBe('もしかして「hover」');
         // 近い名前がなければ、スキーマの手がかりをそのまま出す
-        expect(first({ markdag: { details: 'always' } })?.hint).toBe('click は印のクリック、hover はノードに重ねる、open は最初から開いて表示します');
+        expect(first({ markdag: { details: { display: 'open' } } })?.hint).toBe('always は最初から開いて表示、hover はノードに重ねる、click は印のクリックです');
     });
 
     it('下の階層に書くはずのキーは、知らないキーではなく置き場所の違いとして知らせる', () => {
@@ -569,7 +575,7 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
         ['groups が文字列', { markdag: { groups: 'abc' } }, ['group-invalid']],
         ['markdag が文字列', { markdag: 'abc' }, ['option-invalid']],
         ['凡例の項目が重なっている', { markdag: { legend: { display: ['groups', 'groups'] } } }, ['option-invalid']],
-        ['最上位のキーが大文字違い', { Markdag: { details: 'open' } }, ['option-unknown']],
+        ['最上位のキーが大文字違い', { Markdag: { details: { display: 'always' } } }, ['option-unknown']],
         ['relations の書き間違いを最上位に置いた', { relation: { fork: ['A --> B'] } }, ['option-unknown']],
         ['markmap のオプションを最上位に置いた', { colorFreezeLevel: 2 }, ['option-misplaced']],
         ['relations を最上位に置いた (0.2 までの書き方)', { relations: { fork: ['A --> B'] } }, ['option-misplaced']],
@@ -577,7 +583,7 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
         ['relations のキーを最上位に置いた', { fork: 'A --> B' }, ['option-misplaced']],
         ['relations のキーを markdag の直下に置いた', { markdag: { fork: ['A --> B'] } }, ['option-misplaced']],
         ['legend のキーを markdag の直下に置いた', { markdag: { position: 'top-left' } }, ['option-misplaced']],
-        ['markdag のキーを markmap の下に置いた', { markmap: { markdag: { details: 'open' } } }, ['option-unknown']],
+        ['markdag のキーを markmap の下に置いた', { markmap: { markdag: { details: { display: 'always' } } } }, ['option-unknown']],
         ['markmap の数値に文字列を書いた', { markmap: { nodeMinHeight: '20' } }, ['option-invalid']],
         ['markmap の真偽値に文字列を書いた (逆の意味になる)', { markmap: { autoFit: 'no' } }, ['option-invalid']],
         ['markmap の深さに数でない文字列を書いた', { markmap: { colorFreezeLevel: 'abc' } }, ['option-invalid']],
@@ -642,5 +648,232 @@ describe('参照の経路の区切り', () => {
         const model = buildModel(nodes, { markdag: { relations: { depends: ['入出力/I\\/O --> 完了'] } } });
         expect(model.diagnostics).toEqual([]);
         expect(pairs(model, 'depends')).toEqual(['3>4']);
+    });
+});
+
+// 位置は本文の行だけを見分ければよいので、行ごとに同じ桁で作る
+const AT = (line: number): NodeTag['at'] => ({ line, column: 10, length: 8 });
+
+describe('タグ', () => {
+    const tag = (key: string, ...values: string[]): NodeTag => ({ key, values, at: AT(0) });
+    // 1 root / 2 A (owner, urgent) / 3 B (A の子。何も書いていない) / 4 C (グループ backend と、同じ名前の値のないタグ)
+    const TREE = outline([
+        ['root', null],
+        ['A', 0, [], undefined, [tag('owner', 'alice'), tag('urgent')]],
+        ['B', 1],
+        ['C', 0, ['backend'], undefined, [tag('backend'), tag('status', 'doing', 'review')]],
+    ]);
+
+    it('タグは書いたノードだけが持ち、配下には継承しない', () => {
+        const model = buildModel(TREE, { markdag: {} });
+        expect(model.tagsOf.get(2)).toEqual([tag('owner', 'alice'), tag('urgent')]);
+        expect(model.tagsOf.get(3)).toEqual([]);
+        expect(model.tagsOf.get(4)).toEqual([tag('backend'), tag('status', 'doing', 'review')]);
+        expect(model.diagnostics).toEqual([]);
+    });
+
+    it('タグの見せ方は frontmatter の markdag.tags.display でまとめて決まる (既定は always)', () => {
+        expect(buildModel(TREE, { markdag: {} }).tagDisplay).toBe('always');
+        for (const mode of ['always', 'hover', 'click', 'never']) {
+            expect(buildModel(TREE, { markdag: { tags: { display: mode } } }).tagDisplay).toBe(mode);
+        }
+        const hidden = buildModel(TREE, { markdag: { tags: { display: 'never' } } });
+        expect(hidden.tagDisplay).toBe('never');
+        // 出さないだけで、タグそのものは持ったまま
+        expect(hidden.tagsOf.get(2)).toEqual([tag('owner', 'alice'), tag('urgent')]);
+        expect(hidden.diagnostics).toEqual([]);
+    });
+
+    it('グループと同じ名前のタグを書いても、タグはタグのままで、グループの所属は %名前 だけで決まる', () => {
+        const model = buildModel(TREE, { markdag: { groups: { backend: { label: 'Backend' } } } });
+        expect(model.diagnostics).toEqual([]);
+        expect(model.tagsOf.get(4)).toEqual([tag('backend'), tag('status', 'doing', 'review')]);
+        expect(model.groupsOf.get(4)).toEqual(['backend']);
+    });
+});
+
+describe('タグの型と検査', () => {
+    const tag = (key: string, line: number, ...values: string[]): NodeTag => ({ key, values, at: AT(line) });
+    // 1 root / 2 A (正しい値) / 3 B (誤った値) / 4 C ($api。id は D と重なる) / 5 D
+    const DOC = outline([
+        ['root', null],
+        ['A', 0, [], undefined, [tag('priority', 2, 'high'), tag('estimate', 2, '3.5'), tag('due', 2, '2026-10-01'), tag('urgent', 2)]],
+        ['B', 0, [], undefined, [tag('priority', 3, 'hgih'), tag('estimate', 3, 'abc'), tag('due', 3, '2026-13-01'), tag('urgent', 3, 'yes')]],
+        ['C', 0, [], 'api', [tag('id', 4, 'T-1'), tag('blockedBy', 4, '$api'), tag('owner', 4, 'alice', 'bob')]],
+        ['D', 0, [], undefined, [tag('id', 5, 'T-1'), tag('blockedBy', 5, '$missing'), tag('owner', 5, 'carol')]],
+    ]);
+    const KEYS = {
+        priority: { type: 'enum', values: ['high', 'medium', 'low'], description: '優先度' },
+        estimate: { type: 'number', min: 0 },
+        due: { type: 'date' },
+        urgent: { type: 'boolean' },
+        id: { type: 'string', pattern: '^T-\\d+$', unique: true },
+        blockedBy: { type: 'nodeId' },
+        owner: { type: 'string', multiple: true },
+    };
+    const found = (model: ReturnType<typeof buildModel>) => model.diagnostics.map((item) => [item.code, item.severity, item.at?.line ?? null, item.message, item.hint]);
+
+    it('値を型に当てて、合わないものだけを本文の行つきで知らせる (既定は warning)', () => {
+        const model = buildModel(DOC, { markdag: { tags: { keys: KEYS } } });
+        expect(found(model)).toEqual([
+            ['tag-type', 'warning', 3, '「B」の #priority:hgih: high / medium / low のどれかで書きます', 'もしかして「high」'],
+            ['tag-type', 'warning', 3, '「B」の #estimate:abc: 数値で書きます', null],
+            ['tag-type', 'warning', 3, '「B」の #due:2026-13-01: YYYY-MM-DD の日付で書きます', null],
+            ['tag-type', 'warning', 3, '「B」の #urgent:yes: true か false のどちらかで書きます', null],
+            ['tag-type', 'warning', 5, '「D」の #blockedBy:$missing: $missing を持つノードがありません', '行末に $名前 を付けたノードを指します'],
+            ['tag-unique', 'warning', 4, '「C」の #id:T-1 は、ほかのノードにも書かれています (5 行目)', 'unique のキーなので、値を変えるか片方を消します'],
+            ['tag-unique', 'warning', 5, '「D」の #id:T-1 は、ほかのノードにも書かれています (4 行目)', 'unique のキーなので、値を変えるか片方を消します'],
+        ]);
+        // 検査しても、タグは書いたまま残る
+        expect(model.tagsOf.get(3)?.map((item) => item.values)).toEqual([['hgih'], ['abc'], ['2026-13-01'], ['yes']]);
+    });
+
+    it('lint: error で重大度が変わり、unknownKey: deny で定義のないキーも知らせる', () => {
+        const model = buildModel(outline([['root', null], ['A', 0, [], undefined, [tag('onwer', 2, 'alice'), tag('memo', 2, 'x')]]]), {
+            markdag: { tags: { lint: 'error', unknownKey: 'deny', keys: { owner: { type: 'string' } } } },
+        });
+        expect(found(model)).toEqual([
+            ['tag-unknown-key', 'error', 2, '「A」の #onwer:alice は、markdag.tags.keys に定義のないキーです', 'もしかして「owner」'],
+            ['tag-unknown-key', 'error', 2, '「A」の #memo:x は、markdag.tags.keys に定義のないキーです', 'keys に定義するか、unknownKey を allow にします'],
+        ]);
+        // 定義がなく allow (既定) なら何も言わない
+        expect(buildModel(DOC, { markdag: {} }).diagnostics).toEqual([]);
+    });
+
+    it('値の数を見る: 値なしは boolean だけが許され、複数の値は multiple のキーだけが許される', () => {
+        const model = buildModel(outline([['root', null], ['A', 0, [], undefined, [tag('due', 2), tag('urgent', 2), tag('due', 2, '2026-10-01', '2026-10-02')]]]), {
+            markdag: { tags: { keys: { due: { type: 'date' }, urgent: { type: 'boolean' } } } },
+        });
+        // 同じキーを 1 行に 2 回書いたものは parse 層でつながるが、ここでは別々のタグとして渡している
+        expect(model.diagnostics.map((item) => [item.code, item.message])).toEqual([
+            ['tag-missing-value', '「A」の #due には値が要ります (YYYY-MM-DD の日付)'],
+            ['tag-multiple', '「A」の #due:2026-10-01,2026-10-02 は値を 1 つだけ書くキーです'],
+        ]);
+    });
+
+    it('名前付きの型は制約を足すだけで派生でき、type の一覧はどれかに合えば通る', () => {
+        const doc = outline([
+            ['root', null],
+            ['A', 0, [], undefined, [tag('id', 2, 'JIRA-12'), tag('priority', 2, '3'), tag('priority', 2, 'high')]],
+            ['B', 0, [], undefined, [tag('id', 3, 'ABC-12'), tag('priority', 3, '9'), tag('priority', 3, 'medium')]],
+        ]);
+        const model = buildModel(doc, {
+            markdag: {
+                types: {
+                    ticket: { type: 'string', pattern: '^[A-Z]+-\\d+$' },
+                    jira: { type: 'ticket', pattern: '^JIRA-' },
+                    level: { type: 'integer', min: 1, max: 5 },
+                },
+                tags: { keys: { id: { type: 'jira' }, priority: { type: ['level', 'enum'], values: ['high', 'low'], multiple: true } } },
+            },
+        });
+        expect(model.tagKeys).toEqual([
+            { key: 'id', alternatives: [{ primitive: 'string', patterns: ['^[A-Z]+-\\d+$', '^JIRA-'] }], multiple: false, unique: false, description: null },
+            { key: 'priority', alternatives: [{ primitive: 'integer', min: 1, max: 5 }, { primitive: 'enum', values: ['high', 'low'] }], multiple: true, unique: false, description: null },
+        ]);
+        expect(model.diagnostics.map((item) => [item.code, item.at?.line, item.message])).toEqual([
+            ['tag-type', 3, '「B」の #id:ABC-12: 「^JIRA-」の形に合いません'],
+            ['tag-type', 3, '「B」の #priority:9 の「9」は 整数 (1 以上、5 以下)、high / low のどれか のどれにも合いません'],
+            ['tag-type', 3, '「B」の #priority:medium の「medium」は 整数 (1 以上、5 以下)、high / low のどれか のどれにも合いません'],
+        ]);
+    });
+
+    it('型の定義の誤りは、位置つきで知らせて、そのキーの検査をやめる', () => {
+        const doc = outline([['root', null], ['A', 0, [], undefined, [tag('a', 2, 'x'), tag('b', 2, 'x'), tag('c', 2, 'x')]]]);
+        const markdown = [
+            '---',
+            'markdag:',
+            '    types:',
+            '        loop:',
+            '            type: loop',
+            '        string:',
+            '            type: string',
+            '        bad:',
+            '            type: number',
+            '            pattern: x',
+            '            min: "1"',
+            '    tags:',
+            '        keys:',
+            '            a:',
+            '                type: strng',
+            '            b:',
+            '                type: loop',
+            '            c:',
+            '                type: enum',
+            '---',
+            '',
+            '# root',
+            '',
+            '## A #a:x #b:x #c:x',
+            '',
+        ].join('\n');
+        const model = buildModel(doc, { markdag: { types: { loop: { type: 'loop' }, string: { type: 'string' }, bad: { type: 'number', pattern: 'x', min: '1' } }, tags: { keys: { a: { type: 'strng' }, b: { type: 'loop' }, c: { type: 'enum' } } } } }, markdown);
+        expect(model.diagnostics.map((item) => [item.code, item.at?.line, item.message, item.hint])).toEqual([
+            ['type-reserved', 6, 'markdag.types.string は組み込みの型と同じ名前なので定義できません', '別の名前にします'],
+            ['type-unknown', 15, 'markdag.tags.keys.a の型「strng」は、組み込みの型にも markdag.types にもありません', 'もしかして「string」'],
+            ['type-cycle', 5, '型「loop」の定義が自分自身に戻っています (loop → loop)', '型の type には、自分より基底の型を書きます'],
+            // values の行はないので、キーの行を指す
+            ['type-invalid', 18, 'markdag.tags.keys.c は enum なので values (許す値の一覧) が要ります', 'values: の下に、許す値を「- high」の形で 1 行ずつ並べます'],
+        ]);
+        // 使われていない型 (bad) の誤りは、使われたときに知らせる
+        const used = buildModel(doc, { markdag: { types: { bad: { type: 'number', pattern: 'x', min: '1' } }, tags: { keys: { a: { type: 'bad' } } } } }, markdown);
+        expect(used.diagnostics.map((item) => [item.code, item.message])).toEqual([
+            ['type-invalid', 'markdag.types.bad の pattern は string の型にだけ書けます (この型は number)'],
+            ['type-invalid', 'markdag.types.bad の min は、number の型では数値で書きます'],
+            ['tag-type', '「A」の #a:x: 数値で書きます'],
+        ]);
+    });
+
+    it('$ref で読んだ型は一覧の順に重ねて後勝ちにし、文書の types がさらに優先する。読めなければ warning にして、その型を使うキーは検査しない', () => {
+        const doc = outline([['root', null], ['A', 0, [], undefined, [tag('p', 2, '4')]]]);
+        const frontmatter = (own: Record<string, unknown> = {}) => ({ markdag: { types: { $ref: ['./a.yaml', './b.yaml'], ...own }, tags: { keys: { p: { type: 'level' } } } } });
+        const loaded = { './a.yaml': { level: { type: 'integer', max: 3 } }, './b.yaml': { level: { type: 'integer', max: 5 } } };
+        expect(buildModel(doc, frontmatter(), undefined, { types: loaded }).diagnostics).toEqual([]);
+        expect(buildModel(doc, frontmatter({ level: { type: 'integer', max: 2 } }), undefined, { types: loaded }).diagnostics.map((item) => item.code)).toEqual(['tag-type']);
+        const unresolved = buildModel(doc, frontmatter(), undefined, { types: { './a.yaml': loaded['./a.yaml'] } });
+        expect(unresolved.diagnostics.map((item) => [item.code, item.message])).toEqual([
+            ['types-unresolved', 'markdag.types.$ref「./b.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)'],
+        ]);
+        // 読めたほうの定義 (max: 3) には合わないが、読めなかった側で上書きされるかもしれないので黙って通す
+        expect(buildModel(doc, frontmatter(), undefined, { types: { './b.yaml': null } }).diagnostics.map((item) => item.code)).toEqual(['types-unresolved', 'types-unresolved']);
+        // 組み込みの型を直接書いたキーは、読めなくても検査する
+        const direct = buildModel(doc, { markdag: { types: { $ref: './a.yaml' }, tags: { keys: { p: { type: 'integer', max: 3 } } } } });
+        expect(direct.diagnostics.map((item) => item.code)).toEqual(['types-unresolved', 'tag-type']);
+    });
+
+    it('日時、時刻、期間は書き方と範囲を見る', () => {
+        const doc = outline([
+            ['root', null],
+            ['A', 0, [], undefined, [tag('start', 2, '2026-10-01T09:30'), tag('at', 2, '17:59:30'), tag('est', 2, '1.5d'), tag('start', 2, '2026-10-01 09:30+09:00')]],
+            ['B', 0, [], undefined, [tag('start', 3, '2026-09-30T23:59'), tag('at', 3, '18:01'), tag('est', 3, '3d'), tag('est', 3, '2 days')]],
+        ]);
+        const model = buildModel(doc, { markdag: { tags: { keys: { start: { type: 'datetime', min: '2026-10-01T00:00' }, at: { type: 'time', max: '18:00' }, est: { type: 'duration', max: '2d' } } } } });
+        expect(model.diagnostics.map((item) => [item.at?.line, item.message])).toEqual([
+            [3, '「B」の #start:2026-09-30T23:59: 2026-10-01T00:00 以上で書きます'],
+            [3, '「B」の #at:18:01: 18:00 以下で書きます'],
+            [3, '「B」の #est:3d: 2d 以下で書きます'],
+            [3, '「B」の #est:"2 days": 30m / 2h / 3d / 1w のような期間で書きます'],
+        ]);
+    });
+
+    it('編集側の候補は、キーの名前と、enum と boolean の値だけを出す', () => {
+        const model = buildModel(DOC, { markdag: { tags: { keys: KEYS } } });
+        expect(suggestTagKeys(model.tagKeys, 'p')).toEqual([{ key: 'priority', description: '優先度' }]);
+        expect(suggestTagKeys(model.tagKeys).map((item) => item.key)).toEqual(['priority', 'estimate', 'due', 'urgent', 'id', 'blockedBy', 'owner']);
+        expect(suggestTagValues(model.tagKeys, 'priority', 'h')).toEqual(['high']);
+        expect(suggestTagValues(model.tagKeys, 'urgent')).toEqual(['true', 'false']);
+        expect(suggestTagValues(model.tagKeys, 'due')).toEqual([]);
+        expect(suggestTagValues(model.tagKeys, 'nothing')).toEqual([]);
+    });
+
+    it('types と tags.keys の形はスキーマが検査する', () => {
+        const codes = (frontmatter: Record<string, unknown>) => checkFrontmatter(frontmatter).map((item) => [item.code, item.hint]);
+        expect(codes({ markdag: { types: { a: { type: 3 } } } })).toEqual([['type-invalid', '「type: string」のように 1 つ書くか、「- enum」の形で 1 行ずつ並べます']]);
+        expect(codes({ markdag: { types: { a: { typo: 'x' } } } })).toEqual([['type-invalid', 'もしかして「type」']]);
+        expect(codes({ markdag: { tags: { keys: { a: { multiple: 'yes' } } } } })).toEqual([['type-invalid', 'true か false と書きます。yes は YAML では文字列になります']]);
+        expect(codes({ markdag: { tags: { lint: 'warn' } } })).toEqual([['option-invalid', 'warning か error と書きます']]);
+        expect(codes({ markdag: { tags: { unknownKey: 'denny' } } })).toEqual([['option-invalid', 'もしかして「deny」']]);
+        expect(codes({ markdag: { types: { $ref: 3 } } })).toEqual([['option-invalid', '「$ref: ./types.yaml」のように文書からの相対パスを書くか、「- ./a.yaml」の形で 1 行ずつ並べます']]);
+        expect(codes({ markdag: { types: { $ref: './t.yaml', a: { type: ['string', 'number'], min: 1, values: ['x'], pattern: 'y' } }, tags: { lint: 'error', unknownKey: 'deny', keys: { a: { type: 'a', multiple: true, unique: true, description: 'd' } } } } })).toEqual([]);
     });
 });

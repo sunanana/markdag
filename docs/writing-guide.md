@@ -1,6 +1,6 @@
 # Writing a markdag document
 
-A markdag document is a [markmap](https://markmap.js.org/)-style Markdown outline plus a YAML frontmatter. The outline is the tree. The frontmatter has one key, `markdag`, that holds lines between nodes (`relations`), groups of nodes (`groups`), and display options.
+A markdag document is a [markmap](https://markmap.js.org/)-style Markdown outline plus a YAML frontmatter. The outline is the tree. The frontmatter has one key, `markdag`, that holds lines between nodes (`relations`), groups of nodes (`groups`), tag keys (`tags`), and display options.
 
 markdag is a prototype (0.x). The notation may change until v1. Everything on this page was checked against the current implementation.
 
@@ -33,7 +33,8 @@ markdag:
             color: "#E0A100"
             members:
                 - Verify/**
-    details: hover
+    details:
+        display: hover
     branches:
         - Requirements
         - Design
@@ -46,20 +47,20 @@ markdag:
 
 ## Requirements $req
 
-## Design #design
+## Design %design
 ### Screen design
 ### API design
 
 ## Build
 ### Frontend
 - [x] List screen
-- [ ] Signup form
+- [ ] Signup form #owner:alice #priority:high
     > Posts to the signup API. Show input errors right under each field.
-- [ ] Test #qa
+- [ ] Test %qa
 ### Backend
-- [x] Search API
-- [ ] Signup API
-- [ ] Test #qa
+- [x] Search API #owner:bob
+- [ ] Signup API #owner:alice,bob #urgent
+- [ ] Test %qa
 
 ## Verify
 - [ ] Integration test
@@ -70,7 +71,7 @@ markdag:
 
 ## 2. The frontmatter turns the notation on
 
-Tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
+Groups, tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `%group`, `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
 
 The frontmatter must start on the first line of the file with `---` and end with a line that is only `---`.
 
@@ -80,23 +81,26 @@ Nodes are headings and list items. The first line of a node is what `markdag.rel
 
 | Notation | Where | Meaning |
 | --- | --- | --- |
-| `#name` | End of the first line of a heading or list item | Puts the node and all its descendants in group `name` |
+| `%name` | End of the first line of a heading or list item | Puts the node and all its descendants in group `name` |
+| `#key:value`, `#key` | End of the first line of a heading or list item | A tag on this node only: a key with a value, several values (`#key:a,b`), a value with spaces (`#key:"a b"`), or no value (`#key`). Shown in the node as written |
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
-| `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node. With `details: open` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
+| `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
-| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details: open`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not toggle the task. `[X]` is the same as `[x]` |
+| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not toggle the task. `[X]` is the same as `[x]` |
 
 Rules:
 
-- `#name` and `$name` must be separated from the text by a half-width space, and must be at the end of the line. Several tags can follow each other (`Deploy #backend #qa`). Tags and one `$id` can be mixed in any order.
-- Only the first line of a node is scanned. A tag on the second line of a list item stays as text.
-- `$name` is `$` + an ASCII letter + ASCII letters, digits, `_`, `-`. `$日本` is not an id. One id per node.
-- `#123` (digits only) is not a tag, so `Issue #123` is safe. `C#` is not a tag because there is no space before `#`. Write `\#name` to keep a trailing `#name` as text.
-- A full-width space (U+3000) is not a separator. `Deploy　#backend` keeps the tag as text.
+- `%name`, `#key:value` and `$name` must be separated from the text by a half-width space, and must be at the end of the line. Several marks can follow each other in any order (`Deploy %backend #owner:alice #urgent $deploy`). One `$id` per node.
+- Only the first line of a node is scanned. A mark on the second line of a list item stays as text.
+- Group names and tag keys are letters, digits, `_` and `-` in any script (`%開発`, `#担当:山田` work). `$name` is `$` + an ASCII letter + ASCII letters, digits, `_`, `-`. `$日本` is not an id.
+- A tag value runs to the next space. `,` separates values (`#owner:alice,bob`). A value in `"…"` may contain spaces and `,` and is one value (`#owner:"山田 太郎"`). `#key:` with nothing after the colon stays as text. The same key written twice on one line joins the values.
+- A name made only of digits is not a mark: `Issue #123` and `%50` stay as text. `C#` is not a tag because there is no space before `#`. Write `\%name` or `\#name` to keep a trailing mark as text.
+- A full-width space (U+3000) is not a separator. `Deploy　%backend` keeps the mark as text.
 - Details work only inside a list item. A blockquote directly under a heading is dropped and does not become details.
 - A milestone needs the entire first line in one bold span. `**Release** prep` and `**a** and **b**` are not milestones.
-- A tag is inherited by all descendants. There is no notation for tagging a parent only.
-- A tag with no entry in `markdag.groups` is shown as a text label without a color.
+- A group is inherited by all descendants. There is no notation for putting a parent only in a group. A tag is not inherited: it belongs to the node it is written on.
+- A group with no entry in `markdag.groups` is shown as a text label (`%name`) without a color. A tag needs no definition; it is shown as written (`#owner:alice`, `#urgent`) next to the node text, unless the document changes `markdag.tags.display`.
+- Tag values are checked only for keys defined in `markdag.tags.keys` (see `types` and `tags` in section 4). Without a definition, any value is accepted.
 
 ## 4. Frontmatter
 
@@ -156,10 +160,82 @@ markdag:
                 - API/**
 ```
 
-- The key is the group name, used in the body as `#backend`.
-- `label` is the name shown in the legend and on the frame. `color` is a CSS color. `boundary: true` draws a frame around the members.
-- `members` adds nodes by selector instead of by tag. Membership given by `members` is inherited by descendants, the same as a tag. `(X)` cannot be used in `members`.
-- A group name made only of digits cannot be used as a tag (`#2024` is not a tag).
+- The key is the group name, used in the body as `%backend`.
+- `label` is the name shown in the legend, on the frame and in the text label of a group without a color. `color` is a CSS color. `boundary: true` draws a frame around the members.
+- `members` adds nodes by selector instead of by the `%name` mark. Membership given by `members` is inherited by descendants, the same as a mark. `(X)` cannot be used in `members`.
+- A group name made only of digits cannot be used as a mark (`%2024` is not a mark). Put such a group in `members`.
+
+### types
+
+```yaml
+markdag:
+    types:
+        $ref: ./types.yaml
+        ticket:
+            type: string
+            pattern: "^[A-Z]+-\\d+$"
+        priority:
+            type: enum
+            values: [high, medium, low]
+        level:
+            type: integer
+            min: 1
+            max: 5
+```
+
+- A named type is a base type (`type`) plus constraints. `tags.keys` refers to it by name. `type` is one of the built-in types below, or the name of another entry in `types`: a derived type adds constraints to its base and cannot loosen them. Omitting `type` means `string`.
+- Built-in types and how a value is written in the body:
+
+| Type | Value | Constraints |
+| --- | --- | --- |
+| `string` | any text | `pattern` (a JavaScript regular expression), `minLength`, `maxLength` |
+| `number` | `3`, `-1.5` | `min`, `max` (numbers) |
+| `integer` | `3`, `-1` | `min`, `max` (numbers) |
+| `boolean` | `true`, `false`. `#key` with no value means `true` | none |
+| `enum` | one of `values` | `values` (required) |
+| `date` | `2026-10-01` | `min`, `max` (written the same way) |
+| `datetime` | `2026-10-01T09:30`. Seconds and a zone (`Z`, `+09:00`) are optional. With a space instead of `T`, quote it: `#start:"2026-10-01 09:30"` | `min`, `max` |
+| `time` | `09:30`. Seconds are optional | `min`, `max` |
+| `duration` | `30m`, `2h`, `3d`, `1w` | `min`, `max` |
+| `nodeId` | `$name`: the node that has `$name` at the end of its first line. It must exist, and only once | none |
+
+- `type` can be a list (`type: [level, enum]`): a value passes when it fits any of them. Constraints written next to a list apply to the entries they fit.
+- When the same constraint is written on the base and on the derived type, both apply: `min` takes the larger, `max` the smaller, and every `pattern` must match. `values` on a derived type replaces the base's list.
+- `description` is free text for editors, shown next to the key in completion.
+- `$ref` loads types from another YAML file: one path or a list, relative to the document. markdag itself does not read files. The application reads them and passes the parsed YAML to `buildModel` (see [usage.md](usage.md)); `npm run check` reads them itself. Later files override earlier ones, and the document's own `types` override all of them. A file that could not be read is reported as `types-unresolved`, and keys that refer to a named type are then not checked.
+- A built-in type name cannot be redefined (`type-reserved`). An unknown name is `type-unknown`, a type that refers to itself is `type-cycle`, and a constraint that does not fit the base type (`pattern` on a number, `values` on a string, a numeric `min` on a date) is `type-invalid`.
+
+### tags
+
+```yaml
+markdag:
+    tags:
+        display: always
+        lint: warning
+        unknownKey: allow
+        keys:
+            owner:
+                type: string
+                multiple: true
+            priority:
+                type: priority
+            estimate:
+                type: number
+                min: 0
+            ticket:
+                type: ticket
+                unique: true
+            blockedBy:
+                type: nodeId
+```
+
+- Tags (`#key:value`, `#key` in the body) work without any definition. `tags` holds display options and, under `keys`, the definitions of the keys to check.
+- `display` decides how every tag is shown; there is no per-key setting. `always` (the default) writes them after the node text, next to the text labels of groups without a color, and they count towards the size of the node. `hover` and `click` put them in the same popover as the details, after the details text, and give the node the same `i` button: the popover opens when the pointer is over the node (`hover`) or when the button is clicked (`click`). A node with tags gets the button even when it has no details. `never` hides them. With `details.display: always` there is no popover, so the tags are written in the node as with `always`.
+- `keys.<key>` defines one key. It takes the same fields as a `types` entry (`type`, the constraints, `description`), written inline or referring to a named type, plus how the key is used: `multiple: true` allows several values (`#owner:alice,bob`; without it a second value is `tag-multiple`), and `unique: true` forbids the same value on two nodes (`tag-unique`, reported on every node that has the value, with the lines of the others).
+- A value that does not fit the type is `tag-type`. `#key` with no value on a key that is not `boolean` is `tag-missing-value`. These are reported with the position of the tag in the body.
+- `lint` is the severity of those reports: `warning` (default) or `error`. With `error`, `npm run check` exits with 1. The tag still stays as written and the diagram is still drawn; unlike an error in `relations`, nothing is dropped.
+- `unknownKey` says what to do with a key that is not in `keys`: `allow` (default: the tag is free, as without any definition) or `deny` (`tag-unknown-key`, at the `lint` severity).
+- Tags are data on the node: they are not inherited, they do not draw frames or colors, and they are not in the legend. Applications read them from `GraphModel.tagsOf` and the definitions from `GraphModel.tagKeys` (see [usage.md](usage.md)).
 
 ### Display options
 
@@ -167,14 +243,15 @@ The other keys under `markdag`:
 
 | Key | Values | Default |
 | --- | --- | --- |
-| `details` | `click`, `hover`, `open` | `hover` |
+| `details.display` | `always` (open inside the node), `hover` (a popover when the pointer is over the node), `click` (a popover from the `i` button) | `hover` |
 | `legend.position` | `top-right`, `top-left`, `bottom-right`, `bottom-left` (the corner of the diagram area where the legend is placed) | `top-right` |
 | `legend.display` | `false`, or a list of `groups` and `branches` | both |
+| `tags.display` | `always` (in the node), `hover` and `click` (in the details popover), `never` (see `tags` above) | `always` |
 | `branches` | List of nodes (one node each; no `/*`, `/**`, `(X)`) | none |
 | `edgeHighlight` | boolean | `true` |
 | `groupHighlight` | boolean | `true` |
 
-- `legend` is a mapping with the keys `position` and `display`. Writing the list or `false` directly under `legend` (the form used in 0.1.0) is reported as `option-invalid` and ignored.
+- `details`, `legend` and `tags` are mappings. Writing a value directly under them (`details: hover`, a list under `legend`) is reported as `option-invalid` and ignored.
 
     ```yaml
     markdag:
@@ -197,7 +274,7 @@ The other keys under `markdag`:
 | Wrong | What YAML does | Right |
 | --- | --- | --- |
 | `color: #3B7DD8` | A space followed by `#` starts a comment. The value becomes null | `color: "#3B7DD8"` |
-| `- Launch #backend --> Review` | Same. The value becomes `Launch` | Refer to the node by its text without the tag: `- Launch --> Review` |
+| `- Launch #urgent --> Review` | Same. The value becomes `Launch` | Refer to the node by its text without the marks: `- Launch --> Review` (`%name`, `#tag` and `$id` are not part of the text a relation matches) |
 | `- Phase 1: design --> build` | `: ` makes the item a mapping, not a string | `- "Phase 1: design --> build"` |
 | `boundary: yes` | `yes` is a string in YAML 1.2, not a boolean | `boundary: true` |
 | `- @mention --> B`, `` - `cmd` --> B `` | `@` and `` ` `` cannot start a plain value. The whole frontmatter fails to parse | `- "@mention --> B"` |
@@ -219,16 +296,19 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 
 - `(X)` (treat the branch of X as one unit and draw a frame around it). It is parsed, reports a `not-supported` warning, and behaves as `X`.
 - Task states other than `[ ]` and `[x]` (`[X]`). `[/]` and `[-]` stay in the node as text.
-- A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the tag or `$id` silently stays as text.
+- A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the group mark, tag or `$id` silently stays as text.
+- Filtering the diagram by tags. Tags are extracted and shown, and applications can read them, but the view has no filter yet.
 
 ## 8. Guidelines for a readable diagram
 
 - Use `chain` for the backbone of the process, `join` where several results meet at a milestone, `fork` where one decision starts several things at once, and `depends` for the remaining cross dependencies. `depends` lines are the ones that cross other lines most, so keep them few.
+- Set `tags.display` to `hover` or `click` in a document with many tags: the tags then move into the details popover, the nodes stay narrow, and the layout stays close to the one without tags.
 - In a large document set `markmap.initialExpandLevel` (3 works well). Closed nodes merge the lines of their descendants into one line with a count badge, so the first view stays readable. [examples/large-project.md](examples/large-project.md) uses this.
 - Choose 6 to 10 branch starts. The palette has 10 colors and repeats after that. Using the top-level phases as branch starts makes the color of a line tell which phase it comes from.
 - Put `boundary: true` only on the large groups. `examples/large-project.md` defines 33 groups and draws a frame for 9 of them.
 - Give a group a `color` when it should read as a unit. Without a color it is only a text label beside each node.
-- Use tags for membership that follows the structure of the outline, and `members` for membership that cuts across it.
+- Use `%name` marks for membership that follows the structure of the outline, and `members` for membership that cuts across it.
+- Use groups for what should be visible as a unit (a team, a phase) and tags for attributes of single nodes (`#owner:alice`, `#priority:high`, `#urgent`). A tag on a heading says nothing about the items under it.
 
 ## 9. Check the document
 

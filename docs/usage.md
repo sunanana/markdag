@@ -79,11 +79,12 @@ Options:
 | Option | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `theme` | `'light' \| 'dark'` | `'light'` | Background and the colors that depend on it |
-| `details` | `'auto' \| 'click' \| 'hover' \| 'open'` | `'auto'` | How node details are shown. `auto` follows `markdag.details` in the document |
+| `details` | `'auto' \| 'always' \| 'hover' \| 'click'` | `'auto'` | How node details are shown. `auto` follows `markdag.details.display` in the document |
 | `legend` | `boolean` | `true` | Show the legend. Which items appear and the corner where it is placed follow `markdag.legend.display` and `markdag.legend.position` in the document |
 | `animate` | `boolean` | `true` | Animate fold and relayout |
 | `injectStyle` | `boolean` | `true` | Add the stylesheet to `<head>` |
 | `transformer` | `TransformerLike` | markmap-lib's standard `Transformer` | The Markdown-to-tree transformer. Required in `markdag/core` |
+| `types` | `Record<string, unknown>` | none | The files referenced by `markdag.types.$ref`, keyed by the path exactly as written in the document, each parsed from YAML (`null` when it could not be read). markdag does not read files; see [Tag types from other files](#tag-types-from-other-files) |
 | `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]` or `## [ ]`) and the source text changes |
 | `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [Hooks](#hooks)) |
 | `onTransform` | `(transform: { x, y, k }, byUser: boolean) => void` | none | Called when pan or zoom changes (see [Hooks](#hooks)) |
@@ -103,7 +104,7 @@ const transformer = new Transformer([pluginFrontmatter, pluginCheckbox, pluginSo
 const diagram = render(container, markdownText, { transformer });
 ```
 
-A transformer is any object with markmap-lib's `transform(markdown)` and `getUsedAssets(features)`. It must include the frontmatter plugin and the source-lines plugin. Without source lines, tags, `$id`, tasks and `lines` cannot be attached to nodes, and they are dropped without a diagnostic.
+A transformer is any object with markmap-lib's `transform(markdown)` and `getUsedAssets(features)`. It must include the frontmatter plugin and the source-lines plugin. Without source lines, groups, tags, `$id`, tasks and `lines` cannot be attached to nodes, and they are dropped without a diagnostic.
 
 ## Parse, model and view separately
 
@@ -122,7 +123,7 @@ const view = new MarkdagView(container, {
 
 function draw(fit: boolean) {
     const parsed = parseDocument(source);
-    const model = buildModel(parsed.nodes, parsed.frontmatter, source);
+    const model = buildModel(parsed.nodes, parsed.frontmatter, source); // 4th argument: { types } for markdag.types.$ref
     view.setDocument(parsed, model, fit);
     return model.diagnostics;
 }
@@ -133,10 +134,25 @@ draw(true);
 - `setDocument(parsed, model, fit)`: with `fit` false, zoom and pan are kept, and the reader's fold state is kept when the tree shape and the document's initial fold state are unchanged. With `fit` true, the fold state goes back to the document's initial state and the diagram is fitted.
 - `toggleTask(source, line)` flips `[ ]` / `[x]` (`[X]`) on that line and keeps line endings. A line outside the source returns the source unchanged.
 - A task is a list item or a heading whose first line starts with `[ ]`, `[x]` or `[X]`. `node.task.line` is that source line.
-- `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `open`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
-- `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details: open`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
+- `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
+- `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details.display: always`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
 - Each `OutlineNode` has `id` (document order, root is 1), `lines` (`{ start, end }`, 0-based source lines, `end` exclusive, or `null`) and `task`. Node elements carry the same range as `data-lines="start,end"`, next to `data-id`.
+- `OutlineNode.groups` is the node's own `%name` marks and `OutlineNode.tags` its `#key:value` tags (`{ key, values, at }`; `values` is empty for `#key`, `at` is the position of the tag in the source: `line` and `column` 1-based, `length` in characters). `GraphModel.groupsOf` adds the inherited groups and the `members` of the frontmatter. `GraphModel.tagsOf` lists each node's own tags in the order written; tags are not inherited. `GraphModel.tagDisplay` is `markdag.tags.display` (`always`, `hover`, `click` or `never`; `always` by default), and the view applies it with the `data-tags` attribute on the container. With `hover` and `click` the tags are rendered in the details popover, as a `p.mdag-popover-tags` after the details.
+- `GraphModel.tagKeys` is the resolved definition of each key in `markdag.tags.keys` (`{ key, alternatives, multiple, unique, description }`; each alternative is a built-in `primitive` plus the constraints stacked from the named types). The values of the tags are checked against it in `buildModel`; the results are in `diagnostics`, positioned at the tag in the body.
+- `suggestTagKeys(model.tagKeys, prefix)` and `suggestTagValues(model.tagKeys, key, prefix)` give completion candidates for an editor: the defined keys with their `description`, and for a key the `values` of an `enum` or `true` / `false` for a `boolean`. `formatTag(tag)` writes a tag back in the body notation. The model layer (`buildModel`, `checkFrontmatter`, these helpers) does not touch the DOM and runs in Node.
+
+### Tag types from other files
+
+`markdag.types.$ref` names YAML files whose content is merged into `markdag.types`. markdag never reads a file: the application resolves each path (relative to the document), reads and parses it, and passes the result as the `types` option, keyed by the path exactly as written:
+
+```ts
+const model = buildModel(parsed.nodes, parsed.frontmatter, source, {
+    types: { './types.yaml': parseYaml(await readTextFile(resolve(documentDir, './types.yaml'))) },
+});
+```
+
+`render` takes the same `types` option. A path that is missing from the object, or whose value is `null`, is reported as `types-unresolved`, and keys that refer to a named type are not checked. When `$ref` is a list, later files override earlier ones, and the document's own entries override all of them. Pass the same object to every call that checks the document (rendering and validation), so both report the same diagnostics.
 - CRLF documents are parsed the same as LF documents.
 
 ## Driving the view

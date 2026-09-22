@@ -1,6 +1,6 @@
 {
     "name": "markdag",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Turn Markdown into a DAG diagram",
     "license": "MIT",
     "repository": {
@@ -45,6 +45,7 @@
         "spike:layout": "vite-node spike/layout/run-flextree.ts && vite-node spike/layout/run-dagre.ts && vite-node spike/layout/build-index.ts",
         "spike:render": "vite --open /spike/render/plan-b.html",
         "playground": "vite --open /spike/playground/index.html",
+        "preview": "vite --open /docs/ignore/preview/index.html",
         "playground:build": "vite-node spike/playground/build.ts"
     },
     "devDependencies": {
@@ -56,6 +57,7 @@
         "@types/node": "^22.20.4",
         "d3-hierarchy": "^3.1.2",
         "d3-shape": "^3.2.0",
+        "monaco-editor": "^0.56.0",
         "typescript": "^7.0.2",
         "vite": "^8.3.0",
         "vite-node": "^6.0.0",

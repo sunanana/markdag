@@ -16,7 +16,7 @@ markdag:
         depends:
             - 登録API --> 登録フォーム
     groups:
-        # 本文で #design を付けたノードと、その配下がこのグループになる
+        # 本文で %design を付けたノードと、その配下がこのグループになる
         design:
             label: 設計チーム
             color: "#3B7DD8"
@@ -32,8 +32,27 @@ markdag:
             color: "#E0A100"
             members:
                 - 検証/**
-    # 詳細 (引用ブロック) の見せ方。click / hover / open
-    details: hover
+    # タグの値の型。tags.keys の type から名前で指す。組み込みの型は string, number, integer, boolean, enum, date, datetime, time, duration, nodeId
+    types:
+        priority:
+            type: enum
+            values: [high, medium, low]
+    # タグ (本文の #キー:値。値がなければ #キー) の表示と検査。タグ自体は定義なしで使える
+    tags:
+        # タグの見せ方。always は常に出す、hover は重ねたとき、click は印のクリック、never は出さない
+        display: always
+        # keys に定義したキーだけ値を検査する。lint は知らせる重大度 (warning / error)、unknownKey は定義のないキーの扱い (allow / deny)
+        lint: warning
+        unknownKey: allow
+        keys:
+            owner:
+                type: string
+                multiple: true
+            priority:
+                type: priority
+    # 詳細 (引用ブロック) の見せ方。always は最初から開いて表示、hover は重ねたとき、click は印のクリック
+    details:
+        display: hover
     # 凡例。position は置く隅 (top-right / top-left / bottom-right / bottom-left)、display は出す項目。出さないなら display: false
     legend:
         position: top-right
@@ -54,20 +73,20 @@ markdag:
 
 ## 要件定義 $req
 
-## 設計 #design
+## 設計 %design
 ### 画面設計
 ### API設計
 
-## 実装 #build
+## 実装 %build
 ### フロントエンド
 - [x] 一覧画面
-- [ ] 登録フォーム
+- [ ] 登録フォーム #owner:alice #priority:high
     > 送信先は登録API。入力の誤りは、その項目のすぐ下に出す。
-- [ ] テスト #qa
+- [ ] テスト %qa
 ### バックエンド
-- [x] 検索API
-- [ ] 登録API
-- [ ] テスト #qa
+- [x] 検索API #owner:bob
+- [ ] 登録API #owner:alice,bob
+- [ ] テスト %qa
 
 ## 検証
 - [ ] 結合テスト

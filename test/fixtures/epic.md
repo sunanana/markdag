@@ -29,11 +29,11 @@ markdag:
 
 ## 仕様策定
 
-### 画面開発 #frontend
+### 画面開発 %frontend
 - [x] 一覧画面
 - [ ] 登録画面
 
-### API開発 #backend
+### API開発 %backend
 - [x] 登録API `POST /items`
 - [ ] 削除API `DELETE /items/:id`
 - [ ] 一覧取得API `GET /items`
@@ -41,12 +41,12 @@ markdag:
 ## **開発完了**
 
 ## リリース準備
-- [ ] デプロイ手順の確認 #backend
-- [ ] ロールバック手順の確認 #backend
-- [ ] 受け入れテスト #qa
+- [ ] デプロイ手順の確認 %backend
+- [ ] ロールバック手順の確認 %backend
+- [ ] 受け入れテスト %qa
 
 ## リリースノート作成
 
 ## **リリース**
 
-## 効果測定 #backend #frontend
+## 効果測定 %backend %frontend

@@ -10,8 +10,8 @@ export interface LayoutInputNode {
     // ノード本体の大きさ。余白や線の太さは含まない
     width: number;
     height: number;
-    // Markdown に書かれた、そのノード自身のタグ (継承は解決していない)
-    tags: string[];
+    // Markdown に書かれた、そのノード自身のグループ (継承は解決していない)
+    groups: string[];
 }
 
 export interface LayoutInputEdge {

@@ -4,9 +4,11 @@ import { parseDocument as parseWith, type ParsedDocument, type ParseOptions } fr
 import { render as renderWith, type MarkdagDiagram, type RenderOptions as RequiredRenderOptions } from './render';
 
 export { buildModel, checkFrontmatter } from './model/model';
-export type { DetailsMode, Diagnostic, GraphModel, GroupDef, LegendItem, LegendPosition, SourcePosition } from './model/model';
+export type { Diagnostic, DisplayMode, GraphModel, GroupDef, LegendItem, LegendPosition, ModelOptions, SourcePosition, TagDisplayMode } from './model/model';
+export { formatTag, PRIMITIVES, suggestTagKeys, suggestTagValues } from './model/tags';
+export type { Primitive, TagKeyDef, TagValueType } from './model/tags';
 export { toggleTask } from './parse/document';
-export type { OutlineNode, ParsedDocument, ParseOptions, TransformerLike } from './parse/document';
+export type { NodeTag, OutlineNode, ParsedDocument, ParseOptions, TransformerLike } from './parse/document';
 export { formatDiagnostics } from './render';
 export type { MarkdagDiagram } from './render';
 export type { Rect } from './layout/layout';

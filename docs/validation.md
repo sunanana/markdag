@@ -18,7 +18,7 @@ npm run check -- path/to/document.md
 
 The exit code is 1 when there is at least one `error`, 0 otherwise, and 2 when the file or the build is missing. A document with no problems prints `no diagnostics`.
 
-The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates. It also draws the diagram, so a document that makes rendering throw fails here too.
+The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates, and the values of the tags in the body when `markdag.tags.keys` is defined. Files referenced by `markdag.types.$ref` are read relative to the document. It also draws the diagram, so a document that makes rendering throw fails here too.
 
 To check only the shape of the frontmatter from Node, without a browser, use `checkFrontmatter` (see [usage.md](usage.md)). It cannot resolve references: `Desing --> Build` passes it, because resolving a name needs the node tree.
 
@@ -39,9 +39,9 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 ```
 
 - `severity` is `error`, `warning` or `info`. An error means that part of the frontmatter was skipped. The diagram is still drawn from the rest.
-- `line:column` is the position in the source file, 1-based, counted in characters. Positions are given for the frontmatter only.
+- `line:column` is the position in the source file, 1-based, counted in characters. Positions are given for the frontmatter and for the tags in the body (`#key:value` at the end of a node line).
 - The message and the hint are in Japanese. The hint says how to fix the problem, and often names the closest valid key or node (`もしかして「details」` = "did you mean `details`"). Fix the document from the hint rather than from the code alone.
-- `info not-extracted` means the frontmatter has no `markdag` key, so tags, `$id`, details and milestones were not extracted. It also appears after a `yaml-syntax` error, because a frontmatter that fails to parse is ignored as a whole.
+- `info not-extracted` means the frontmatter has no `markdag` key, so groups, tags, `$id`, details and milestones were not extracted. It also appears after a `yaml-syntax` error, because a frontmatter that fails to parse is ignored as a whole.
 - Aim for no diagnostics. `ref-prefix` is `info`, but it usually means a misspelled node name that happened to match by prefix.
 
 ## Diagnostic codes
@@ -56,6 +56,16 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `relation-not-string` | error | Shape and type | A relation expression that YAML did not read as a string (usually `: ` inside it) |
 | `relation-syntax` | error | Shape and type | No ` --> ` with spaces around it, an empty term, or `(X)` combined with `/*` |
 | `group-invalid` | warning | Shape and type | Wrong type or value under `markdag.groups` (unquoted color, `boundary: yes`), or `(X)` in `members` |
+| `type-invalid` | warning | Shape and type, Types | Wrong type or value under `markdag.types` or `markdag.tags.keys`; a constraint that does not fit the base type; `enum` without `values`; a `pattern` that is not a valid regular expression |
+| `type-unknown` | warning | Types | `type` names neither a built-in type nor an entry of `markdag.types` |
+| `type-cycle` | warning | Types | A type whose `type` chain comes back to itself |
+| `type-reserved` | warning | Types | An entry of `markdag.types` with the name of a built-in type. It is ignored |
+| `types-unresolved` | warning | Types | A file in `markdag.types.$ref` could not be read (or was not passed to `buildModel`). Keys that refer to a named type are not checked |
+| `tag-type` | `lint` | Tags | A tag value does not fit the type of its key (wrong form, out of range, not one of `values`, an unknown or duplicated `$id` for `nodeId`) |
+| `tag-missing-value` | `lint` | Tags | `#key` with no value on a key whose type is not `boolean` |
+| `tag-multiple` | `lint` | Tags | Several values on a key without `multiple: true` |
+| `tag-unique` | `lint` | Tags | The same value on several nodes for a key with `unique: true`. Reported on each of them |
+| `tag-unknown-key` | `lint` | Tags | A key that is not in `markdag.tags.keys`, when `unknownKey: deny` |
 | `ref-not-found` | error | References | No node matches the reference |
 | `ref-ambiguous` | error | References | Two or more nodes match the reference, or the same `$id` is on several nodes |
 | `ref-prefix` | info | References | The reference matched by prefix, not exactly |
@@ -68,3 +78,5 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `not-supported` | warning | Graph | `(X)` is not supported yet and is treated as `X` |
 
 The reference errors are reported as warnings when they come from `markdag.groups.*.members` or `markdag.branches` instead of `markdag.relations`.
+
+The `Tags` rows take their severity from `markdag.tags.lint` (`warning` by default, or `error`). An `error` there only changes the severity and the exit code: the tag stays as written and the diagram is drawn.
