@@ -192,7 +192,7 @@ draw(true);
 ```
 
 - `bridge.viewHooks` is a complete `ViewHooks`: pass it to the constructor as it is. The `viewHooks` option holds the application's own callbacks; the bridge calls them first and then the hooks, and a `before*` callback of the application that returns `false` cancels before any hook runs.
-- `bridge.setDocument(parsed, model, fit)` replaces `view.setDocument`. It swaps in the hooks the document declares (and the `markdag.rules`), rebuilds the document the hooks see, calls `view.setDocument` and then `onDocument`.
+- `bridge.setDocument(parsed, model, fit)` replaces `view.setDocument`. It swaps in the hooks the document declares (and the `markdag.rules`), rebuilds the document the hooks see, calls `view.setDocument` and then `onDocument`. Calling `view.setDocument` directly still draws, but the hooks and rules keep working on the previous document and `onDocument` is not reported, so always go through the bridge.
 - `bridge.beforeUpdate(next)` runs the `beforeUpdate` hooks; call it before replacing the source from outside (an editor). `bridge.destroy()` reports `onDestroy` and destroys the view.
 - `hookRefs` is optional. Without it, `markdag.rules` still work and a declared `markdag.hooks.$ref` is reported as `hooks-unresolved` with severity `info`: the application simply does not load hooks. With `hookRefs`, a path that is missing or `null` is a `warning`.
 - `bridge.transform(model, source)` is only needed for `transformSource`; skip it when the application does not support that hook.
@@ -329,7 +329,7 @@ markdag itself never transpiles anything, so a `.ts` module runs only where the 
 
 `edge` is `{ kind, from, to, proxied }`: `kind` is `tree` for a tree line and the relation kind otherwise, `from` and `to` are the nodes the line is drawn between, and `proxied` says that a folded branch replaced one of them with the node that stands in for it. `group` is `{ id, label, color, members }`, where `members` are the ids of the nodes in the group, inherited ones included.
 
-`transformSource` and `decorateNode` return a value instead of a verdict. Modules run in order: each `transformSource` receives what the previous one returned, and the decorations are merged (`className` values are appended to each other, `title` and `badge` come from the last hook that returned one). A hook that returns nothing changes nothing.
+`transformSource` and `decorateNode` return a value instead of a verdict. Modules run in order: each `transformSource` receives what the previous one returned, and the decorations are merged (`className` values are appended to each other, `title` and `badge` come from the last hook that returned one). A hook that returns nothing (`undefined` or `null`) changes nothing. Because `decorateNode` runs once per node, a hook that throws or returns something else is reported once per draw and skipped for the remaining nodes of that draw; the next draw tries it again.
 
 The text a `transformSource` hook returns is what gets parsed and drawn; the source the application owns is untouched, and `update` and `onChange` keep working on it. Node lines then refer to the rewritten text, so a click on a task is refused (with a `hook-rejected` diagnostic) when the rewrite moved that line. Adding at the end keeps every existing task clickable.
 

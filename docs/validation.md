@@ -77,7 +77,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `hooks-unresolved` | info / warning | Hooks | A module in `markdag.hooks.$ref` was not passed to `render`, so its hooks do not run. `info` when the application does not load hooks at all (no `hookRefs`; `npm run check` without `--hooks`), `warning` when it does and this module was missing or unreadable |
 | `hook-unknown-export` | warning | Hooks | A hook module exports a function under a name that is not reserved, or a `default` export. It is not called |
 | `hook-invalid-export` | warning | Hooks | A reserved name is exported as something other than a function |
-| `hook-failed` | warning | Hooks | A hook threw, or hooks nested deeper than four levels. Raised while the reader works, so it arrives through `onDiagnostic` |
+| `hook-failed` | warning | Hooks | A hook threw or returned a value of the wrong kind, or hooks nested deeper than four levels. Raised while the reader works, so it arrives through `onDiagnostic`. For `decorateNode`, once per draw: the failing hook is skipped for the remaining nodes |
 | `hook-rejected` | info | Hooks | A `before*` hook, or a rule in `markdag.rules`, cancelled an operation. Also through `onDiagnostic` |
 | `ref-not-found` | error | References | No node matches the reference |
 | `ref-ambiguous` | error | References | Two or more nodes match the reference, or the same `$id` is on several nodes |

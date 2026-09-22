@@ -353,6 +353,48 @@ describe('値を返すフック', () => {
         expect(runner.decorate(doc.node(2)!)).toEqual({ className: 'blocked', title: 'a', badge: '1' });
     });
 
+    it('null は undefined と同じで「何もしない」として受ける', () => {
+        const { runner, diagnostics } = runnerOf([
+            ['./a.hooks.js', { decorateNode: () => null, transformSource: () => null, beforeTaskToggle: () => null }],
+        ]);
+        expect(runner.decorate(documentOf().node(2)!)).toBeNull();
+        expect(runner.transform('# 見出し')).toBe('# 見出し');
+        expect(runner.before('beforeTaskToggle', taskFields, true)).toBe(true);
+        expect(diagnostics).toEqual([]);
+    });
+
+    it('失敗した decorateNode は、その描画では 1 回だけ知らせて残りのノードでは呼ばない', () => {
+        const calls: number[] = [];
+        const { runner, diagnostics } = runnerOf([
+            [
+                './broken.hooks.js',
+                {
+                    decorateNode: (context) => {
+                        calls.push(context.node.id);
+                        throw new Error('壊れています');
+                    },
+                },
+            ],
+            ['./fine.hooks.js', { decorateNode: () => ({ badge: 'ok' }) }],
+        ]);
+        const doc = documentOf();
+        // 1 つ目で失敗を知らせ、以後は壊れたフックを飛ばして、ほかのフックの飾りは付け続ける
+        expect(runner.decorate(doc.node(2)!)).toEqual({ badge: 'ok' });
+        expect(runner.decorate(doc.node(3)!)).toEqual({ badge: 'ok' });
+        expect(runner.decorate(doc.node(4)!)).toEqual({ badge: 'ok' });
+        expect(calls).toEqual([2]);
+        expect(diagnostics.map((item) => [item.code, item.hint])).toEqual([['hook-failed', 'この描画では、このフックの飾りは以後付けません']]);
+        // 次の描画 (setHooks) では、また 1 回だけ試す
+        runner.setHooks(
+            [
+                { ref: './broken.hooks.js', module: { decorateNode: (context) => void calls.push(context.node.id * 100) } },
+            ],
+            {},
+        );
+        expect(runner.decorate(doc.node(2)!)).toBeNull();
+        expect(calls).toEqual([2, 200]);
+    });
+
     it('飾りを返すフックがなければ null', () => {
         const { runner } = runnerOf([['./a.hooks.js', { onDocument: () => undefined }]]);
         expect(runner.decorate(documentOf().node(2)!)).toBeNull();

@@ -260,8 +260,8 @@ export interface HookContexts {
 
 export type HookContext<E extends HookEvent = HookEvent> = HookContexts[E];
 
-// 発火点ごとの、フックが返せるもの
-type HookResult<E extends HookEvent> = E extends BeforeHookEvent ? boolean | void : E extends 'transformSource' ? string | void : E extends 'decorateNode' ? HookDecoration | void : void;
+// 発火点ごとの、フックが返せるもの。null は undefined と同じで「何もしない」
+type HookResult<E extends HookEvent> = E extends BeforeHookEvent ? boolean | void | null : E extends 'transformSource' ? string | void | null : E extends 'decorateNode' ? HookDecoration | void | null : void;
 
 // フックのファイル 1 つ。予約された名前の関数だけが拾われる
 export type HookModule = {
@@ -533,12 +533,16 @@ export class HookRunner {
     private hooks: ResolvedHook[] = [];
     private options: Readonly<Record<string, unknown>> = {};
     private depth = 0;
+    // 1 回の描画の中で失敗した decorateNode の出どころ。ノードごとに呼ぶので、同じ失敗を繰り返さないよう以後は飛ばす
+    private failedDecorators = new Set<string>();
 
     constructor(private readonly host: HookHost) {}
 
+    // 文書を描くたびに呼ぶ。失敗したフックの記録もここで消える (次の描画では、また 1 回だけ試す)
     setHooks(hooks: ResolvedHook[], options: Record<string, unknown>): void {
         this.hooks = hooks;
         this.options = options;
+        this.failedDecorators.clear();
     }
 
     before<E extends BeforeHookEvent>(event: E, fields: HookFields<E>, byUser = false): boolean {
@@ -558,11 +562,9 @@ export class HookRunner {
         try {
             for (const hook of targets) {
                 const result = this.invoke('transformSource', hook, this.build('transformSource', { source: text }, false));
-                if (!result.called) continue;
+                if (!result.called || result.value === undefined || result.value === null) continue;
                 if (typeof result.value === 'string') text = result.value;
-                else if (result.value !== undefined) {
-                    this.report('warning', 'hook-failed', `${hook.ref} の transformSource が文字列ではなく ${typeof result.value} を返しました`, '差し替えないときは何も返しません');
-                }
+                else this.report('warning', 'hook-failed', `${hook.ref} の transformSource が文字列ではなく ${typeof result.value} を返しました`, '差し替えないときは何も返しません');
             }
         } finally {
             this.depth -= 1;
@@ -570,9 +572,10 @@ export class HookRunner {
         return text;
     }
 
-    // ノード 1 つの飾り。複数のフックが返したものは重ね、クラスは並べ、ほかはあとのフックが勝つ
+    // ノード 1 つの飾り。複数のフックが返したものは重ね、クラスは並べ、ほかはあとのフックが勝つ。
+    // 失敗したフックは、その描画では 1 回だけ知らせて、残りのノードでは呼ばない (1 つ目で壊れているものは残りでも壊れているため)
     decorate(node: HookNode): HookDecoration | null {
-        const targets = this.targetsOf('decorateNode');
+        const targets = this.targetsOf('decorateNode').filter((hook) => !this.failedDecorators.has(hook.ref));
         if (targets.length === 0 || this.tooDeep('decorateNode')) return null;
         const context = this.build('decorateNode', { node }, false);
         const merged: HookDecoration = {};
@@ -581,9 +584,14 @@ export class HookRunner {
         try {
             for (const hook of targets) {
                 const result = this.invoke('decorateNode', hook, context);
-                if (!result.called || result.value === undefined) continue;
+                if (!result.called) {
+                    this.failedDecorators.add(hook.ref);
+                    continue;
+                }
+                if (result.value === undefined || result.value === null) continue;
                 if (!isRecord(result.value)) {
-                    this.report('warning', 'hook-failed', `${hook.ref} の decorateNode が ${typeof result.value} を返しました`, '{ className, title, badge } のいずれかを持つ値を返すか、何も返しません');
+                    this.failedDecorators.add(hook.ref);
+                    this.report('warning', 'hook-failed', `${hook.ref} の decorateNode が ${typeof result.value} を返しました`, '{ className, title, badge } のいずれかを持つ値を返すか、何も返しません。この描画では、このフックの飾りは以後付けません');
                     continue;
                 }
                 const { className, title, badge } = result.value as HookDecoration;
@@ -615,7 +623,7 @@ export class HookRunner {
                     this.report('info', 'hook-rejected', `${hook.ref} の ${event} が操作を取りやめました${rejection.reason === null ? '' : `: ${rejection.reason}`}`, null);
                     return false;
                 }
-                if (result.value !== undefined && result.value !== true) {
+                if (result.value !== undefined && result.value !== null && result.value !== true) {
                     this.report('warning', 'hook-failed', `${hook.ref} の ${event} が ${typeof result.value} を返しました。取りやめるなら false を返します`, '続けるときは何も返しません');
                 }
             }
@@ -658,7 +666,8 @@ export class HookRunner {
             return { called: true, value: called(context) };
         } catch (error) {
             this.host.onError?.(error, { event, ref: hook.ref });
-            this.report('warning', 'hook-failed', `${hook.ref} の ${event} が例外を投げたので、このフックは飛ばしました: ${messageOf(error)}`, null);
+            const perNode = event === 'decorateNode' ? 'この描画では、このフックの飾りは以後付けません' : null;
+            this.report('warning', 'hook-failed', `${hook.ref} の ${event} が例外を投げたので、このフックは飛ばしました: ${messageOf(error)}`, perNode);
             return { called: false, value: undefined };
         }
     }
