@@ -77,7 +77,7 @@ export function render(container: HTMLElement, markdown: string, options: Render
                   {
                       severity: 'info',
                       code: 'not-extracted',
-                      message: 'frontmatter に relations, groups, markdag のどれもないので、タグや $id の抽出は行っていません (markmap と同じ表示)',
+                      message: 'frontmatter に markdag のキーがないので、タグや $id の抽出は行っていません (markmap と同じ表示)',
                       at: null,
                       hint: null,
                   },

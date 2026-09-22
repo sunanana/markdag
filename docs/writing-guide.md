@@ -1,6 +1,6 @@
 # Writing a markdag document
 
-A markdag document is a [markmap](https://markmap.js.org/)-style Markdown outline plus a YAML frontmatter. The outline is the tree. The frontmatter adds lines between nodes (`relations`), groups of nodes (`groups`), and display options (`markdag`).
+A markdag document is a [markmap](https://markmap.js.org/)-style Markdown outline plus a YAML frontmatter. The outline is the tree. The frontmatter has one key, `markdag`, that holds lines between nodes (`relations`), groups of nodes (`groups`), and display options.
 
 markdag is a prototype (0.x). The notation may change until v1. Everything on this page was checked against the current implementation.
 
@@ -13,16 +13,26 @@ This document uses every notation that works today and produces no diagnostics.
 ```markdown
 ---
 title: Feature release
-relations:
-    fork:
-        - $req --> Design/*
-    join:
-        - Frontend/Test & Backend/Test --> Verify
-    chain:
-        - Design --> Build --> Verify --> $release
-    depends:
-        - Signup API --> Signup form
 markdag:
+    relations:
+        fork:
+            - $req --> Design/*
+        join:
+            - Frontend/Test & Backend/Test --> Verify
+        chain:
+            - Design --> Build --> Verify --> $release
+        depends:
+            - Signup API --> Signup form
+    groups:
+        design:
+            label: Design team
+            color: "#3B7DD8"
+            boundary: true
+        qa:
+            label: QA
+            color: "#E0A100"
+            members:
+                - Verify/**
     details: hover
     branches:
         - Requirements
@@ -30,16 +40,6 @@ markdag:
         - Build
         - Verify
         - Release
-groups:
-    design:
-        label: Design team
-        color: "#3B7DD8"
-        boundary: true
-    qa:
-        label: QA
-        color: "#E0A100"
-        members:
-            - Verify/**
 ---
 
 # Feature release
@@ -70,13 +70,13 @@ groups:
 
 ## 2. The frontmatter turns the notation on
 
-Tags, `$id`, details and milestones are extracted only when the frontmatter has at least one of `relations`, `groups`, `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
+Tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
 
 The frontmatter must start on the first line of the file with `---` and end with a line that is only `---`.
 
 ## 3. Notation in the body
 
-Nodes are headings and list items. The first line of a node is what `relations`, `groups.*.members` and `markdag.branches` refer to.
+Nodes are headings and list items. The first line of a node is what `markdag.relations`, `markdag.groups.*.members` and `markdag.branches` refer to.
 
 | Notation | Where | Meaning |
 | --- | --- | --- |
@@ -96,24 +96,27 @@ Rules:
 - Details work only inside a list item. A blockquote directly under a heading is dropped and does not become details.
 - A milestone needs the entire first line in one bold span. `**Release** prep` and `**a** and **b**` are not milestones.
 - A tag is inherited by all descendants. There is no notation for tagging a parent only.
-- A tag with no entry in `groups` is shown as a text label without a color.
+- A tag with no entry in `markdag.groups` is shown as a text label without a color.
 
 ## 4. Frontmatter
 
 The shape of the frontmatter is defined by one JSON Schema, `src/model/frontmatter.schema.json` (`dist/frontmatter.schema.json` after a build). Read it for the full list of keys, types and allowed values.
 
+Everything markdag reads is under the `markdag` key. `title` and `markmap` are markmap's keys and stay at the top level. `relations` or `groups` written at the top level (the form used up to 0.2.0) are reported as `option-misplaced` and ignored.
+
 ### relations
 
 ```yaml
-relations:
-    fork:
-        - A --> B/*
-    join:
-        - B/* --> C
-    chain:
-        - C --> D --> E
-    depends:
-        - X --> Y
+markdag:
+    relations:
+        fork:
+            - A --> B/*
+        join:
+            - B/* --> C
+        chain:
+            - C --> D --> E
+        depends:
+            - X --> Y
 ```
 
 - The four keys are the kinds of lines. `chain`: nodes connected in sequence. `join`: several nodes converge on one. `fork`: one node fans out to several. `depends`: any other "should be finished first" dependency.
@@ -143,13 +146,14 @@ relations:
 ### groups
 
 ```yaml
-groups:
-    backend:
-        label: Backend team
-        color: "#D64545"
-        boundary: true
-        members:
-            - API/**
+markdag:
+    groups:
+        backend:
+            label: Backend team
+            color: "#D64545"
+            boundary: true
+            members:
+                - API/**
 ```
 
 - The key is the group name, used in the body as `#backend`.
@@ -157,7 +161,9 @@ groups:
 - `members` adds nodes by selector instead of by tag. Membership given by `members` is inherited by descendants, the same as a tag. `(X)` cannot be used in `members`.
 - A group name made only of digits cannot be used as a tag (`#2024` is not a tag).
 
-### markdag
+### Display options
+
+The other keys under `markdag`:
 
 | Key | Values | Default |
 | --- | --- | --- |
@@ -199,7 +205,7 @@ groups:
 | `- A　-->　B` (full-width spaces) | Not a YAML problem, but `-->` is not recognized as an operator (`relation-syntax`) | Half-width spaces around `-->` and `&` |
 | `members: [API, Spec/*]` with names containing `,` `[` `]` `{` `}` | Flow syntax splits on these characters | Use the block form, one `- item` per line |
 
-When the frontmatter fails to parse as YAML, all of it is ignored, including `relations` and `groups`, and the document is shown as a plain markmap.
+When the frontmatter fails to parse as YAML, all of it is ignored, including everything under `markdag`, and the document is shown as a plain markmap.
 
 ## 6. Graph pitfalls
 

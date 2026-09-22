@@ -2,41 +2,150 @@
 title: 新サービス立ち上げ
 markmap:
     initialExpandLevel: 3
-relations:
-    # 工程の背骨。チームからチームへ引き継ぐ順
-    chain:
-        - 企画 --> デザイン --> 開発
-        - 開発完了 --> テスト
-        - テスト完了 --> リリース
-        - 公開 --> マーケティング
-    # 要件が決まると、設計の各項目が同時に動き出す
-    fork:
-        - 要件定義 --> アーキテクチャ設計/*
-        - デザインレビュー --> 画面実装/*
-    # それぞれのチームの成果が 1 つの節目に集まる
-    join:
-        - 開発/* --> 開発完了
-        - テスト/* --> テスト完了
-        - リリース/* --> 公開
-    # 先に終わっていてほしい、というチームをまたぐ依存
-    depends:
-        - ユーザーインタビュー --> ペルソナ定義
-        - 情報設計 --> 画面遷移図
-        - デザイントークン整備 --> 共通コンポーネント実装
-        - コンポーネントカタログ --> 画面実装の分担決め
-        - 認証API --> ログイン画面
-        - 商品API --> 商品一覧画面
-        - 決済API --> 決済画面
-        - スキーマ設計 --> マイグレーション整備
-        - CI パイプライン構築 --> ステージング環境構築
-        - 監視の設定 --> 障害訓練
-        - ステージング環境構築 --> テスト説明会
-        - テスト観点表 --> 手動テストの実施
-        - 自動テストの整備 --> 回帰テストの実行
-        - 法務確認 --> プレスリリース配信
-        - リリースノート作成 --> ヘルプ記事の更新
-        - 計測基盤の整備 --> 効果測定レポート
 markdag:
+    relations:
+        # 工程の背骨。チームからチームへ引き継ぐ順
+        chain:
+            - 企画 --> デザイン --> 開発
+            - 開発完了 --> テスト
+            - テスト完了 --> リリース
+            - 公開 --> マーケティング
+        # 要件が決まると、設計の各項目が同時に動き出す
+        fork:
+            - 要件定義 --> アーキテクチャ設計/*
+            - デザインレビュー --> 画面実装/*
+        # それぞれのチームの成果が 1 つの節目に集まる
+        join:
+            - 開発/* --> 開発完了
+            - テスト/* --> テスト完了
+            - リリース/* --> 公開
+        # 先に終わっていてほしい、というチームをまたぐ依存
+        depends:
+            - ユーザーインタビュー --> ペルソナ定義
+            - 情報設計 --> 画面遷移図
+            - デザイントークン整備 --> 共通コンポーネント実装
+            - コンポーネントカタログ --> 画面実装の分担決め
+            - 認証API --> ログイン画面
+            - 商品API --> 商品一覧画面
+            - 決済API --> 決済画面
+            - スキーマ設計 --> マイグレーション整備
+            - CI パイプライン構築 --> ステージング環境構築
+            - 監視の設定 --> 障害訓練
+            - ステージング環境構築 --> テスト説明会
+            - テスト観点表 --> 手動テストの実施
+            - 自動テストの整備 --> 回帰テストの実行
+            - 法務確認 --> プレスリリース配信
+            - リリースノート作成 --> ヘルプ記事の更新
+            - 計測基盤の整備 --> 効果測定レポート
+    groups:
+        plan:
+            label: 企画チーム
+            color: "#E8833A"
+            boundary: true
+        research:
+            label: 調査
+            color: "#F0A04B"
+        requirement:
+            label: 要件
+            color: "#D9730D"
+        biz:
+            label: 事業計画
+            color: "#C25E00"
+        design:
+            label: デザインチーム
+            color: "#3B7DD8"
+            boundary: true
+        ux:
+            label: UX
+            color: "#6FA3EE"
+        ui:
+            label: UI
+            color: "#2F6FDE"
+        ds:
+            label: デザインシステム
+            color: "#4B55C4"
+        dev:
+            label: 開発チーム
+            color: "#8A5FC2"
+            boundary: true
+        arch:
+            label: 設計
+            color: "#B595E6"
+        frontend:
+            label: フロントエンド
+            color: "#2E8B57"
+            boundary: true
+        backend:
+            label: バックエンド
+            color: "#D64545"
+            boundary: true
+        infra:
+            label: インフラ
+            color: "#0E8FA3"
+            boundary: true
+        devdesign:
+            label: 開発内デザイン調整
+            color: "#8F97F2"
+        api:
+            label: API
+            color: "#FF7B7B"
+        db:
+            label: データ
+            color: "#C2409A"
+        auth:
+            label: 認証
+            color: "#8C5A3C"
+        payment:
+            label: 決済
+            color: "#9A8500"
+        quality:
+            label: 品質
+            color: "#5E9C1C"
+        security:
+            label: セキュリティ
+            color: "#8B0000"
+        qa:
+            label: テストチーム
+            color: "#C98A00"
+            boundary: true
+        handover:
+            label: 引き継ぎ
+            color: "#E0A100"
+        staging:
+            label: ステージング
+            color: "#4CC3D6"
+        e2e:
+            label: 自動テスト
+            color: "#63C08A"
+        manual:
+            label: 手動テスト
+            color: "#D6C13A"
+        bug:
+            label: 不具合対応
+            color: "#EC7FC6"
+        release:
+            label: リリース担当
+            color: "#B8497E"
+            boundary: true
+        ops:
+            label: 運用
+            color: "#5F6B7A"
+        marketing:
+            label: マーケチーム
+            color: "#5E9C1C"
+            boundary: true
+        pr:
+            label: 広報
+            color: "#9CD05A"
+        promo:
+            label: プロモーション
+            color: "#C79A7C"
+        analytics:
+            label: 効果測定
+            color: "#17BECF"
+        legal:
+            label: 法務
+            color: "#7F7F7F"
     details: hover
     edgeHighlight: true
     groupHighlight: true
@@ -55,115 +164,6 @@ markdag:
         - リリース
         - 公開
         - マーケティング
-groups:
-    plan:
-        label: 企画チーム
-        color: "#E8833A"
-        boundary: true
-    research:
-        label: 調査
-        color: "#F0A04B"
-    requirement:
-        label: 要件
-        color: "#D9730D"
-    biz:
-        label: 事業計画
-        color: "#C25E00"
-    design:
-        label: デザインチーム
-        color: "#3B7DD8"
-        boundary: true
-    ux:
-        label: UX
-        color: "#6FA3EE"
-    ui:
-        label: UI
-        color: "#2F6FDE"
-    ds:
-        label: デザインシステム
-        color: "#4B55C4"
-    dev:
-        label: 開発チーム
-        color: "#8A5FC2"
-        boundary: true
-    arch:
-        label: 設計
-        color: "#B595E6"
-    frontend:
-        label: フロントエンド
-        color: "#2E8B57"
-        boundary: true
-    backend:
-        label: バックエンド
-        color: "#D64545"
-        boundary: true
-    infra:
-        label: インフラ
-        color: "#0E8FA3"
-        boundary: true
-    devdesign:
-        label: 開発内デザイン調整
-        color: "#8F97F2"
-    api:
-        label: API
-        color: "#FF7B7B"
-    db:
-        label: データ
-        color: "#C2409A"
-    auth:
-        label: 認証
-        color: "#8C5A3C"
-    payment:
-        label: 決済
-        color: "#9A8500"
-    quality:
-        label: 品質
-        color: "#5E9C1C"
-    security:
-        label: セキュリティ
-        color: "#8B0000"
-    qa:
-        label: テストチーム
-        color: "#C98A00"
-        boundary: true
-    handover:
-        label: 引き継ぎ
-        color: "#E0A100"
-    staging:
-        label: ステージング
-        color: "#4CC3D6"
-    e2e:
-        label: 自動テスト
-        color: "#63C08A"
-    manual:
-        label: 手動テスト
-        color: "#D6C13A"
-    bug:
-        label: 不具合対応
-        color: "#EC7FC6"
-    release:
-        label: リリース担当
-        color: "#B8497E"
-        boundary: true
-    ops:
-        label: 運用
-        color: "#5F6B7A"
-    marketing:
-        label: マーケチーム
-        color: "#5E9C1C"
-        boundary: true
-    pr:
-        label: 広報
-        color: "#9CD05A"
-    promo:
-        label: プロモーション
-        color: "#C79A7C"
-    analytics:
-        label: 効果測定
-        color: "#17BECF"
-    legal:
-        label: 法務
-        color: "#7F7F7F"
 ---
 
 # 新サービス立ち上げ

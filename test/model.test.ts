@@ -49,15 +49,17 @@ const EPIC = outline([
 ]);
 
 const EPIC_FRONTMATTER = {
-    relations: {
-        join: ['仕様策定/* --> 開発完了'],
-        chain: ['開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定'],
-        depends: ['登録API --> 登録画面'],
-    },
-    groups: {
-        backend: { label: 'バックエンド', color: '#D64545', boundary: true },
-        frontend: { label: 'フロントエンド', color: '#3B7DD8', boundary: true },
-        qa: { label: 'QA', color: '#E0A100' },
+    markdag: {
+        relations: {
+            join: ['仕様策定/* --> 開発完了'],
+            chain: ['開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定'],
+            depends: ['登録API --> 登録画面'],
+        },
+        groups: {
+            backend: { label: 'バックエンド', color: '#D64545', boundary: true },
+            frontend: { label: 'フロントエンド', color: '#3B7DD8', boundary: true },
+            qa: { label: 'QA', color: '#E0A100' },
+        },
     },
 };
 
@@ -100,7 +102,7 @@ describe('model 層', () => {
             ['確認', 3],
             ['C', 0, [], 'goal'],
         ]);
-        const model = buildModel(nodes, { relations: { join: ['A/確認 & B/確認 --> $goal'] } });
+        const model = buildModel(nodes, { markdag: { relations: { join: ['A/確認 & B/確認 --> $goal'] } } });
         expect(model.diagnostics).toEqual([]);
         expect(pairs(model, 'join')).toEqual(['3>6', '5>6']);
     });
@@ -217,7 +219,7 @@ describe('model 層', () => {
             ['リリース', 0],
             ['開発', 0],
         ]);
-        const model = buildModel(nodes, { markdag: { branches: ['リリー'] }, relations: { chain: ['開発 --> リリース'] } });
+        const model = buildModel(nodes, { markdag: { branches: ['リリー'], relations: { chain: ['開発 --> リリース'] } } });
         expect(model.branches).toEqual([2]);
         expect(model.diagnostics).toEqual([
             {
@@ -256,18 +258,19 @@ describe('model 層', () => {
             ['開発', 0],
             ['リリース', 0],
         ]);
-        const markdown = ['---', 'relations:', '    chain:', '        - 開発 --> リリーズ', '---', '', '# root'].join('\n');
-        const model = buildModel(nodes, { relations: { chain: ['開発 --> リリーズ'] } }, markdown);
-        expect(model.diagnostics.map((item) => item.at)).toEqual([{ line: 4, column: 18, length: 4 }]);
+        const markdown = ['---', 'markdag:', '    relations:', '        chain:', '            - 開発 --> リリーズ', '---', '', '# root'].join('\n');
+        const model = buildModel(nodes, { markdag: { relations: { chain: ['開発 --> リリーズ'] } } }, markdown);
+        expect(model.diagnostics.map((item) => item.at)).toEqual([{ line: 5, column: 22, length: 4 }]);
     });
 
     it('markdag の下の知らないキーと、markdag の外に置かれた指定を警告にする', () => {
         const nodes = outline([['root', null]]);
         const unknown = buildModel(nodes, { markdag: { branch: ['A'] } });
         expect(unknown.diagnostics.map((item) => item.code)).toEqual(['option-unknown']);
-        const misplaced = buildModel(nodes, { branches: ['A'], markdag: {} });
+        const misplaced = buildModel(nodes, { branches: ['A'], relations: { chain: ['A --> B'] }, markdag: {} });
         expect(misplaced.branches).toEqual([]);
-        expect(misplaced.diagnostics.map((item) => item.code)).toEqual(['option-misplaced']);
+        expect(misplaced.relations).toEqual([]);
+        expect(misplaced.diagnostics.map((item) => item.code)).toEqual(['option-misplaced', 'option-misplaced']);
     });
 
     it('あいまいな参照、見つからない参照、閉路、未知のキーを診断にして、描画は続けられる形で返す', () => {
@@ -279,9 +282,11 @@ describe('model 層', () => {
             ['確認', 3],
         ]);
         const model = buildModel(nodes, {
-            relations: {
-                depends: ['確認 --> A', 'なし --> A', 'A --> B', 'B --> A', 'A -> B'],
-                flow: ['A --> B'],
+            markdag: {
+                relations: {
+                    depends: ['確認 --> A', 'なし --> A', 'A --> B', 'B --> A', 'A -> B'],
+                    flow: ['A --> B'],
+                },
             },
         });
         // 形と型の検査 (--> のない式、知らないキー) が先に並び、そのあとに木とグラフを見る検査が続く
@@ -303,35 +308,35 @@ describe('診断が指す frontmatter での位置', () => {
 
     it('一覧の項目は添字で見分けるので、同じ式が別の行にも含まれるときに行を取り違えない', () => {
         const nodes = outline([['root', null], ['X', 0], ['A', 0], ['B', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - X --> A --> B', '        - A --> B');
-        const model = buildModel(nodes, { relations: { depends: ['X --> A --> B', 'A --> B'] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - X --> A --> B', '            - A --> B');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['X --> A --> B', 'A --> B'] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['duplicate-edge']);
-        // 「A --> B」は 4 行目にも含まれるが、指すのは 2 個目の項目が書かれた 5 行目
-        expect(places(model)).toEqual([{ line: 5, column: 17, length: 1 }]);
+        // 「A --> B」は 5 行目にも含まれるが、指すのは 2 個目の項目が書かれた 6 行目
+        expect(places(model)).toEqual([{ line: 6, column: 21, length: 1 }]);
     });
 
     it('桁は文字数で数えるので、絵文字のある行でもずれない。引用符の内側の語も指せる', () => {
         const nodes = outline([['root', null], ['🎨設計', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - "🎨設計 --> 実装"');
-        const model = buildModel(nodes, { relations: { depends: ['🎨設計 --> 実装'] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - "🎨設計 --> 実装"');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['🎨設計 --> 実装'] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['ref-not-found']);
-        expect(places(model)).toEqual([{ line: 4, column: 20, length: 2 }]);
+        expect(places(model)).toEqual([{ line: 5, column: 24, length: 2 }]);
     });
 
     it('式の全体を指すときは、書かれたまま引用符も含めて指す', () => {
         const nodes = outline([['root', null], ['A', 0], ['B', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - "A -> B"');
-        const model = buildModel(nodes, { relations: { depends: ['A -> B'] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - "A -> B"');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['A -> B'] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['relation-syntax']);
-        expect(places(model)).toEqual([{ line: 4, column: 11, length: 8 }]);
+        expect(places(model)).toEqual([{ line: 5, column: 15, length: 8 }]);
     });
 
     it('# がコメントになって値が空になった行は、キーから行末までを指す', () => {
         const nodes = outline([['root', null], ['A', 0], ['B', 0]]);
-        const markdown = doc('---', 'relations:', '    fork: #A --> B');
-        const model = buildModel(nodes, { relations: { fork: null } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        fork: #A --> B');
+        const model = buildModel(nodes, { markdag: { relations: { fork: null } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['relation-not-string']);
-        expect(places(model)).toEqual([{ line: 3, column: 5, length: 14 }]);
+        expect(places(model)).toEqual([{ line: 4, column: 9, length: 14 }]);
     });
 
     it('ならびの項目が空になった行は、その項目の位置から行末までを指す', () => {
@@ -352,10 +357,10 @@ describe('診断が指す frontmatter での位置', () => {
 
     it('ならびの項目が写像やならびでも、親のキーではなくその項目の行を指す', () => {
         const nodes = outline([['root', null], ['A', 0], ['B', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - A --> B', '        - A: B');
-        const model = buildModel(nodes, { relations: { depends: ['A --> B', { A: 'B' }] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - A --> B', '            - A: B');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['A --> B', { A: 'B' }] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['relation-not-string']);
-        expect(places(model)).toEqual([{ line: 5, column: 11, length: 4 }]);
+        expect(places(model)).toEqual([{ line: 6, column: 15, length: 4 }]);
     });
 
     it('ならびの項目に何も書かれていない行は、その行の「-」を指す', () => {
@@ -384,18 +389,18 @@ describe('診断が指す frontmatter での位置', () => {
 
     it('入れ子の同じ名前のキーを取り違えない', () => {
         const nodes = outline([['root', null]]);
-        const markdown = doc('---', 'groups:', '    design:', '        label: 設計', 'markdag:', '    label: x');
-        const model = buildModel(nodes, { groups: { design: { label: '設計' } }, markdag: { label: 'x' } }, markdown);
+        const markdown = doc('---', 'markdag:', '    groups:', '        design:', '            label: 設計', '    label: x');
+        const model = buildModel(nodes, { markdag: { groups: { design: { label: '設計' } }, label: 'x' } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['option-unknown']);
         expect(places(model)).toEqual([{ line: 6, column: 5, length: 5 }]);
     });
 
     it('複数行のスカラでも、語が書かれた行を指す', () => {
         const nodes = outline([['root', null], ['開発', 0], ['リリース', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - >-', '          開発 -->', '          リリーズ');
-        const model = buildModel(nodes, { relations: { depends: ['開発 --> リリーズ'] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - >-', '              開発 -->', '              リリーズ');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['開発 --> リリーズ'] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['ref-not-found']);
-        expect(places(model)).toEqual([{ line: 6, column: 11, length: 4 }]);
+        expect(places(model)).toEqual([{ line: 7, column: 15, length: 4 }]);
     });
 
     it('本文の中に --- があっても、最初の閉じまでを frontmatter として数える', () => {
@@ -407,18 +412,18 @@ describe('診断が指す frontmatter での位置', () => {
 
     it('同じ語が式に 2 回出るときは、どちらか決められないので式の全体を指す', () => {
         const nodes = outline([['root', null], ['A', 0]]);
-        const markdown = doc('---', 'relations:', '    depends:', '        - A --> A');
-        const model = buildModel(nodes, { relations: { depends: ['A --> A'] } }, markdown);
+        const markdown = doc('---', 'markdag:', '    relations:', '        depends:', '            - A --> A');
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['A --> A'] } } }, markdown);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['self-loop']);
-        expect(places(model)).toEqual([{ line: 4, column: 11, length: 7 }]);
+        expect(places(model)).toEqual([{ line: 5, column: 15, length: 7 }]);
     });
 
     it('改行が CRLF でも同じ位置になる', () => {
         const nodes = outline([['root', null], ['X', 0], ['A', 0], ['B', 0]]);
-        const lines = ['---', 'relations:', '    depends:', '        - X --> A --> B', '        - A --> B', '        - "A -> B"', '---', '', '# root'];
-        const frontmatter = { relations: { depends: ['X --> A --> B', 'A --> B', 'A -> B'] } };
-        // スキーマが出す 6 行目の診断が先、グラフを見る 5 行目の診断があと
-        const expected = [{ line: 6, column: 11, length: 8 }, { line: 5, column: 17, length: 1 }];
+        const lines = ['---', 'markdag:', '    relations:', '        depends:', '            - X --> A --> B', '            - A --> B', '            - "A -> B"', '---', '', '# root'];
+        const frontmatter = { markdag: { relations: { depends: ['X --> A --> B', 'A --> B', 'A -> B'] } } };
+        // スキーマが出す 7 行目の診断が先、グラフを見る 6 行目の診断があと
+        const expected = [{ line: 7, column: 15, length: 8 }, { line: 6, column: 21, length: 1 }];
         expect(places(buildModel(nodes, frontmatter, lines.join('\n')))).toEqual(expected);
         expect(places(buildModel(nodes, frontmatter, lines.join('\r\n')))).toEqual(expected);
     });
@@ -456,28 +461,32 @@ describe('frontmatter の形と型の検証', () => {
             checkFrontmatter({
                 title: '小さな DAG',
                 markmap: { colorFreezeLevel: 2, color: ['#2980b9'] },
-                relations: { fork: ['企画 --> 設計/*'], depends: '画面設計 --> API設計' },
-                markdag: { details: 'open', legend: { position: 'bottom-left', display: false }, branches: ['企画', '実装'] },
-                groups: { design: { label: '設計チーム', color: '#3B7DD8', boundary: true, members: ['画面設計'] } },
+                markdag: {
+                    relations: { fork: ['企画 --> 設計/*'], depends: '画面設計 --> API設計' },
+                    groups: { design: { label: '設計チーム', color: '#3B7DD8', boundary: true, members: ['画面設計'] } },
+                    details: 'open',
+                    legend: { position: 'bottom-left', display: false },
+                    branches: ['企画', '実装'],
+                },
             }),
         ).toEqual([]);
     });
 
     it('コードと重大度はスキーマが決め、書いていなければ警告の option-invalid / option-unknown にする', () => {
         // relations の下は、その式を描けなくなる誤りなので error
-        expect(first({ relations: ['A --> B'] })).toMatchObject({ severity: 'error', code: 'relation-syntax' });
-        expect(first({ relations: { fork: [3] } })).toMatchObject({ severity: 'error', code: 'relation-not-string' });
-        expect(first({ relations: { fork: ['A -> B'] } })).toMatchObject({ severity: 'error', code: 'relation-syntax' });
-        expect(first({ relations: { flow: ['A --> B'] } })).toMatchObject({ severity: 'warning', code: 'relation-unknown-key' });
-        expect(first({ groups: { a: { color: 3 } } })).toMatchObject({ severity: 'warning', code: 'group-invalid' });
+        expect(first({ markdag: { relations: ['A --> B'] } })).toMatchObject({ severity: 'error', code: 'relation-syntax' });
+        expect(first({ markdag: { relations: { fork: [3] } } })).toMatchObject({ severity: 'error', code: 'relation-not-string' });
+        expect(first({ markdag: { relations: { fork: ['A -> B'] } } })).toMatchObject({ severity: 'error', code: 'relation-syntax' });
+        expect(first({ markdag: { relations: { flow: ['A --> B'] } } })).toMatchObject({ severity: 'warning', code: 'relation-unknown-key' });
+        expect(first({ markdag: { groups: { a: { color: 3 } } } })).toMatchObject({ severity: 'warning', code: 'group-invalid' });
         expect(first({ markdag: { branches: 'A' } })).toMatchObject({ severity: 'warning', code: 'option-invalid' });
         expect(first({ markdag: { branch: ['A'] } })).toMatchObject({ severity: 'warning', code: 'option-unknown' });
     });
 
     it('$ref を type の兄弟に置いた制約は、型と形の 2 段で効く', () => {
         // 文字列でない式 (expression の type) と、--> のない式 (その $ref の先の arrow の pattern) を区別する
-        expect(first({ relations: { fork: [3] } })?.hint).toBe('「A --> B: C」のように「: 」を含む式は、行全体を "…" で囲みます');
-        expect(first({ relations: { fork: ['A -> B'] } })?.hint).toMatch(/半角の空白で挟んだ --> で結びます/);
+        expect(first({ markdag: { relations: { fork: [3] } } })?.hint).toBe('「A --> B: C」のように「: 」を含む式は、行全体を "…" で囲みます');
+        expect(first({ markdag: { relations: { fork: ['A -> B'] } } })?.hint).toMatch(/半角の空白で挟んだ --> で結びます/);
         // 一覧の型 (branches の type) と、重なり (その $ref の先の noDuplicates の uniqueItems) も同じ
         expect(codes({ markdag: { branches: 'A' } })).toEqual(['option-invalid']);
         expect(first({ markdag: { branches: ['A', 'B', 'A'] } })).toMatchObject({
@@ -504,12 +513,30 @@ describe('frontmatter の形と型の検証', () => {
     });
 
     it('知らないキーと使えない値には、近い名前を手がかりにする', () => {
-        expect(first({ relations: { chian: ['A --> B'] } })?.hint).toBe('もしかして「chain」');
+        expect(first({ markdag: { relations: { chian: ['A --> B'] } } })?.hint).toBe('もしかして「chain」');
         expect(first({ markdag: { branch: ['A'] } })?.hint).toBe('もしかして「branches」');
-        expect(first({ groups: { a: { colour: '#fff' } } })?.hint).toBe('もしかして「color」');
+        expect(first({ markdag: { groups: { a: { colour: '#fff' } } } })?.hint).toBe('もしかして「color」');
         expect(first({ markdag: { details: 'hoverr' } })?.hint).toBe('もしかして「hover」');
         // 近い名前がなければ、スキーマの手がかりをそのまま出す
         expect(first({ markdag: { details: 'always' } })?.hint).toBe('click は印のクリック、hover はノードに重ねる、open は最初から開いて表示します');
+    });
+
+    it('下の階層に書くはずのキーは、知らないキーではなく置き場所の違いとして知らせる', () => {
+        expect(first({ markdag: { fork: ['A --> B'] } })).toMatchObject({
+            code: 'option-misplaced',
+            message: 'markdag のキー「fork」は、markdag.relations の下に書いてください。この位置では無視します',
+            hint: 'relations: の行を作り、その下に字下げして fork: を書きます',
+        });
+        expect(first({ markdag: { position: 'top-left' } })?.message).toBe('markdag のキー「position」は、markdag.legend の下に書いてください。この位置では無視します');
+        // 0.2 までの書き方 (最上位の relations と groups) も、置き場所の違いになる
+        expect(first({ relations: { fork: ['A --> B'] } })).toMatchObject({
+            code: 'option-misplaced',
+            message: '「relations」は frontmatter の markdag の下に書いてください。この位置では無視します',
+            hint: 'markdag: の行を作り、その下に字下げして relations: を書きます',
+        });
+        expect(first({ fork: 'A --> B' })?.hint).toBe('markdag: の下に relations: を作り、その下に字下げして fork: を書きます');
+        // 書き間違いの近い名前が下の階層のキーなら、置き場所も添える
+        expect(first({ relation: { fork: ['A --> B'] } })?.hint).toBe('もしかして「relations」(markdag の下に書きます)');
     });
 
     it('診断の位置は、スキーマの中の場所から原文の行と桁で引く', () => {
@@ -524,28 +551,32 @@ describe('frontmatter の形と型の検証', () => {
 // 診断のうち、形と型だけで決まるもの。これまでは黙って無視されるか、意図と違う結果になっていた
 describe('黙って無視されていた書き方を、スキーマが警告にする', () => {
     const cases: Array<[string, Record<string, unknown>, string[]]> = [
-        ['グループの色が引用符なしで、# 以降がコメントになった', { groups: { a: { color: null } } }, ['group-invalid']],
-        ['グループの色が文字列でない', { groups: { a: { color: 123456 } } }, ['group-invalid']],
-        ['グループの色が CSS の色の形でない', { groups: { a: { color: 'まっか' } } }, ['group-invalid']],
-        ['グループの色の 16 進の桁数が足りない', { groups: { a: { color: '#D6454' } } }, ['group-invalid']],
+        ['グループの色が引用符なしで、# 以降がコメントになった', { markdag: { groups: { a: { color: null } } } }, ['group-invalid']],
+        ['グループの色が文字列でない', { markdag: { groups: { a: { color: 123456 } } } }, ['group-invalid']],
+        ['グループの色が CSS の色の形でない', { markdag: { groups: { a: { color: 'まっか' } } } }, ['group-invalid']],
+        ['グループの色の 16 進の桁数が足りない', { markdag: { groups: { a: { color: '#D6454' } } } }, ['group-invalid']],
         ['題が文字列でない', { title: 123 }, ['option-invalid']],
-        ['グループのラベルが文字列でない', { groups: { a: { label: 2025 } } }, ['group-invalid']],
-        ['グループのラベルが空', { groups: { a: { label: '' } } }, ['group-invalid']],
-        ['枠の指定が真偽値でない (yes は YAML では文字列)', { groups: { a: { boundary: 'yes' } } }, ['group-invalid']],
-        ['メンバーを一覧にしていない', { groups: { a: { members: 'A' } } }, ['group-invalid']],
-        ['メンバーが文字列でない', { groups: { a: { members: [3] } } }, ['group-invalid']],
-        ['グループの中の知らないキー', { groups: { a: { colour: '#fff', member: ['A'] } } }, ['group-invalid', 'group-invalid']],
-        ['解決されずに残ったマージキー', { groups: { a: { '<<': { color: '#fff' } } } }, ['group-invalid']],
-        ['グループの定義が写像でない', { groups: { a: 'なにか' } }, ['group-invalid']],
-        ['グループの定義が一覧 (members: の書き忘れ)', { groups: { a: ['A', 'B'] } }, ['group-invalid']],
-        ['groups が一覧', { groups: ['a', 'b'] }, ['group-invalid']],
-        ['groups が文字列', { groups: 'abc' }, ['group-invalid']],
+        ['グループのラベルが文字列でない', { markdag: { groups: { a: { label: 2025 } } } }, ['group-invalid']],
+        ['グループのラベルが空', { markdag: { groups: { a: { label: '' } } } }, ['group-invalid']],
+        ['枠の指定が真偽値でない (yes は YAML では文字列)', { markdag: { groups: { a: { boundary: 'yes' } } } }, ['group-invalid']],
+        ['メンバーを一覧にしていない', { markdag: { groups: { a: { members: 'A' } } } }, ['group-invalid']],
+        ['メンバーが文字列でない', { markdag: { groups: { a: { members: [3] } } } }, ['group-invalid']],
+        ['グループの中の知らないキー', { markdag: { groups: { a: { colour: '#fff', member: ['A'] } } } }, ['group-invalid', 'group-invalid']],
+        ['解決されずに残ったマージキー', { markdag: { groups: { a: { '<<': { color: '#fff' } } } } }, ['group-invalid']],
+        ['グループの定義が写像でない', { markdag: { groups: { a: 'なにか' } } }, ['group-invalid']],
+        ['グループの定義が一覧 (members: の書き忘れ)', { markdag: { groups: { a: ['A', 'B'] } } }, ['group-invalid']],
+        ['groups が一覧', { markdag: { groups: ['a', 'b'] } }, ['group-invalid']],
+        ['groups が文字列', { markdag: { groups: 'abc' } }, ['group-invalid']],
         ['markdag が文字列', { markdag: 'abc' }, ['option-invalid']],
         ['凡例の項目が重なっている', { markdag: { legend: { display: ['groups', 'groups'] } } }, ['option-invalid']],
         ['最上位のキーが大文字違い', { Markdag: { details: 'open' } }, ['option-unknown']],
-        ['最上位のキーの書き間違い', { relation: { fork: ['A --> B'] } }, ['option-unknown']],
+        ['relations の書き間違いを最上位に置いた', { relation: { fork: ['A --> B'] } }, ['option-unknown']],
         ['markmap のオプションを最上位に置いた', { colorFreezeLevel: 2 }, ['option-misplaced']],
+        ['relations を最上位に置いた (0.2 までの書き方)', { relations: { fork: ['A --> B'] } }, ['option-misplaced']],
+        ['groups を最上位に置いた (0.2 までの書き方)', { groups: { a: { color: '#fff' } } }, ['option-misplaced']],
         ['relations のキーを最上位に置いた', { fork: 'A --> B' }, ['option-misplaced']],
+        ['relations のキーを markdag の直下に置いた', { markdag: { fork: ['A --> B'] } }, ['option-misplaced']],
+        ['legend のキーを markdag の直下に置いた', { markdag: { position: 'top-left' } }, ['option-misplaced']],
         ['markdag のキーを markmap の下に置いた', { markmap: { markdag: { details: 'open' } } }, ['option-unknown']],
         ['markmap の数値に文字列を書いた', { markmap: { nodeMinHeight: '20' } }, ['option-invalid']],
         ['markmap の真偽値に文字列を書いた (逆の意味になる)', { markmap: { autoFit: 'no' } }, ['option-invalid']],
@@ -558,9 +589,9 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
         // markmap-lib が読んで使うキーと、CSS の色として読める書き方は、弾かない
         ['markmap.htmlParser は markmap-lib が読むので通す', { markmap: { htmlParser: { selector: 'h1,h2' } } }, []],
         ['frontmatter がキーと値の組でない', 'abc' as unknown as Record<string, unknown>, ['option-invalid']],
-        ['グループの色に 8 桁の 16 進', { groups: { a: { color: '#3B7DD880' } } }, []],
-        ['グループの色に色の名前', { groups: { a: { color: 'steelblue' } } }, []],
-        ['グループの色に関数の書き方', { groups: { a: { color: 'rgb(59, 125, 216)' } } }, []],
+        ['グループの色に 8 桁の 16 進', { markdag: { groups: { a: { color: '#3B7DD880' } } } }, []],
+        ['グループの色に色の名前', { markdag: { groups: { a: { color: 'steelblue' } } } }, []],
+        ['グループの色に関数の書き方', { markdag: { groups: { a: { color: 'rgb(59, 125, 216)' } } } }, []],
     ];
 
     for (const [label, frontmatter, expected] of cases) {
@@ -571,14 +602,14 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
 
     it('relations が写像でないときに、添字をキーと取り違えた警告を出さない', () => {
         const nodes = outline([['root', null], ['A', 0], ['B', 0]]);
-        const model = buildModel(nodes, { relations: 'A --> B' });
+        const model = buildModel(nodes, { markdag: { relations: 'A --> B' } });
         expect(model.relations).toEqual([]);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['relation-syntax']);
     });
 
     it('groups が一覧のときに、添字を名前にしたグループを作らない', () => {
         const nodes = outline([['root', null], ['A', 0]]);
-        const model = buildModel(nodes, { groups: ['a', 'b'] });
+        const model = buildModel(nodes, { markdag: { groups: ['a', 'b'] } });
         expect(model.groups).toEqual([]);
         expect(model.diagnostics.map((item) => item.code)).toEqual(['group-invalid']);
     });
@@ -608,7 +639,7 @@ describe('参照の経路の区切り', () => {
             ['I/O', 1],
             ['完了', 0],
         ]);
-        const model = buildModel(nodes, { relations: { depends: ['入出力/I\\/O --> 完了'] } });
+        const model = buildModel(nodes, { markdag: { relations: { depends: ['入出力/I\\/O --> 完了'] } } });
         expect(model.diagnostics).toEqual([]);
         expect(pairs(model, 'depends')).toEqual(['3>4']);
     });

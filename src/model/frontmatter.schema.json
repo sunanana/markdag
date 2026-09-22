@@ -4,9 +4,24 @@
     "properties": {
         "markdag": {
             "type": ["object", "null"],
-            "description": "markdag 固有のオプション。値を書かずにキーだけを置いてもよい (オプションはすべて既定のまま、タグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、タグや $id の抽出だけが有効になる)",
+            "x-hint": "markdag: の下に relations, groups, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
             "properties": {
+                "relations": {
+                    "type": "object",
+                    "description": "ツリーに足す線。キーが線の種類で、値は式 1 つか式の一覧",
+                    "x-code": "relation-syntax",
+                    "x-severity": "error",
+                    "x-hint": "relations: の下に fork, join, chain, depends のキーを字下げして、その下に式を一覧で並べます",
+                    "$ref": "#/$defs/relationKinds"
+                },
+                "groups": {
+                    "type": "object",
+                    "description": "グループの定義。キーがグループの名前で、本文では #名前 のタグで付ける。ここに定義のないタグは、色のない文字のラベルになる",
+                    "x-code": "group-invalid",
+                    "x-hint": "groups: の下にグループの名前を字下げして書き、さらにその下に label, color, boundary, members を書きます",
+                    "additionalProperties": { "$ref": "#/$defs/group" }
+                },
                 "edgeHighlight": {
                     "type": "boolean",
                     "description": "線をクリックしたときに、その線と前後につながる線だけを残す操作を使えるようにするか。指定がなければ使える",
@@ -69,21 +84,6 @@
                 }
             },
             "additionalProperties": false
-        },
-        "relations": {
-            "type": "object",
-            "description": "ツリーに足す線。キーが線の種類で、値は式 1 つか式の一覧",
-            "x-code": "relation-syntax",
-            "x-severity": "error",
-            "x-hint": "relations: の下に fork, join, chain, depends のキーを字下げして、その下に式を一覧で並べます",
-            "$ref": "#/$defs/relationKinds"
-        },
-        "groups": {
-            "type": "object",
-            "description": "グループの定義。キーがグループの名前で、本文では #名前 のタグで付ける。ここに定義のないタグは、色のない文字のラベルになる",
-            "x-code": "group-invalid",
-            "x-hint": "groups: の下にグループの名前を字下げして書き、さらにその下に label, color, boundary, members を書きます",
-            "additionalProperties": { "$ref": "#/$defs/group" }
         },
         "markmap": {
             "type": "object",

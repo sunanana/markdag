@@ -217,10 +217,10 @@ export function parseDocument(original: string, { transformer }: ParseOptions): 
     const source = normalizeTaskMarks(original);
     const probe = transformer.transform(source);
     // frontmatter は「キー: 値」の形でない文書もある (一覧や文字列だけ)。形が違うことの診断は model 層が出すので、
-    // ここでは抽出をしない判断にだけ使う
+    // ここでは抽出をしない判断にだけ使う。markdag の指定はすべて markdag キーの下にあるので、そのキーの有無で決まる
     const frontmatter = (probe.frontmatter ?? {}) as Record<string, unknown>;
     const isMapping = typeof frontmatter === 'object' && frontmatter !== null && !Array.isArray(frontmatter);
-    const extracted = isMapping && ['relations', 'groups', 'markdag'].some((key) => key in frontmatter);
+    const extracted = isMapping && 'markdag' in frontmatter;
 
     const { text, annotations } = extracted ? stripAnnotations(source) : { text: source, annotations: new Map() };
     const result = extracted ? transformer.transform(text) : probe;

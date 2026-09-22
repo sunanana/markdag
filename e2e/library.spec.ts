@@ -13,9 +13,9 @@ type TestWindow = Window & { harness: Harness; diagram: MarkdagDiagram; second: 
 const DOC = [
     '---',
     'markdag:',
-    'relations:',
-    '    depends:',
-    '        - $api --> Design',
+    '    relations:',
+    '        depends:',
+    '            - $api --> Design',
     '---',
     '',
     '# Root',
@@ -195,7 +195,7 @@ test.describe('タスク', () => {
 
 test.describe('凡例', () => {
     const source = (legend: string[]): string =>
-        ['---', 'markdag:', ...legend, '    branches:', '        - A', 'groups:', '    team:', '        label: Team', '        color: "#3B7DD8"', '---', '', '# Root', '', '## A #team', '', '## B', ''].join('\n');
+        ['---', 'markdag:', ...legend, '    branches:', '        - A', '    groups:', '        team:', '            label: Team', '            color: "#3B7DD8"', '---', '', '# Root', '', '## A #team', '', '## B', ''].join('\n');
 
     // 図の領域 (1000 x 600) の、どの隅に寄っているか
     async function cornerOf(page: Page, legend: string[]): Promise<string> {

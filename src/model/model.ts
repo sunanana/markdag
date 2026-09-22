@@ -1,4 +1,4 @@
-// model 層 (簡易版)。frontmatter の relations と groups を、ノードの木に対して解決する。
+// model 層 (簡易版)。frontmatter の markdag の下の relations と groups を、ノードの木に対して解決する。
 // frontmatter の形と型の検査は同梱の JSON Schema の 1 枚が出どころで、この層はそれに続けて、
 // 木やグラフを見ないと決まらない検査 (参照の解決、式の形、閉路) だけを行う。DOM には依存しない。
 // 簡易版なので、(X) の枝の枠は未対応で X 自身として扱う。全角スペースの警告は出さない。
@@ -29,7 +29,7 @@ export interface GroupDef {
     label: string;
     color: string | null;
     boundary: boolean;
-    // frontmatter の groups に定義があるか (定義のないタグは文字ラベルになる)
+    // frontmatter の markdag.groups に定義があるか (定義のないタグは文字ラベルになる)
     defined: boolean;
 }
 
@@ -268,8 +268,9 @@ interface SchemaIssue {
     schema: Schema;
     keyword: string;
     value: unknown;
-    // additionalProperties の違反での、知らないキーと、そこに書けるキーの一覧
-    unknown?: { key: string; known: string[] };
+    // additionalProperties の違反での、知らないキーと、そこに書けるキーの一覧。
+    // そのキーが下の階層に書くはずのものなら、under に置き場所 (そこからの親のキーの道すじ) が入る
+    unknown?: { key: string; known: string[]; under?: string[] };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -330,6 +331,24 @@ function propertiesOf(schema: Schema | null): Record<string, unknown> {
     return { ...propertiesOf(refTarget(schema)), ...(isRecord(schema.properties) ? schema.properties : {}) };
 }
 
+// そのスキーマより下の階層に書くキーと、その置き場所 (そこからの親のキーの道すじ)。properties と $ref の先だけをたどり、
+// 名前が決まっていないキー (additionalProperties) の下は見ない。同じ名前が 2 か所にあれば、先に見つけたほうを取る
+function ownersOf(schema: Schema, path: string[] = [], into = new Map<string, string[]>()): Map<string, string[]> {
+    for (const [name, sub] of Object.entries(propertiesOf(schema))) {
+        if (!isRecord(sub)) continue;
+        if (path.length > 0 && !into.has(name)) into.set(name, path);
+        ownersOf(sub, [...path, name], into);
+    }
+    return into;
+}
+
+// 置き場所の手がかり。親のキーの道すじを、上から順に作る言い方にする
+function placementHint(parents: string[], key: string): string {
+    const [first = '', ...rest] = parents;
+    const chain = rest.length === 0 ? `${first}: の行を作り` : `${first}: の下に ${rest.map((name) => `${name}:`).join(' を作り、さらにその下に ')} を作り`;
+    return `${chain}、その下に字下げして ${key}: を書きます`;
+}
+
 function check(value: unknown, schema: Schema, path: SourcePath, issues: SchemaIssue[]): void {
     const target = refTarget(schema);
     if (target) check(value, target, path, issues);
@@ -365,7 +384,9 @@ function check(value: unknown, schema: Schema, path: SourcePath, issues: SchemaI
         for (const [key, child] of Object.entries(value)) {
             if (isRecord(properties[key])) check(child, properties[key], [...path, key], issues);
             else if (isRecord(schema.additionalProperties)) check(child, schema.additionalProperties, [...path, key], issues);
-            else if (schema.additionalProperties === false) add('additionalProperties', { value: child, unknown: { key, known: Object.keys(properties) } });
+            else if (schema.additionalProperties === false) {
+                add('additionalProperties', { value: child, unknown: { key, known: Object.keys(properties), under: ownersOf(schema).get(key) } });
+            }
         }
     }
 }
@@ -393,6 +414,16 @@ function toDiagnostic(issue: SchemaIssue, locator: FrontmatterLocator): Diagnost
     const { schema, keyword, value, unknown } = issue;
     // 場所の呼び名。先頭の「.」は落とす。最上位そのものが相手のときは frontmatter と呼ぶ
     const label = issue.path.map((step) => (typeof step === 'number' ? `[${step}]` : `.${step}`)).join('').slice(1) || 'frontmatter';
+    // 下の階層に書くはずのキーは、知らないキーではなく置き場所の違いとして知らせる
+    if (unknown?.under) {
+        return {
+            severity: 'warning',
+            code: 'option-misplaced',
+            message: `${label} のキー「${unknown.key}」は、${label}.${unknown.under.join('.')} の下に書いてください。この位置では無視します`,
+            at: locator.key([...issue.path, unknown.key]),
+            hint: placementHint(unknown.under, unknown.key),
+        };
+    }
     const choices = Array.isArray(schema.enum) ? schema.enum : [];
     const near = unknown
         ? closest(unknown.key, unknown.known)
@@ -417,21 +448,20 @@ function schemaDiagnostics(frontmatter: Record<string, unknown>, locator: Frontm
     // スキーマが知っているキーの書き間違いらしい名前だけを、ここで拾う
     const rootProperties = propertiesOf(SCHEMA);
     const rootNames = Object.keys(rootProperties);
-    const owner = new Map<string, string>();
-    for (const [name, sub] of Object.entries(rootProperties)) {
-        for (const key of Object.keys(propertiesOf(isRecord(sub) ? sub : null))) owner.set(key, name);
-    }
+    const owner = ownersOf(SCHEMA);
     for (const key of Object.keys(frontmatter)) {
         if (key in rootProperties) continue;
         const parent = owner.get(key);
-        const near = parent === undefined ? closest(key, rootNames) : null;
+        // 下の階層に書くはずのキーの書き間違い (relation など) も、ここで拾って置き場所ごと手がかりにする
+        const near = parent === undefined ? closest(key, [...rootNames, ...owner.keys()]) : null;
+        const nearParent = near === null ? undefined : owner.get(near);
         if (parent !== undefined) {
             diagnostics.push({
                 severity: 'warning',
                 code: 'option-misplaced',
-                message: `「${key}」は frontmatter の ${parent} の下に書いてください。この位置では無視します`,
+                message: `「${key}」は frontmatter の ${parent.join('.')} の下に書いてください。この位置では無視します`,
                 at: locator.key([key]),
-                hint: `${parent}: の行を作り、その下に字下げして ${key}: を書きます`,
+                hint: placementHint(parent, key),
             });
         } else if (near !== null) {
             diagnostics.push({
@@ -439,7 +469,7 @@ function schemaDiagnostics(frontmatter: Record<string, unknown>, locator: Frontm
                 code: 'option-unknown',
                 message: `frontmatter のキー「${key}」は、markdag が読むキー (${asList(rootNames)}) のどれでもありません`,
                 at: locator.key([key]),
-                hint: `もしかして「${near}」`,
+                hint: nearParent === undefined ? `もしかして「${near}」` : `もしかして「${near}」(${nearParent.join('.')} の下に書きます)`,
             });
         }
     }
@@ -609,7 +639,7 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
             code: 'yaml-syntax',
             message: `frontmatter を YAML として読めません: ${error.message}`,
             at: error.at,
-            hint: 'この frontmatter は丸ごと無視されるので、relations も groups も markdag も効きません',
+            hint: 'この frontmatter は丸ごと無視されるので、markdag の指定は何も効きません',
         });
     }
     // frontmatter の形と型はスキーマ 1 枚が出どころ。ここから下では、木やグラフを見ないと決まらない検査だけを行う
@@ -651,10 +681,13 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
     };
     const name = (id: number): string => nodes[id - 1]?.refText || `#${id}`;
 
+    // markdag の指定はすべて markdag キーの下にある。知らないキー、使えない値、markdag の外に置かれた指定は、どれもスキーマが警告にしている
+    const options = isRecord(frontmatter.markdag) ? frontmatter.markdag : {};
+
     const relations: LayoutInputRelation[] = [];
     let warnedBranch = false;
-    // 知らないキー、写像でない relations、文字列でない式、--> のない式は、どれもスキーマが警告にしている
-    for (const [key, value] of Object.entries(isRecord(frontmatter.relations) ? frontmatter.relations : {})) {
+    // 写像でない relations、文字列でない式、--> のない式は、どれもスキーマが警告にしている
+    for (const [key, value] of Object.entries(isRecord(options.relations) ? options.relations : {})) {
         if (!KINDS.includes(key as RelationKind)) continue;
         const kind = key as RelationKind;
         const list: unknown[] = Array.isArray(value) ? value : [value];
@@ -663,7 +696,7 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
             const parts = expression.split(ARROW);
             if (parts.length < 2) continue;
             // 一覧で書かれたときは添字まで、1 つだけ書かれたときはキーまでが、この式の道すじ
-            const path = Array.isArray(value) ? ['relations', key, index] : ['relations', key];
+            const path = Array.isArray(value) ? ['markdag', 'relations', key, index] : ['markdag', 'relations', key];
             const place = (ref?: string | null): SourcePosition | null => locator.value(path, ref);
             try {
                 const terms = parts.map((part) => {
@@ -718,7 +751,7 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
     // groups: 直接のタグ、members の指定、祖先からの継承の 3 つを合わせる
     const groups: GroupDef[] = [];
     const direct = new Map<number, Set<string>>(nodes.map((node) => [node.id, new Set(node.tags)]));
-    for (const [id, raw] of Object.entries(isRecord(frontmatter.groups) ? frontmatter.groups : {})) {
+    for (const [id, raw] of Object.entries(isRecord(options.groups) ? options.groups : {})) {
         const def = isRecord(raw) ? raw : {};
         groups.push({
             id,
@@ -731,19 +764,19 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         for (const [index, member] of members.entries()) {
             // 文字列でない要素と空の要素はスキーマが警告にしているので、同じ誤りを二重に出さない
             if (typeof member !== 'string' || member.trim() === '') continue;
-            const memberPlace = (ref?: string | null): SourcePosition | null => locator.value(['groups', id, 'members', index], ref);
+            const memberPlace = (ref?: string | null): SourcePosition | null => locator.value(['markdag', 'groups', id, 'members', index], ref);
             try {
                 const selector = resolver.parseSelector(member);
                 if (selector.scope === 'branch') throw new SelectorError('group-invalid', 'members に (X) は書けません', member, '括弧を外して書きます');
                 for (const nodeId of resolver.expand(selector)) direct.get(nodeId)?.add(id);
             } catch (error) {
                 if (!(error instanceof SelectorError)) throw error;
-                report('warning', error.code, `groups.${id}.members「${String(member)}」: ${error.message}`, {
+                report('warning', error.code, `markdag.groups.${id}.members「${String(member)}」: ${error.message}`, {
                     at: memberPlace(error.ref),
                     hint: error.hint,
                 });
             } finally {
-                reportPrefixMatches(`groups.${id}.members`, memberPlace);
+                reportPrefixMatches(`markdag.groups.${id}.members`, memberPlace);
             }
         }
     }
@@ -762,8 +795,6 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         groupsOf.set(node.id, [...all].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)));
     }
 
-    // 知らないキー、使えない値、markdag の外に置かれた指定は、どれもスキーマが警告にしている
-    const options = isRecord(frontmatter.markdag) ? frontmatter.markdag : {};
     const detailsMode: DetailsMode | null = DETAILS_MODES.includes(options.details as DetailsMode) ? (options.details as DetailsMode) : null;
     // edgeHighlight: false と書いたときだけ、線をクリックしての強調を使えなくする
     const edgeHighlight = options.edgeHighlight !== false;
