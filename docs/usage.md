@@ -119,9 +119,9 @@ A transformer is any object with markmap-lib's `transform(markdown)` and `getUse
 import { buildModel, MarkdagView, parseDocument, toggleTask } from 'markdag';
 
 const view = new MarkdagView(container, {
-    onToggleTask: (node) => {
+    onToggleTask: (node, cycle) => {
         if (!node.task) return;
-        source = toggleTask(source, node.task.line);
+        source = toggleTask(source, node.task.line, cycle);
         draw(false);
     },
 });
@@ -137,13 +137,14 @@ draw(true);
 
 - `MarkdagView` does not add the stylesheet. Load `markdag/style.css` on the page.
 - `setDocument(parsed, model, fit)`: with `fit` false, zoom and pan are kept, and the reader's fold state is kept when the tree shape and the document's initial fold state are unchanged. With `fit` true, the fold state goes back to the document's initial state and the diagram is fitted.
-- `toggleTask(source, line)` flips `[ ]` / `[x]` (`[X]`) on that line and keeps line endings. A line outside the source returns the source unchanged.
-- A task is a list item or a heading whose first line starts with `[ ]`, `[x]` or `[X]`. `node.task.line` is that source line.
+- `toggleTask(source, line, cycle?)` moves the mark on that line to the next one in `cycle` (default `[' ', 'x']`; pass `GraphModel.taskCycle` to follow the document's `markdag.tasks.cycle`) and keeps line endings. A line outside the source, or a mark that is not in `cycle`, returns the source unchanged. `nextTaskMark(mark, cycle)`, `taskStateOf(mark)` and `taskMarkOf(state)` are exported for applications that write their own toggling.
+- A task is a list item or a heading whose first line starts with `[ ]`, `[/]`, `[x]` (`[X]`) or `[-]`. `node.task` is `{ line, state, checked }`: `line` is that source line, `state` is `todo`, `doing`, `done` or `canceled`, and `checked` is `state === 'done'`.
+- Node elements carry `data-task` with the state, `data-task-fixed` when the state is not in the cycle (no pointer cursor, and a click is reported as `hook-rejected`), and `data-dimmed` when the state is in `markdag.tasks.dim`. The label of a task (everything but the details) is wrapped in `span.mdag-task-label`; the stylesheet strikes it through for `canceled`. `GraphModel.taskCycle` and `GraphModel.taskDim` hold the parsed `markdag.tasks`.
 - `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
 - `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details.display: always`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
 - Each `OutlineNode` has `id` (document order, root is 1), `lines` (`{ start, end }`, 0-based source lines, `end` exclusive, or `null`) and `task`. Node elements carry the same range as `data-lines="start,end"`, next to `data-id`.
-- `OutlineNode.groups` is the node's own `%name` marks and `OutlineNode.tags` its `#key:value` tags (`{ key, values, at }`; `values` is empty for `#key`, `at` is the position of the tag in the source: `line` and `column` 1-based, `length` in characters). `GraphModel.groupsOf` adds the inherited groups and the `members` of the frontmatter. `GraphModel.tagsOf` lists each node's own tags in the order written; tags are not inherited. `GraphModel.tagDisplay` is `markdag.tags.display` (`always`, `hover`, `click` or `never`; `always` by default), and the view applies it with the `data-tags` attribute on the container. With `hover` and `click` the tags are rendered in the details popover, as a `p.mdag-popover-tags` after the details.
+- `OutlineNode.groups` is the node's own `%name` marks and `OutlineNode.tags` its `#key:value` tags (`{ key, values, at }`; `values` is empty for `#key`, `at` is the position of the tag in the source: `line` and `column` 1-based, `length` in characters). `GraphModel.groupsOf` adds the inherited groups and the `members` of the frontmatter. `GraphModel.tagsOf` lists each node's own tags in the order written; tags are not inherited. `GraphModel.tagDisplay` is `markdag.tags.display` (`always`, `hover`, `click` or `never`; `always` by default), and the view applies it with the `data-tags` attribute on the container and, as the effective mode of each node, on the node element next to `data-details` (the node's values differ from the container's when `markdag.tasks.dim` overrides them, and the stylesheet keys on the node). With `hover` and `click` the tags are rendered in the details popover, as a `p.mdag-popover-tags` after the details.
 - `GraphModel.tagKeys` is the resolved definition of each key in `markdag.tags.keys` (`{ key, alternatives, multiple, unique, description }`; each alternative is a built-in `primitive` plus the constraints stacked from the named types). The values of the tags are checked against it in `buildModel`; the results are in `diagnostics`, positioned at the tag in the body.
 - `suggestTagKeys(model.tagKeys, prefix)` and `suggestTagValues(model.tagKeys, key, prefix)` give completion candidates for an editor: the defined keys with their `description`, and for a key the `values` of an `enum` or `true` / `false` for a `boolean`. `formatTag(tag)` writes a tag back in the body notation. The model layer (`buildModel`, `checkFrontmatter`, these helpers) does not touch the DOM and runs in Node.
 
@@ -165,9 +166,9 @@ const bridge = createHookBridge({
     },
     viewHooks: {
         // The application's own callbacks. onToggleTask is called only after beforeTaskToggle allowed the toggle
-        onToggleTask: (node) => {
+        onToggleTask: (node, cycle) => {
             if (!node.task) return;
-            source = toggleTask(source, node.task.line);
+            source = toggleTask(source, node.task.line, cycle);
             draw(false);
         },
         onFoldChange: (folded, byUser) => saveFoldState(folded),
@@ -236,7 +237,7 @@ These are passed to the `MarkdagView` constructor. `render` forwards `onFoldChan
 
 | Hook | When |
 | --- | --- |
-| `onToggleTask(node)` | The reader clicked a task item. The view does not change the state: rewrite the source and call `setDocument` |
+| `onToggleTask(node, cycle)` | The reader clicked a task. The view does not change the state: rewrite the source (`toggleTask(source, node.task.line, cycle)`) and call `setDocument`. `cycle` is the document's `markdag.tasks.cycle` |
 | `onNodeClick(node, asTaskToggle)` | The reader clicked the node text, outside a link or a nested control |
 | `beforeFold(node, folded)` | The reader clicked a fold circle. Return `false` to keep the branch as it is. Not called for `setFolded`, `expandAll`, `resetFold`, `revealNode` and `focusNode` |
 | `beforeSelectEdge(edge, byUser)` / `onSelectEdge` | A line is about to be highlighted, or the highlight cleared (`edge` is `null`). `false` keeps the current selection |
@@ -310,14 +311,14 @@ markdag itself never transpiles anything, so a `.ts` module runs only where the 
 | Hook | When | Extra fields on the context |
 | --- | --- | --- |
 | `beforeUpdate` | Before `diagram.update(markdown)` replaces the source | `next`, `previous` |
-| `beforeTaskToggle` | Before a click on a task rewrites the source | `node`, `next` (the state after the toggle), `line` |
+| `beforeTaskToggle` | Before a click on a task rewrites the source | `node`, `nextState` (the state after the click: `todo`, `doing`, `done` or `canceled`), `next` (`true` when that is `done`), `line` |
 | `beforeFold` | Before a click on a fold circle opens or closes a branch. Fold changes made by a method (`setFolded`, `expandAll`, `revealNode`, `focusNode`) do not go through it | `node`, `folded` (the state after the click) |
 | `beforeSelectEdge` | Before a line is highlighted, or the highlight is cleared | `edge` (`null` when clearing) |
 | `beforeSelectGroup` | Before a group is highlighted, or the highlight is cleared | `group` (`null` when clearing) |
 | `beforeDetailsShow` | Before the details popover opens | `node`, `pinned` |
 | `onDocument` | After a document was parsed, built and set on the view. Also after every redraw | |
 | `onNodeClick` | A click on the node text that was not on a link or on a nested control | `node`, `asTaskToggle` |
-| `onTaskToggle` | After the source was rewritten and the diagram redrawn | `node`, `next`, `line` |
+| `onTaskToggle` | After the source was rewritten and the diagram redrawn | `node`, `nextState`, `next`, `line` |
 | `onFoldChange` | After the fold state changed | `folded` (the ids that are now folded) |
 | `onSelectEdge` / `onSelectGroup` | After the highlight changed | `edge` / `group` |
 | `onDetailsShow` / `onDetailsHide` | After the details popover opened or closed | `node`, `pinned` |
@@ -353,7 +354,7 @@ Every hook takes one object, so new fields can be added without breaking existin
 
 `ctx.doc` is a read-only view of the document: `source`, `frontmatter`, `diagnostics`, `node(id)`, `nodes()`, and `upstream(id, options?)` / `downstream(id, options?)`, which follow the lines added by `markdag.relations`. Pass `{ tree: true }` to include the tree parent and children as well, and `{ transitive: true }` to follow the lines as far as they go.
 
-A node is a copy, not the internal one: `id`, `refId`, `text` (the reference text), `depth`, `parent`, `children`, `groups` (inherited ones included), `tags`, `task` (`{ checked, line }` or `null`), `milestone`, `lines`, and `folded` / `visible`, which are read at the moment you look at them. The node HTML is not exposed.
+A node is a copy, not the internal one: `id`, `refId`, `text` (the reference text), `depth`, `parent`, `children`, `groups` (inherited ones included), `tags`, `task` (`{ checked, state, line }` or `null`), `milestone`, `lines`, and `folded` / `visible`, which are read at the moment you look at them. The node HTML is not exposed.
 
 `ctx.api` has `focusNode(id, scale?)`, `revealNode(id)`, `setFolded(ids)`, `getFolded()`, `fit()`, `getTransform()`, `setTransform(transform)` and `update(markdown)`. `setFolded` and the rest do not go through `beforeFold`, so a hook that blocks folding can still fold the diagram itself. A change started this way does not run the `before*` hooks again, and the `on*` hooks it triggers get `byHook: true`. Nesting deeper than four levels is dropped with a `hook-failed` diagnostic.
 

@@ -87,9 +87,9 @@ export function render(container: HTMLElement, markdown: string, options: Render
             onChange?.(source);
         },
         viewHooks: {
-            onToggleTask: (node) => {
+            onToggleTask: (node, cycle) => {
                 if (!node.task) return;
-                source = toggleTask(source, node.task.line);
+                source = toggleTask(source, node.task.line, cycle);
                 draw(false);
                 onChange?.(source);
             },

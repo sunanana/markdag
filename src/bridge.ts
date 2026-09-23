@@ -6,6 +6,7 @@ import type { PlacedEdge } from './layout/layout';
 import { createHookDocument, HookRunner, type HookApi, type HookDocument, type HookEdge, type HookEvent, type HookGroup, type HookModule, type ResolvedHook } from './model/hooks';
 import { buildModel, type Diagnostic, type GraphModel } from './model/model';
 import type { OutlineNode, ParsedDocument } from './parse/document';
+import { nextTaskMark, taskMarkOf, taskStateOf } from './parse/task';
 import type { MarkdagView, ViewHooks } from './view/view';
 
 export interface HookBridgeOptions {
@@ -89,9 +90,22 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
     const nodeOf = (node: OutlineNode) => doc.node(node.id);
 
     const viewHooks: ViewHooks = {
-        onToggleTask: (node) => {
+        onToggleTask: (node, cycle) => {
             if (!node.task) return;
-            const { line, checked } = node.task;
+            const { line, state } = node.task;
+            const nextMark = nextTaskMark(taskMarkOf(state), cycle);
+            // 順にない状態 (中止など) は原文を編集して変えるもので、クリックでは変えない
+            if (nextMark === null) {
+                options.onDiagnostic?.({
+                    severity: 'info',
+                    code: 'hook-rejected',
+                    message: `「${node.refText}」の状態 [${taskMarkOf(state)}] は、クリックで進む順 (markdag.tasks.cycle) にないので変えられません`,
+                    at: null,
+                    hint: '原文の記号を書き換えるか、markdag.tasks.cycle にその記号を足します',
+                });
+                return;
+            }
+            const nextState = taskStateOf(nextMark);
             // 行は差し替えたほうの文で数えている。原文の同じ行が違う内容なら、書き換える先を決められない
             if (rendered !== source() && lineAt(rendered, line) !== lineAt(source(), line)) {
                 options.onDiagnostic?.({
@@ -104,10 +118,10 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
                 return;
             }
             const target = nodeOf(node);
-            if (target && !runner.before('beforeTaskToggle', { node: target, next: !checked, line }, true)) return;
-            own.onToggleTask?.(node);
+            if (target && !runner.before('beforeTaskToggle', { node: target, next: nextState === 'done', nextState, line }, true)) return;
+            own.onToggleTask?.(node, cycle);
             const toggled = nodeOf(node);
-            if (toggled) runner.emit('onTaskToggle', { node: toggled, next: !checked, line }, true);
+            if (toggled) runner.emit('onTaskToggle', { node: toggled, next: nextState === 'done', nextState, line }, true);
         },
         onNodeClick: (node, asTaskToggle) => {
             own.onNodeClick?.(node, asTaskToggle);

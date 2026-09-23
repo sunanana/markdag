@@ -5,6 +5,7 @@
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Document, type Pair } from 'yaml';
 import type { LayoutInputRelation, RelationKind } from '../layout/input-types';
 import type { NodeTag, OutlineNode, SourcePosition } from '../parse/document';
+import { DEFAULT_TASK_CYCLE, isTaskMark, taskStateOf, type TaskMark, type TaskState } from '../parse/task';
 import schemaSource from './frontmatter.schema.json';
 import { resolveHooks, rulesModule, type ResolvedHooks } from './hooks';
 import { lintTags, resolveTagKeys, type TagKeyDef, type TagLintOptions, type TypeSource } from './tags';
@@ -39,6 +40,17 @@ export const DISPLAY_MODES: DisplayMode[] = ['always', 'hover', 'click'];
 export type TagDisplayMode = DisplayMode | 'never';
 export const TAG_DISPLAY_MODES: TagDisplayMode[] = [...DISPLAY_MODES, 'never'];
 
+// 薄く表示するタスクのノードでの、詳細とタグの見せ方。keep = 文書の指定のまま。never = 出さない (吹き出しも印もなし)
+export type DimDisplayMode = 'keep' | 'hover' | 'click' | 'never';
+export const DIM_DISPLAY_MODES: DimDisplayMode[] = ['keep', 'hover', 'click', 'never'];
+
+// 薄く表示するタスクの状態と、そのノードでの詳細とタグの見せ方 (frontmatter の markdag.tasks.dim)
+export interface TaskDimOptions {
+    states: TaskState[];
+    details: DimDisplayMode;
+    tags: DimDisplayMode;
+}
+
 // 凡例に出す項目。groups はグループの色とラベル、branches は枝の色と起点の名前
 export type LegendItem = 'groups' | 'branches';
 export const DEFAULT_LEGEND: LegendItem[] = ['groups', 'branches'];
@@ -72,6 +84,10 @@ export interface GraphModel {
     tagsOf: Map<number, NodeTag[]>;
     // キーごとの解決済みの定義 (frontmatter の markdag.tags.keys と markdag.types)。定義のないキーは入らない
     tagKeys: TagKeyDef[];
+    // タスクのクリックで進む記号の順 (frontmatter の markdag.tasks.cycle)。指定がなければ未完了と完了の行き来
+    taskCycle: TaskMark[];
+    // 薄く表示するタスクの状態と、そのノードでの詳細とタグの見せ方 (frontmatter の markdag.tasks.dim)。指定がなければ何も薄くしない
+    taskDim: TaskDimOptions;
     // 文書が宣言し (frontmatter の markdag.hooks)、呼び出し側が渡したフック。宣言の順に並ぶ
     hooks: ResolvedHooks;
     diagnostics: Diagnostic[];
@@ -835,6 +851,25 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
 
     const detailsOptions = isRecord(options.details) ? options.details : {};
     const detailsMode: DisplayMode | null = DISPLAY_MODES.includes(detailsOptions.display as DisplayMode) ? (detailsOptions.display as DisplayMode) : null;
+    // tasks: クリックで進む順と、薄く表示する状態。使えない値は指定なしとして扱う (診断はスキーマの検証が出す)。
+    // 順は 2 つ以上でないと進めないので、それだけはここで知らせる
+    const taskOptions = isRecord(options.tasks) ? options.tasks : {};
+    const cycleRaw = Array.isArray(taskOptions.cycle) ? taskOptions.cycle : null;
+    const cycleMarks = [...new Set((cycleRaw ?? []).filter(isTaskMark))];
+    if (cycleRaw !== null && cycleRaw.length < 2) {
+        report('warning', 'option-invalid', 'markdag.tasks.cycle: クリックで進む順は、記号を 2 つ以上並べます', {
+            at: locator.value(['markdag', 'tasks', 'cycle']),
+            hint: "未完了と完了の行き来なら書かずに済みます。作業中を挟むなら [' ', '/', 'x'] と書きます",
+        });
+    }
+    const taskCycle: TaskMark[] = cycleMarks.length >= 2 ? cycleMarks : [...DEFAULT_TASK_CYCLE];
+    const dimRaw = Array.isArray(taskOptions.dim) ? { states: taskOptions.dim } : isRecord(taskOptions.dim) ? taskOptions.dim : {};
+    const dimMode = (value: unknown): DimDisplayMode => (DIM_DISPLAY_MODES.includes(value as DimDisplayMode) ? (value as DimDisplayMode) : 'keep');
+    const taskDim: TaskDimOptions = {
+        states: [...new Set((Array.isArray(dimRaw.states) ? dimRaw.states : []).filter(isTaskMark).map(taskStateOf))],
+        details: dimMode(dimRaw.details),
+        tags: dimMode(dimRaw.tags),
+    };
     // edgeHighlight: false と書いたときだけ、線をクリックしての強調を使えなくする
     const edgeHighlight = options.edgeHighlight !== false;
     const groupHighlight = options.groupHighlight !== false;
@@ -897,6 +932,8 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
         tagDisplay,
         tagsOf,
         tagKeys: resolved.keys,
+        taskCycle,
+        taskDim,
         hooks: { hooks: allHooks, options: hooks.options },
         diagnostics,
     };

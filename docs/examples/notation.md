@@ -53,6 +53,13 @@ markdag:
     # 詳細 (引用ブロック) の見せ方。always は最初から開いて表示、hover は重ねたとき、click は印のクリック
     details:
         display: hover
+    # タスク。cycle はクリックで進む記号の順 (省略すると [ ] と [x] の行き来)。dim は薄く表示する状態と、そのノードでの詳細とタグの見せ方
+    tasks:
+        cycle: [' ', '/', 'x']
+        dim:
+            states: ['x', '-']
+            details: hover
+            tags: keep
     # 凡例。position は置く隅 (top-right / top-left / bottom-right / bottom-left)、display は出す項目。出さないなら display: false
     legend:
         position: top-right
@@ -85,7 +92,9 @@ markdag:
 - [ ] テスト %qa
 ### バックエンド
 - [x] 検索API #owner:bob
-- [ ] 登録API #owner:alice,bob
+- [/] 登録API #owner:alice,bob
+- [-] 削除API
+    > 今回の範囲から外した。
 - [ ] テスト %qa
 
 ## 検証

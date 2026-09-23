@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { BEFORE_HOOKS, createHookDocument, HOOK_EVENTS, HookRunner, ON_HOOKS, resolveHooks, rulesModule, VALUE_HOOKS, type HookApi, type HookDocument, type HookModule } from '../src/model/hooks';
 import { buildModel, type Diagnostic } from '../src/model/model';
 import type { OutlineNode } from '../src/parse/document';
+import type { TaskState } from '../src/parse/task';
 
-// [参照用のテキスト, 親の位置 (0 始まり。ルートは null), タスクの状態 (タスクでなければ undefined), そのほかの欄]
-type Row = [string, number | null, boolean?, Partial<OutlineNode>?];
+// [参照用のテキスト, 親の位置 (0 始まり。ルートは null), タスクの状態 (完了かどうか、または doing / canceled。タスクでなければ undefined), そのほかの欄]
+type Row = [string, number | null, (boolean | TaskState)?, Partial<OutlineNode>?];
 
 function outline(rows: Row[]): OutlineNode[] {
     const nodes: OutlineNode[] = [];
@@ -22,7 +23,7 @@ function outline(rows: Row[]): OutlineNode[] {
             milestone: false,
             foldHint: 0,
             lines: { start: index, end: index + 1 },
-            task: checked === undefined ? null : { line: index, checked },
+            task: checked === undefined ? null : { line: index, state: typeof checked === 'string' ? checked : checked ? 'done' : 'todo', checked: checked === true || checked === 'done' },
             details: null,
             ...extra,
         });
@@ -85,7 +86,7 @@ function runnerOf(modules: Array<[string, HookModule]>, doc: HookDocument = docu
     return { runner, api, diagnostics, errors };
 }
 
-const taskFields = { node: documentOf().node(4)!, next: true, line: 3 };
+const taskFields = { node: documentOf().node(4)!, next: true, nextState: 'done' as const, line: 3 };
 
 describe('フックの宣言の解決', () => {
     it('hookRefs を渡さないアプリでは、フックは動かないと info で知らせる', () => {
@@ -282,18 +283,37 @@ describe('組み込みの規則 (markdag.rules)', () => {
         const { runner, diagnostics } = rulesOf({ taskToggle: { requireUpstreamDone: true } });
         const doc = documentOf();
         // 受け入れの確認 (テストの配下)。線は見出しに引かれているので、祖先の上流を見て止まる
-        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: true, line: 5 }, true)).toBe(false);
+        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: true, nextState: 'done', line: 5 }, true)).toBe(false);
         expect(diagnostics[0]?.message).toContain('先に終えるもの: 実装、設計');
         // 画面設計 (設計の配下) は上流がないので通る
-        expect(runner.before('beforeTaskToggle', { node: doc.node(3)!, next: true, line: 2 }, true)).toBe(true);
+        expect(runner.before('beforeTaskToggle', { node: doc.node(3)!, next: true, nextState: 'done', line: 2 }, true)).toBe(true);
         // 外すほうは止めない
-        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: false, line: 5 }, true)).toBe(true);
+        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: false, nextState: 'todo', line: 5 }, true)).toBe(true);
+    });
+
+    it('requireUpstreamDone は、作業中の上流は終わっていない扱いで止め、中止の上流は塞がない。作業中に進むのは止めない', () => {
+        const nodes = outline([
+            ['リリース計画', null],
+            ['設計', 0, 'doing'],
+            ['画面設計', 1, false],
+            ['実装', 0, 'canceled'],
+            ['テスト', 0, false],
+            ['受け入れの確認', 4, false],
+        ]);
+        const doc = documentOf([], nodes);
+        const { runner, diagnostics } = rulesOf({ taskToggle: { requireUpstreamDone: true } }, doc);
+        expect(doc.node(2)?.task).toEqual({ checked: false, state: 'doing', line: 1 });
+        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: true, nextState: 'done', line: 5 }, true)).toBe(false);
+        // 実装は中止なので、先に終えるものには入らない
+        expect(diagnostics[0]?.message).toContain('先に終えるもの: 設計');
+        expect(diagnostics[0]?.message).not.toContain('実装');
+        expect(runner.before('beforeTaskToggle', { node: doc.node(6)!, next: false, nextState: 'doing', line: 5 }, true)).toBe(true);
     });
 
     it('readonlyGroups は、そのグループのノードの切り替えを止める', () => {
         const doc = documentOf([], MARKED, {});
         const { runner, diagnostics } = rulesOf({ taskToggle: { readonlyGroups: ['fixed'] } }, doc);
-        expect(runner.before('beforeTaskToggle', { node: doc.node(3)!, next: true, line: 2 }, true)).toBe(false);
+        expect(runner.before('beforeTaskToggle', { node: doc.node(3)!, next: true, nextState: 'done', line: 2 }, true)).toBe(false);
         expect(diagnostics[0]?.message).toContain('「fixed」のノードのタスクは切り替えられません');
     });
 

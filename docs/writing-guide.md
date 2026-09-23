@@ -86,7 +86,7 @@ Nodes are headings and list items. The first line of a node is what `markdag.rel
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
 | `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
-| `[ ]`, `[x]` | Start of a list item or a heading (`- [ ] Name`, `## [ ] Name`) | A task. Clicking the label toggles it, and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not toggle the task. `[X]` is the same as `[x]` |
+| `[ ]`, `[/]`, `[x]`, `[-]` | Start of a list item or a heading (`- [ ] Name`, `## [/] Name`) | A task: `[ ]` open, `[/]` in progress, `[x]` done, `[-]` canceled. `[X]` is the same as `[x]`. Clicking the label moves the task to the next mark in `tasks.cycle` (by default `[ ]` and `[x]` alternate, and `[/]` and `[-]` are changed by editing the text), and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not change the task. See `tasks` below |
 
 Rules:
 
@@ -251,11 +251,30 @@ markdag:
 ```
 
 - `rules` are built-in rules for what the reader may do. They need no JavaScript, so they work in any application that renders the document.
-- `taskToggle.requireUpstreamDone`: a task cannot be checked while a task it waits for is still open. "Waits for" follows the lines from `relations`, starting at the node and at each of its ancestors, as far as they go. Lines are usually drawn between headings, and this is what makes a list item under a heading wait for what the heading waits for. Unchecking is never blocked.
+- `taskToggle.requireUpstreamDone`: a task cannot be checked (`[x]`) while a task it waits for is still open. "Waits for" follows the lines from `relations`, starting at the node and at each of its ancestors, as far as they go. Lines are usually drawn between headings, and this is what makes a list item under a heading wait for what the heading waits for. An upstream `[/]` counts as open, an upstream `[-]` as finished. Only the move to `[x]` is checked: unchecking, and moving to `[/]`, is never blocked.
 - `taskToggle.readonlyGroups`: tasks on nodes in these groups cannot be toggled at all. Write the names without `%`. A name that is on no node in the document is reported as `option-invalid`.
 - `fold.keepMilestonesOpen`: the fold circle does not close a milestone (`## **Release**`). Methods such as `setFolded` still do.
 - A blocked action is reported as `hook-rejected` (severity `info`) with the reason, which the application receives through `onDiagnostic`; the diagram itself does not change.
 - `rules` run before the hooks in `hooks`, so a hook can only add to them, not undo them.
+
+### tasks
+
+```yaml
+markdag:
+    tasks:
+        cycle: [' ', '/', 'x']
+        dim:
+            states: ['x', '-']
+            details: hover
+            tags: keep
+```
+
+- `cycle` is the order a click moves a task through, left to right, and from the last mark back to the first. The marks are the characters written between the brackets: `' '` (open), `'/'` (in progress), `'x'` (done), `'-'` (canceled). Quote them: YAML reads a bare space or `-` differently. Default: `[' ', 'x']`. A task whose mark is not in `cycle` does not change on click, and the click is reported as `hook-rejected` (severity `info`); change it by editing the text. Fewer than two marks is reported as `option-invalid` and the default order is used; an unknown or repeated mark is reported and skipped.
+- `dim` lists the states whose nodes are drawn faded, the way nodes outside a highlighted line or group are. Write the marks (`dim: ['x', '-']`), or a mapping with `states` and how details and tags behave on those nodes:
+    - `details`: `keep` (default: as `details.display` says), `hover` (not inside the node; a popover when the pointer is over it), `click` (a popover from the `i` button), `never` (not shown at all, no button).
+    - `tags`: `keep` (default: as `tags.display` says), `hover` and `click` (in the popover), `never`. When `tags.display` is `never`, they stay hidden.
+    - Pointing at a faded node shows it at full strength while the pointer is there. The popover is never faded. A faded node stays faded while a line or a group is highlighted.
+- `[/]` and `[-]` are recognized whether or not `tasks` is written. `[/]` is drawn as a half-filled box, `[-]` as a box with a bar and the label struck through.
 
 ### hooks
 
@@ -288,8 +307,10 @@ The other keys under `markdag`:
 | `branches` | List of nodes (one node each; no `/*`, `/**`, `(X)`) | none |
 | `edgeHighlight` | boolean | `true` |
 | `groupHighlight` | boolean | `true` |
+| `tasks.cycle` | List of marks (`' '`, `'/'`, `'x'`, `'-'`) in the order a click moves through them (see `tasks` above) | `[' ', 'x']` |
+| `tasks.dim` | List of marks to fade, or `states` with `details` and `tags` (see `tasks` above) | none |
 
-- `details`, `legend` and `tags` are mappings. Writing a value directly under them (`details: hover`, a list under `legend`) is reported as `option-invalid` and ignored.
+- `details`, `legend`, `tags` and `tasks` are mappings. Writing a value directly under them (`details: hover`, a list under `legend`) is reported as `option-invalid` and ignored.
 
     ```yaml
     markdag:
@@ -334,7 +355,6 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 ## 7. Not supported yet
 
 - `(X)` (treat the branch of X as one unit and draw a frame around it). It is parsed, reports a `not-supported` warning, and behaves as `X`.
-- Task states other than `[ ]` and `[x]` (`[X]`). `[/]` and `[-]` stay in the node as text.
 - A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the group mark, tag or `$id` silently stays as text.
 - Filtering the diagram by tags. Tags are extracted and shown, and applications can read them, but the view has no filter yet.
 
@@ -347,6 +367,7 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - Put `boundary: true` only on the large groups. `examples/large-project.md` defines 33 groups and draws a frame for 9 of them.
 - Give a group a `color` when it should read as a unit. Without a color it is only a text label beside each node.
 - Use `%name` marks for membership that follows the structure of the outline, and `members` for membership that cuts across it.
+- In a checklist that is mostly done, set `tasks.dim` to `states: ['x', '-']` with `details: hover`: finished and canceled items shrink to one line and fade, and the open ones stand out. Mark what is being worked on with `[/]`, and set `tasks.cycle` to `[' ', '/', 'x']` when readers should be able to do that from the diagram.
 - Use groups for what should be visible as a unit (a team, a phase) and tags for attributes of single nodes (`#owner:alice`, `#priority:high`, `#urgent`). A tag on a heading says nothing about the items under it.
 
 ## 9. Check the document

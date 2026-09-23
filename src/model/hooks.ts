@@ -4,6 +4,7 @@
 // フックはページの JS としてそのまま動く。隔離はしていないので、読み込むかどうかの判断は呼び出し側に置く。
 import type { RelationKind } from '../layout/input-types';
 import type { OutlineNode } from '../parse/document';
+import type { TaskState } from '../parse/task';
 import type { Diagnostic, GraphModel } from './model';
 import { closest, isRecord } from './util';
 
@@ -68,7 +69,7 @@ export interface HookNode {
     // 継承を解決したあとのグループ
     groups: readonly string[];
     tags: ReadonlyArray<{ key: string; values: readonly string[] }>;
-    task: { checked: boolean; line: number } | null;
+    task: { checked: boolean; state: TaskState; line: number } | null;
     milestone: boolean;
     lines: { start: number; end: number } | null;
     // 今の開閉の状態。閉じているノード自身は見えている (配下が見えなくなる)
@@ -156,8 +157,10 @@ export interface UpdateHookContext extends HookContextBase {
 export interface TaskToggleHookContext extends HookContextBase {
     event: 'beforeTaskToggle' | 'onTaskToggle';
     node: HookNode;
-    // 切り替えたあとの状態
+    // 切り替えたあとに完了になるか (nextState が done のこと)
     next: boolean;
+    // 切り替えたあとの状態
+    nextState: TaskState;
     // 原文での行 (0 始まり)
     line: number;
 }
@@ -377,13 +380,13 @@ export interface RulesModule {
     groups: string[];
 }
 
-// そのノード自身と祖先に入ってくる線をさかのぼって、終わっていないタスクを集める。
+// そのノード自身と祖先に入ってくる線をさかのぼって、終わっていない (未完了か作業中の) タスクを集める。中止は終わった扱いで、下流を塞がない。
 // relations の線は見出しに引かれていることが多いので、配下の項目から見るには祖先の分も見る
 export function unfinishedUpstream(doc: HookDocument, node: HookNode): HookNode[] {
     const found = new Map<number, HookNode>();
     for (let current: HookNode | null = node; current !== null; current = current.parent === null ? null : doc.node(current.parent)) {
         for (const upstream of doc.upstream(current.id, { transitive: true })) {
-            if (upstream.task !== null && !upstream.task.checked) found.set(upstream.id, upstream);
+            if (upstream.task !== null && (upstream.task.state === 'todo' || upstream.task.state === 'doing')) found.set(upstream.id, upstream);
         }
     }
     return [...found.values()];
@@ -405,8 +408,8 @@ export function rulesModule(raw: unknown): RulesModule | null {
                 context.reject(`「${locked}」のノードのタスクは切り替えられません`);
                 return false;
             }
-            // 外すほうは止めない (取り消しまで塞ぐと、間違えたときに直せなくなる)
-            if (!requireUpstreamDone || !context.next) return;
+            // 完了にするときだけ検査する。外すほうは止めない (取り消しまで塞ぐと、間違えたときに直せなくなる)。作業中に進むのも止めない
+            if (!requireUpstreamDone || context.nextState !== 'done') return;
             const blockers = unfinishedUpstream(context.doc, context.node);
             if (blockers.length === 0) return;
             context.reject(`先に終えるもの: ${blockers.map((node) => node.text).join('、')}`);
@@ -464,7 +467,7 @@ export function createHookDocument(input: HookDocumentInput): HookDocument {
         children: children.get(node.id) ?? [],
         groups: input.model.groupsOf.get(node.id) ?? node.groups,
         tags: (input.model.tagsOf.get(node.id) ?? node.tags).map((tag) => ({ key: tag.key, values: [...tag.values] })),
-        task: node.task === null ? null : { checked: node.task.checked, line: node.task.line },
+        task: node.task === null ? null : { checked: node.task.checked, state: node.task.state, line: node.task.line },
         milestone: node.milestone,
         lines: node.lines === null ? null : { ...node.lines },
         get folded() {

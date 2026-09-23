@@ -3,6 +3,10 @@
 // 行番号でノードに対応づける (順序付きリストの番号、全角スペースの警告などは扱わない)。
 // 変換器は呼び出し側から受け取り、ここでは特定の変換器を import しない (利用者が自分の構成の変換器に差し替えられるようにするため)。
 // HTML の読み取りに DOMParser を使うので、ブラウザで動かす。
+import { taskMarkAt, taskStateOf, type TaskMark, type TaskState } from './task';
+
+export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './task';
+export type { TaskMark, TaskState } from './task';
 
 // 原文での位置。行と桁は 1 始まりで、桁と長さは文字数で数える
 export interface SourcePosition {
@@ -39,8 +43,8 @@ export interface OutlineNode {
     foldHint: number;
     // 原文での行の範囲 (0 始まり。end の行は含まない)。変換器が行を付けなかったノードは null
     lines: { start: number; end: number } | null;
-    // タスクのリスト項目 (`- [ ]`, `- [x]`) の場合の、原文での行 (0 始まり) と状態。それ以外は null
-    task: { line: number; checked: boolean } | null;
+    // タスク (`- [ ]`, `## [/]` など) の場合の、原文での行 (0 始まり) と状態。checked は state が done のこと。それ以外は null
+    task: { line: number; state: TaskState; checked: boolean } | null;
     // リスト項目の中に Markdown の引用ブロック (`>`) で書かれた詳細の HTML (複数あれば、つなげたもの)。吹き出しで見せるのに使う。
     // ノードの中に開いて見せるときは、html に残した引用ブロックを、書かれた位置でそのまま見せる
     details: string | null;
@@ -83,9 +87,6 @@ const FRONTMATTER = /^---\r?\n[\s\S]*?\n---\r?\n/;
 const HEADING = /^#{1,6}[ \t]+\S/;
 const LIST_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\S/;
 const FENCE = /^[ \t]*(```|~~~)/;
-const TASK_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\[( |x|X)\][ \t]/;
-// 見出しのタスク (`## [ ] 名前`)。下線で書く見出しは、行が状態の記号から始まる。見出しと分かっている行にだけ使う
-const TASK_HEADING = /^[ \t]*(?:#{1,6}[ \t]+)?\[( |x|X)\][ \t]/;
 // 大文字で書かれた完了の記号と、その前に置かれた行頭の記号 (リストの記号か、見出しの #)
 const UPPER_MARK = /^([ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+|#{1,6}[ \t]+)?)\[X\](?=[ \t])/;
 const SETEXT_UNDERLINE = /^[ \t]{0,3}(?:=+|-+)[ \t]*\r?$/;
@@ -215,49 +216,43 @@ function lineRange(lines: string | undefined): OutlineNode['lines'] {
     return start !== undefined && end !== undefined && Number.isInteger(start) && Number.isInteger(end) ? { start, end } : null;
 }
 
-// タスクになるのは、リスト項目と見出し。どちらも 1 行目が状態の記号 (`[ ]`, `[x]`, `[X]`) から始まるもの
+// タスクになるのは、リスト項目と見出し。どちらも 1 行目が状態の記号 (`[ ]`, `[/]`, `[x]`, `[X]`, `[-]`) から始まるもの
 function taskAt(sourceLines: string[], line: number, tag: string | undefined): OutlineNode['task'] {
-    const pattern = tag === 'li' ? TASK_ITEM : /^h[1-6]$/.test(tag ?? '') ? TASK_HEADING : null;
-    const mark = pattern?.exec(sourceLines[line] ?? '')?.[1];
-    return mark === undefined ? null : { line, checked: mark !== ' ' };
+    const kind = tag === 'li' ? 'item' : /^h[1-6]$/.test(tag ?? '') ? 'heading' : null;
+    const mark = kind === null ? null : taskMarkAt(sourceLines[line] ?? '', kind);
+    if (mark === null) return null;
+    const state = taskStateOf(mark);
+    return { line, state, checked: state === 'done' };
 }
 
-interface MarkIcons {
-    todo: string;
-    done: string;
-}
+type MarkIcons = Record<TaskState, string>;
 
 const LEADING_ICON = /^<svg[\s\S]*?<\/svg>/;
-const LEADING_MARK = /^\[( |x)\] /;
+const LEADING_MARK = /^\[( |x|\/|-)\] /;
 const markIcons = new WeakMap<TransformerLike, MarkIcons | null>();
+// 作業中と中止の絵は、未完了の枠の中に印を足した形。左半分の塗りと横線で、枠が markmap の絵 (viewBox「0 -3 24 24」) であることを前提にしている
+const DOING_FILL = '<path d="M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>';
+const CANCELED_BAR = '<path d="M7 11h10v2H7z"/>';
+const inside = (frame: string, shape: string): string => frame.replace(/<\/svg>$/, `${shape}</svg>`);
 
-// 変換器が状態の記号の代わりに描く絵。小さな文書を変換して、その結果から取り出す (絵そのものを、ここに持たずに済ませる)。
-// 記号を絵にしない構成の変換器では null
+// 状態の記号の代わりに描く絵。未完了と完了は、小さな文書を変換して変換器が描いた絵を取り出す (絵そのものを、ここに持たずに済ませる)。
+// 変換器が知らない作業中と中止は、未完了の枠に印を足して作る。記号を絵にしない構成の変換器では null
 function markIconsOf(transformer: TransformerLike): MarkIcons | null {
     const known = markIcons.get(transformer);
     if (known !== undefined) return known;
     const root = transformer.transform('# a\n\n## [ ] b\n\n## [x] c\n').root as MarkmapNode;
     const [todo, done] = (root.children ?? []).map((child) => LEADING_ICON.exec(child.content)?.[0]);
-    const icons = todo !== undefined && done !== undefined ? { todo, done } : null;
+    const icons = todo !== undefined && done !== undefined ? { todo, done, doing: inside(todo, DOING_FILL), canceled: inside(todo, CANCELED_BAR) } : null;
     markIcons.set(transformer, icons);
     return icons;
 }
 
-// 文書の最初のブロックが見出しのとき、変換器はその見出しの状態の記号を絵にせず、文字のまま残す。
-// ほかのタスクと見た目も参照用のテキストもそろうよう、残った記号を同じ絵に置き換える
+// 変換器が絵にせず文字のまま残した状態の記号を、ほかのタスクと見た目も参照用のテキストもそろうよう、同じ絵に置き換える。
+// 文書の最初のブロックが見出しのときの `[ ]` と `[x]` と、変換器が知らない `[/]` と `[-]` が残る
 function drawLeadingMark(html: string, transformer: TransformerLike): string {
     const mark = LEADING_MARK.exec(html)?.[1];
     const icons = mark === undefined ? null : markIconsOf(transformer);
-    return mark === undefined || icons === null ? html : html.replace(LEADING_MARK, () => `${mark === ' ' ? icons.todo : icons.done} `);
-}
-
-// タスクのリスト項目の状態を、原文の上で反転する。原文にない行を指定されたら、何も変えない
-export function toggleTask(source: string, line: number): string {
-    const lines = source.split('\n');
-    const current = lines[line];
-    if (current === undefined) return source;
-    lines[line] = current.replace(/\[( |x|X)\]/, (_, mark: string) => (mark === ' ' ? '[x]' : '[ ]'));
-    return lines.join('\n');
+    return mark === undefined || icons === null ? html : html.replace(LEADING_MARK, () => `${icons[taskStateOf(mark as TaskMark)]} `);
 }
 
 export function parseDocument(original: string, { transformer }: ParseOptions): ParsedDocument {

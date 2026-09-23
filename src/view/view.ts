@@ -8,6 +8,7 @@ import type { LayoutInput } from '../layout/input-types';
 import { boundsOf, layoutChildrenOf, layoutGraph, MARKMAP_DEFAULTS, type PlacedEdge, type Rect } from '../layout/layout';
 import { project, type VisibleGraph } from '../layout/project';
 import type { OutlineNode, ParsedDocument } from '../parse/document';
+import { DEFAULT_TASK_CYCLE, taskMarkOf, type TaskMark } from '../parse/task';
 import { computeFrames, countIntruders, frameOutline, frameSpacing, LABEL_HEIGHT, type Frame } from './frames';
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
@@ -16,6 +17,9 @@ import { formatTag } from '../model/tags';
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
 // 兄弟の並びは結果の縦の位置から決め、動きの補間はしない
 export type LayoutOverride = (graph: VisibleGraph) => { rects: Map<number, Rect>; edges: PlacedEdge[] };
+
+// ノードごとの実効の詳細の見せ方。文書の指定に、薄く表示するノードで「出さない」(never) が加わる
+type NodeDetailsMode = DisplayMode | 'never';
 
 export interface ViewOptions {
     ignoreProxiedDepends: boolean;
@@ -51,8 +55,9 @@ export interface ViewTransform {
 }
 
 export interface ViewHooks {
-    // タスクのリスト項目がクリックされた。状態は原文が持つので、切り替えは呼び出し側が原文を書き換えて行う
-    onToggleTask?: (node: OutlineNode) => void;
+    // タスクのノードがクリックされた。状態は原文が持つので、切り替えは呼び出し側が原文を書き換えて行う。
+    // cycle は、文書が決めたクリックで進む記号の順 (toggleTask にそのまま渡せる)
+    onToggleTask?: (node: OutlineNode, cycle: readonly TaskMark[]) => void;
     // ノードの文字がクリックされた。asTaskToggle は、そのクリックをタスクの切り替えとして扱ったか。
     // リンクや、自分の操作を持つ入れ子の部分のクリックでは呼ばない
     onNodeClick?: (node: OutlineNode, asTaskToggle: boolean) => void;
@@ -117,11 +122,33 @@ function findLoneCheckbox(content: Element, target: Element): HTMLInputElement |
     return null;
 }
 
+// タスクのノードの内容のうち、詳細のブロック以外 (状態の絵と文字) を包む span のクラス。
+// 中止の取り消し線を、詳細に及ぼさず文字にだけ引くための入れ物
+const TASK_LABEL_CLASS = 'mdag-task-label';
+
+function wrapTaskLabel(content: HTMLElement): void {
+    let run: ChildNode[] = [];
+    const flush = (): void => {
+        const first = run[0];
+        if (!first) return;
+        const label = document.createElement('span');
+        label.className = TASK_LABEL_CLASS;
+        first.before(label);
+        label.append(...run);
+        run = [];
+    };
+    for (const child of [...content.childNodes]) {
+        if (child instanceof Element && child.classList.contains('mdag-details')) flush();
+        else run.push(child);
+    }
+    flush();
+}
+
 // クリックした場所を囲む、自分の操作を持つ入れ子の部分 (HTML で直接書いたラジオボタンを囲む div など)。
-// area そのものは数えない。area の直下の文字 (タスクのラベル) や、詳細の文のクリックでは null になる。
+// area そのものと、タスクの文字を包む span は数えない。area の直下の文字 (タスクのラベル) や、詳細の文のクリックでは null になる。
 // リンクは文の中に混ざるものなので、リンクがあるだけの段落は、自分の操作を持つ部分とは見なさない
 function findNestedZone(area: Element, target: Element): Element | null {
-    for (let scope: Element | null = target; scope && scope !== area; scope = scope.parentElement) {
+    for (let scope: Element | null = target; scope && scope !== area && !scope.classList.contains(TASK_LABEL_CLASS); scope = scope.parentElement) {
         if (scope.querySelector(CONTROLS)) return scope;
     }
     return null;
@@ -341,8 +368,7 @@ export class MarkdagView {
         // 原文の書き換えで描き直しになり、そのたびに消えて出直すと、ちらついて見える。隠すのも出し直すのも同じ処理の中なので、
         // 画面には消えた状態が出ない。重ねて開いた吹き出しは、ポインタがまだそのノードの上にあるときだけ残す
         const kept = shown && sameShape ? this.nodes[shown.id - 1] : undefined;
-        const hasBody = kept !== undefined && (kept.details !== null || this.tagsInPopover(kept));
-        if (kept && hasBody && this.detailsMode() !== 'always' && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
+        if (kept && this.hasPopoverBody(kept) && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
             this.showPopover(kept, shown?.pinned ?? false, false);
         }
     }
@@ -638,7 +664,13 @@ export class MarkdagView {
         // 原文の行の範囲 (「開始,終了」。0 始まりで、終了の行は含まない)。エディタの行と行き来するための手がかり
         if (node.lines) element.dataset.lines = `${node.lines.start},${node.lines.end}`;
         if (node.milestone) element.dataset.milestone = '';
-        if (node.task) element.dataset.task = node.task.checked ? 'done' : 'todo';
+        if (node.task) {
+            element.dataset.task = node.task.state;
+            // 順にない状態はクリックで変わらないので、押せる見た目にしない
+            if (!this.taskCycle().includes(taskMarkOf(node.task.state))) element.dataset.taskFixed = '';
+            if (this.isDimmed(node)) element.dataset.dimmed = '';
+        }
+        this.applyNodeModes(node, element);
         const outer = document.createElement('div');
         outer.className = 'mdag-outer';
         const box = document.createElement('div');
@@ -661,6 +693,7 @@ export class MarkdagView {
         const content = document.createElement('div');
         content.className = 'mdag-content';
         content.innerHTML = node.html;
+        if (node.task) wrapTaskLabel(content);
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
@@ -696,11 +729,11 @@ export class MarkdagView {
             for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) mark.addEventListener(type, stop);
             mark.addEventListener('click', () => {
                 if (this.popoverPinned && this.popoverNode === node) this.hidePopover();
-                else this.showPopover(node, true);
+                else if (this.hasPopoverBody(node)) this.showPopover(node, true);
             });
             box.append(mark);
             box.addEventListener('pointerenter', () => {
-                if (this.popoverPinned || this.popoverTrigger() !== 'hover') return;
+                if (this.popoverPinned || this.popoverTriggerOf(node) !== 'hover' || !this.hasPopoverBody(node)) return;
                 window.clearTimeout(this.popoverTimer);
                 this.popoverTimer = window.setTimeout(() => this.showPopover(node, false), 250);
             });
@@ -763,7 +796,7 @@ export class MarkdagView {
         if (!target || target.closest(INTERACTIVE) || (window.getSelection()?.toString() ?? '') !== '') return;
         const zone = node.task ? findNestedZone(area, target) : area;
         this.hooks.onNodeClick?.(node, zone === null);
-        if (zone === null) this.hooks.onToggleTask?.(node);
+        if (zone === null) this.hooks.onToggleTask?.(node, this.taskCycle());
         else findLoneCheckbox(zone, target)?.click();
     }
 
@@ -775,22 +808,64 @@ export class MarkdagView {
         return this.model?.tagDisplay ?? 'always';
     }
 
+    private taskCycle(): readonly TaskMark[] {
+        return this.model?.taskCycle ?? DEFAULT_TASK_CYCLE;
+    }
+
+    // 薄く表示するノードか (文書の markdag.tasks.dim.states にある状態のタスク)
+    private isDimmed(node: OutlineNode): boolean {
+        return node.task !== null && (this.model?.taskDim.states ?? []).includes(node.task.state);
+    }
+
+    // そのノードでの詳細の見せ方。薄く表示するノードでは、文書の markdag.tasks.dim.details が keep でなければそちらに従う
+    private detailsModeOf(node: OutlineNode): NodeDetailsMode {
+        const override = this.isDimmed(node) ? (this.model?.taskDim.details ?? 'keep') : 'keep';
+        return override === 'keep' ? this.detailsMode() : override;
+    }
+
+    // そのノードでのタグの見せ方。文書が never なら薄いノードでも出さない (文書が隠したものは出さない)
+    private tagModeOf(node: OutlineNode): TagDisplayMode {
+        const base = this.tagMode();
+        const override = this.isDimmed(node) ? (this.model?.taskDim.tags ?? 'keep') : 'keep';
+        return base === 'never' || override === 'keep' ? base : override;
+    }
+
     // 吹き出しを出すきっかけ。詳細とタグのどちらかが hover なら、ノードに重ねただけで出す
-    private popoverTrigger(): 'hover' | 'click' {
-        return this.detailsMode() === 'hover' || this.tagMode() === 'hover' ? 'hover' : 'click';
+    private popoverTriggerOf(node: OutlineNode): 'hover' | 'click' {
+        return this.detailsModeOf(node) === 'hover' || this.tagModeOf(node) === 'hover' ? 'hover' : 'click';
+    }
+
+    // 吹き出しに入れる詳細があるか (ノードの中に開くのでも、出さないのでもないとき)
+    private detailsInPopover(node: OutlineNode): boolean {
+        const mode = this.detailsModeOf(node);
+        return node.details !== null && (mode === 'hover' || mode === 'click');
     }
 
     // ノードの中に出すのではなく吹き出しに入れるタグがあるか (印を出すかの判断にも使う)
     private tagsInPopover(node: OutlineNode): boolean {
-        const mode = this.tagMode();
-        return (mode === 'hover' || mode === 'click') && this.detailsMode() !== 'always' && (this.model?.tagsOf.get(node.id)?.length ?? 0) > 0;
+        const mode = this.tagModeOf(node);
+        return (mode === 'hover' || mode === 'click') && this.detailsModeOf(node) !== 'always' && (this.model?.tagsOf.get(node.id)?.length ?? 0) > 0;
     }
 
-    // 見せ方は CSS で切り替える。always ではノードの中の詳細を表示し、印と吹き出しは使わない。タグも同じ仕組みで出し分ける
+    private hasPopoverBody(node: OutlineNode): boolean {
+        return this.detailsInPopover(node) || this.tagsInPopover(node);
+    }
+
+    // 見せ方は CSS で切り替える。always ではノードの中の詳細を表示し、印と吹き出しは使わない。タグも同じ仕組みで出し分ける。
+    // 図の根の属性は文書の指定で、ノードの属性はそのノードでの実効の値 (薄いノードでは文書の指定と違うことがある)
     private applyDetailsMode(): void {
         this.root.dataset.details = this.detailsMode();
         this.root.dataset.tags = this.tagMode();
-        if (this.detailsMode() === 'always') this.hidePopover();
+        for (const [id, element] of this.elements) {
+            const node = this.nodes[id - 1];
+            if (node) this.applyNodeModes(node, element);
+        }
+        if (this.popoverNode && !this.hasPopoverBody(this.popoverNode)) this.hidePopover();
+    }
+
+    private applyNodeModes(node: OutlineNode, element: HTMLElement): void {
+        element.dataset.details = this.detailsModeOf(node);
+        element.dataset.tags = this.tagModeOf(node);
     }
 
     private showPopover(node: OutlineNode, pinned: boolean, byUser = true): void {
@@ -803,7 +878,7 @@ export class MarkdagView {
         // 開いて表示する場合の詳細と同じ要素を入れて、見た目をそろえる。タグも詳細の一部として、そのあとに並べる
         const body = document.createElement('div');
         body.className = 'mdag-details mdag-content';
-        body.innerHTML = node.details ?? '';
+        body.innerHTML = this.detailsInPopover(node) ? (node.details ?? '') : '';
         if (this.tagsInPopover(node)) {
             const line = document.createElement('p');
             line.className = 'mdag-popover-tags';
@@ -1186,8 +1261,10 @@ export class MarkdagView {
             element.style.opacity = dim && !this.nodeLevels.has(id) ? '0.35' : '';
         }
         const bold = (id: number): boolean => this.thicken && (this.nodeLevels.has(id) || touched.has(id));
+        // 薄く表示するタスクの下線と円は、強調から外れたときと同じ濃さにする
         const shade = (id: number): string => {
-            if (!dim) return '';
+            const node = this.nodes[id - 1];
+            if (!dim) return node && this.isDimmed(node) ? '0.3' : '';
             return this.nodeLevels.has(id) ? '1' : touched.has(id) ? '0.45' : '0.3';
         };
         for (const underline of this.edgeLayer.querySelectorAll<SVGLineElement>('.mdag-underline')) {

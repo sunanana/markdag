@@ -5,7 +5,7 @@
         "markdag": {
             "type": ["object", "null"],
             "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、タグ (tags)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、グループやタグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
             "properties": {
                 "relations": {
                     "type": "object",
@@ -144,6 +144,61 @@
                             "type": "object",
                             "description": "フックに渡す設定。フックの中では ctx.options で読む。中身は文書とフックの取り決めなので、markdag は検査しない",
                             "x-hint": "options: の下に、フックが読むキーと値を字下げして書きます"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "tasks": {
+                    "type": "object",
+                    "description": "タスク (本文の行頭の [ ], [/], [x], [-]) のクリックでの切り替えと、薄く表示する状態",
+                    "x-hint": "tasks: の下に cycle と dim を字下げして書きます",
+                    "properties": {
+                        "cycle": {
+                            "type": "array",
+                            "description": "クリックで進む記号の順。左から右へ進み、右端の次は左端に戻る。指定がなければ [' ', 'x'] (未完了と完了の行き来)。ここにない記号のタスクはクリックで変わらない",
+                            "x-hint": "cycle: [' ', '/', 'x'] のように、記号を引用符で囲んで並べます (空白は ' ')",
+                            "items": { "$ref": "#/$defs/taskMark" },
+                            "$ref": "#/$defs/noDuplicates"
+                        },
+                        "dim": {
+                            "description": "薄く表示するタスクの状態と、そのノードでの詳細とタグの見せ方。状態の記号の一覧だけを書くこともできる",
+                            "x-hint": "dim: ['x', '-'] のように状態の記号を並べるか、dim: の下に states, details, tags を字下げして書きます",
+                            "oneOf": [
+                                {
+                                    "type": "array",
+                                    "description": "薄く表示する状態の記号の一覧 (詳細とタグの見せ方は文書の指定のまま)",
+                                    "x-hint": "['x', '-'] のように、記号を引用符で囲んで並べます",
+                                    "items": { "$ref": "#/$defs/taskMark" },
+                                    "$ref": "#/$defs/noDuplicates"
+                                },
+                                {
+                                    "type": "object",
+                                    "description": "薄く表示する状態 (states) と、そのノードでの詳細 (details) とタグ (tags) の見せ方",
+                                    "x-hint": "dim: の下に states, details, tags を字下げして書きます",
+                                    "properties": {
+                                        "states": {
+                                            "type": "array",
+                                            "description": "薄く表示する状態の記号の一覧",
+                                            "x-hint": "states: ['x', '-'] のように、記号を引用符で囲んで並べます",
+                                            "items": { "$ref": "#/$defs/taskMark" },
+                                            "$ref": "#/$defs/noDuplicates"
+                                        },
+                                        "details": {
+                                            "type": "string",
+                                            "description": "薄いノードでの詳細の見せ方。keep は文書の details.display のまま、hover はノードに重ねると吹き出し、click は印のクリックで吹き出し、never は出さない。指定がなければ keep",
+                                            "x-hint": "keep, hover, click, never のどれかを書きます",
+                                            "enum": ["keep", "hover", "click", "never"]
+                                        },
+                                        "tags": {
+                                            "type": "string",
+                                            "description": "薄いノードでのタグの見せ方。keep は文書の tags.display のまま、hover と click は吹き出し、never は出さない。文書の tags.display が never なら出さない。指定がなければ keep",
+                                            "x-hint": "keep, hover, click, never のどれかを書きます",
+                                            "enum": ["keep", "hover", "click", "never"]
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                }
+                            ]
                         }
                     },
                     "additionalProperties": false
@@ -364,6 +419,12 @@
         }
     },
     "$defs": {
+        "taskMark": {
+            "type": "string",
+            "description": "タスクの状態の記号。' ' 未完了、'/' 作業中、'x' 完了、'-' 中止",
+            "x-hint": "' ' (未完了), '/' (作業中), 'x' (完了), '-' (中止) のどれかを引用符で囲んで書きます",
+            "enum": [" ", "/", "x", "-"]
+        },
         "relationKinds": {
             "description": "線の種類ごとの式。キーは書かれた順に処理する",
             "x-code": "relation-unknown-key",

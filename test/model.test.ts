@@ -877,3 +877,30 @@ describe('タグの型と検査', () => {
         expect(codes({ markdag: { types: { $ref: './t.yaml', a: { type: ['string', 'number'], min: 1, values: ['x'], pattern: 'y' } }, tags: { lint: 'error', unknownKey: 'deny', keys: { a: { type: 'a', multiple: true, unique: true, description: 'd' } } } } })).toEqual([]);
     });
 });
+
+describe('タスクの設定', () => {
+    it('クリックで進む順は markdag.tasks.cycle で指定でき、指定がなければ未完了と完了の行き来', () => {
+        expect(buildModel(EPIC, {}).taskCycle).toEqual([' ', 'x']);
+        expect(buildModel(EPIC, { markdag: { tasks: { cycle: [' ', '/', 'x'] } } }).taskCycle).toEqual([' ', '/', 'x']);
+        // 知らない記号と重複はスキーマが知らせ、ここでは読み飛ばす
+        const wrong = buildModel(EPIC, { markdag: { tasks: { cycle: [' ', '?', 'x', 'x'] } } });
+        expect(wrong.taskCycle).toEqual([' ', 'x']);
+        expect(wrong.diagnostics.map((item) => [item.code, item.message])).toEqual([
+            ['option-invalid', 'markdag.tasks.cycle[3] は前にも書かれています ("x")'],
+            ['option-invalid', "markdag.tasks.cycle[1] に指定できるのは  , /, x, - です (\"?\")"],
+        ]);
+        // 1 つでは進めないので、既定に戻して知らせる
+        const single = buildModel(EPIC, { markdag: { tasks: { cycle: ['x'] } } });
+        expect(single.taskCycle).toEqual([' ', 'x']);
+        expect(single.diagnostics.map((item) => [item.code, item.message])).toEqual([['option-invalid', 'markdag.tasks.cycle: クリックで進む順は、記号を 2 つ以上並べます']]);
+    });
+
+    it('薄く表示する状態は markdag.tasks.dim で指定でき、一覧だけでも、詳細とタグの見せ方を添えても書ける', () => {
+        expect(buildModel(EPIC, {}).taskDim).toEqual({ states: [], details: 'keep', tags: 'keep' });
+        expect(buildModel(EPIC, { markdag: { tasks: { dim: ['x', '-'] } } }).taskDim).toEqual({ states: ['done', 'canceled'], details: 'keep', tags: 'keep' });
+        expect(buildModel(EPIC, { markdag: { tasks: { dim: { states: ['-'], details: 'hover', tags: 'never' } } } }).taskDim).toEqual({ states: ['canceled'], details: 'hover', tags: 'never' });
+        const wrong = buildModel(EPIC, { markdag: { tasks: { dim: { states: ['x'], details: 'always' } } } });
+        expect(wrong.taskDim).toEqual({ states: ['done'], details: 'keep', tags: 'keep' });
+        expect(wrong.diagnostics.map((item) => [item.code, item.message])).toEqual([['option-invalid', 'markdag.tasks.dim.details に指定できるのは keep, hover, click, never です ("always")']]);
+    });
+});

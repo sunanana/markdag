@@ -59,7 +59,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `yaml-syntax` | error | YAML | The frontmatter is not valid YAML. All of it is ignored |
 | `option-unknown` | warning | Shape and type | Unknown key under `markdag` or `markmap`, or a top-level key that looks like a typo of a known key |
 | `option-misplaced` | warning | Shape and type | A key written at the wrong level: `relations`, `groups` or `branches` outside `markdag` (the top-level `relations` and `groups` are the form used up to 0.2.0), or `fork` directly under `markdag`. It is ignored |
-| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node, and a `markdag.rules.taskToggle.readonlyGroups` name that is on no node |
+| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node, a `markdag.rules.taskToggle.readonlyGroups` name that is on no node, and a `markdag.tasks.cycle` with fewer than two marks |
 | `relation-unknown-key` | warning | Shape and type | A key under `markdag.relations` other than `fork`, `join`, `chain`, `depends` |
 | `relation-not-string` | error | Shape and type | A relation expression that YAML did not read as a string (usually `: ` inside it) |
 | `relation-syntax` | error | Shape and type | No ` --> ` with spaces around it, an empty term, or `(X)` combined with `/*` |

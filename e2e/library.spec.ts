@@ -64,7 +64,7 @@ test.describe('解析', () => {
         for (const node of parsed.nodes) expect(node.lines?.end).toBeGreaterThan(node.lines?.start ?? Number.NaN);
         expect(parsed.nodes[1]?.groups).toEqual(['design']);
         expect(parsed.nodes[4]?.refId).toBe('api');
-        expect(parsed.nodes[2]?.task).toEqual({ line: 11, checked: false });
+        expect(parsed.nodes[2]?.task).toEqual({ line: 11, state: 'todo', checked: false });
     });
 
     test('改行が CRLF の文書でも、タグと $id を同じように取り出す', async ({ page }) => {
@@ -131,12 +131,12 @@ test.describe('タスク', () => {
         const nodes = await page.evaluate((markdown) => (window as unknown as TestWindow).harness.markdag.parseDocument(markdown).nodes, TASKS);
         expect(nodes.map((node) => node.refText)).toEqual(['Root', 'Heading task', 'Upper', 'Lower', 'plain', 'Setext', 'leaf']);
         expect(nodes.map((node) => node.task)).toEqual([
-            { line: 4, checked: true },
-            { line: 6, checked: false },
-            { line: 8, checked: true },
-            { line: 9, checked: true },
+            { line: 4, state: 'done', checked: true },
+            { line: 6, state: 'todo', checked: false },
+            { line: 8, state: 'done', checked: true },
+            { line: 9, state: 'done', checked: true },
             null,
-            { line: 12, checked: true },
+            { line: 12, state: 'done', checked: true },
             null,
         ]);
         expect(nodes[1]?.groups).toEqual(['tag']);
@@ -190,6 +190,111 @@ test.describe('タスク', () => {
         await page.evaluate((source) => (window as unknown as TestWindow).diagram.update(source.replace('> raw', '> raw2')), markdown);
         await expect(page.locator('#a .mdag-node[data-id="2"]')).toContainText('raw2');
         await expect(raw).not.toBeChecked();
+    });
+});
+
+// ノードの id は、Root = 1, Doing = 2, Done = 3, Canceled = 4, Todo = 5
+const STATES = [
+    '---',
+    'markdag:',
+    '    tasks:',
+    "        cycle: [' ', '/', 'x']",
+    '        dim:',
+    "            states: ['x', '-']",
+    '            details: hover',
+    '            tags: keep',
+    '    details:',
+    '        display: always',
+    '---',
+    '',
+    '# Root',
+    '',
+    '- [/] Doing #owner:alice',
+    '    > 作業中の補足',
+    '- [x] Done #owner:bob',
+    '    > 完了の補足',
+    '- [-] Canceled',
+    '    > 中止の理由',
+    '- [ ] Todo',
+    '',
+].join('\n');
+
+test.describe('作業中と中止の状態', () => {
+    test('4 つの記号が状態になり、作業中と中止も絵になる。参照用のテキストに記号は残らない', async ({ page }) => {
+        await open(page);
+        const nodes = await page.evaluate((markdown) => (window as unknown as TestWindow).harness.markdag.parseDocument(markdown).nodes, STATES);
+        expect(nodes.map((node) => node.refText)).toEqual(['Root', 'Doing', 'Done', 'Canceled', 'Todo']);
+        expect(nodes.map((node) => node.task)).toEqual([
+            null,
+            { line: 14, state: 'doing', checked: false },
+            { line: 16, state: 'done', checked: true },
+            { line: 18, state: 'canceled', checked: false },
+            { line: 20, state: 'todo', checked: false },
+        ]);
+        const iconOf = (html: string | undefined): string => /^<svg[\s\S]*?<\/svg>/.exec(html ?? '')?.[0] ?? '';
+        const icons = nodes.slice(1).map((node) => iconOf(node.html));
+        // 4 つとも絵で、互いに違う。作業中と中止は、未完了の枠に印を足したもの
+        expect(icons.every((icon) => icon !== '')).toBe(true);
+        expect(new Set(icons).size).toBe(4);
+        // 詳細を持つノードの内容は DOM を通して直され、<path/> が <path></path> になるので、そろえてから比べる
+        const closed = (svg: string | undefined): string => (svg ?? '').replace(/(<path\b[^>]*?)\/>/g, '$1></path>');
+        const frame = closed(icons[3]).replace(/<\/svg>$/, '');
+        expect(closed(icons[0]).startsWith(frame)).toBe(true);
+        expect(closed(icons[2]).startsWith(frame)).toBe(true);
+    });
+
+    test('クリックは cycle の順に進み、順にない中止は変わらない。薄い表示と、そこでの詳細の出し方は状態ごとに変わる', async ({ page }) => {
+        await open(page);
+        await page.evaluate((markdown) => {
+            const target = window as unknown as TestWindow & { changes: string[]; notes: Diagnostic[] };
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.changes = [];
+            target.notes = [];
+            target.diagram = target.harness.markdag.render(container, markdown, {
+                animate: false,
+                onChange: (next) => target.changes.push(next),
+                onDiagnostic: (diagnostic) => target.notes.push(diagnostic),
+            });
+        }, STATES);
+        const node = (id: number) => page.locator(`#a .mdag-node[data-id="${id}"]`);
+        await expect(node(2)).toHaveAttribute('data-task', 'doing');
+        await expect(node(3)).toHaveAttribute('data-task', 'done');
+        await expect(node(4)).toHaveAttribute('data-task', 'canceled');
+        // 薄いのは完了と中止。中止は文字に取り消し線
+        await expect(node(3)).toHaveAttribute('data-dimmed', '');
+        await expect(node(4)).toHaveAttribute('data-dimmed', '');
+        await expect(node(2)).not.toHaveAttribute('data-dimmed', '');
+        await expect(node(3)).toHaveCSS('opacity', '0.35');
+        await expect(node(4).locator('.mdag-task-label')).toHaveCSS('text-decoration-line', 'line-through');
+        await expect(node(2).locator('.mdag-task-label')).toHaveCSS('text-decoration-line', 'none');
+        // 薄いノードでは詳細がノードの中に開かず (dim.details: hover)、タグはそのまま残る (dim.tags: keep)
+        await expect(node(2)).toHaveAttribute('data-details', 'always');
+        await expect(node(3)).toHaveAttribute('data-details', 'hover');
+        await expect(node(2).locator('.mdag-details')).toBeVisible();
+        await expect(node(3).locator('.mdag-details')).toBeHidden();
+        await expect(node(3).locator('.mdag-tags')).toHaveText('#owner:bob');
+        // 薄いノードに重ねると元の濃さに戻り、吹き出しに詳細が出る
+        await node(3).locator('.mdag-box').hover();
+        await expect(node(3)).toHaveCSS('opacity', '1');
+        const popover = page.locator('#a .mdag-popover');
+        await expect(popover).toBeVisible();
+        await expect(popover).toContainText('完了の補足');
+        // クリックは 未完了 → 作業中 → 完了 → 未完了
+        await node(5).locator('.mdag-content').click();
+        await expect(node(5)).toHaveAttribute('data-task', 'doing');
+        await node(5).locator('.mdag-content').click();
+        await expect(node(5)).toHaveAttribute('data-task', 'done');
+        await node(5).locator('.mdag-content').click();
+        await expect(node(5)).toHaveAttribute('data-task', 'todo');
+        // 中止は順にないので変わらず、info で知らせる
+        await expect(node(4)).toHaveAttribute('data-task-fixed', '');
+        await node(4).locator('.mdag-content').click();
+        await expect(node(4)).toHaveAttribute('data-task', 'canceled');
+        const notes = await page.evaluate(() => (window as unknown as TestWindow & { notes: Diagnostic[] }).notes);
+        expect(notes.map((diagnostic) => [diagnostic.severity, diagnostic.code])).toEqual([['info', 'hook-rejected']]);
+        const changes = await page.evaluate(() => (window as unknown as TestWindow & { changes: string[] }).changes);
+        expect(changes.map((text) => /- \[(.)\] Todo/.exec(text)?.[1])).toEqual(['/', 'x', ' ']);
     });
 });
 
