@@ -3,7 +3,7 @@
 // 行番号でノードに対応づける (順序付きリストの番号、全角スペースの警告などは扱わない)。
 // 変換器は呼び出し側から受け取り、ここでは特定の変換器を import しない (利用者が自分の構成の変換器に差し替えられるようにするため)。
 // HTML の読み取りに DOMParser を使うので、ブラウザで動かす。
-import { taskMarkAt, taskStateOf, type TaskMark, type TaskState } from './task';
+import { taskMarkAt, taskMarkOf, taskStateOf, type TaskMark, type TaskState } from './task';
 
 export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './task';
 export type { TaskMark, TaskState } from './task';
@@ -57,6 +57,9 @@ export interface ParsedDocument {
     extracted: boolean;
     // 数式やコードの色付けに必要な、外部のスタイルシートの URL
     styleUrls: string[];
+    // 状態ごとの記号の絵。変換器が記号を絵にしない構成なら null。
+    // 原文を解析し直さずに記号だけを差し替える場面 (単体の HTML でのタスクの切り替え) で使う
+    taskIcons: TaskIcons | null;
 }
 
 // Markdown をノードの木にする変換器に求める形。markmap-lib の Transformer がこれに当てはまる。
@@ -225,11 +228,12 @@ function taskAt(sourceLines: string[], line: number, tag: string | undefined): O
     return { line, state, checked: state === 'done' };
 }
 
-type MarkIcons = Record<TaskState, string>;
+// 状態ごとの記号の絵 (SVG)。変換器が描いた未完了と完了の絵と、そこから作った作業中と中止の絵
+export type TaskIcons = Record<TaskState, string>;
 
 const LEADING_ICON = /^<svg[\s\S]*?<\/svg>/;
 const LEADING_MARK = /^\[( |x|\/|-)\] /;
-const markIcons = new WeakMap<TransformerLike, MarkIcons | null>();
+const markIcons = new WeakMap<TransformerLike, TaskIcons | null>();
 // 作業中と中止の絵は、未完了の枠の中に印を足した形。左半分の塗りと横線で、枠が markmap の絵 (viewBox「0 -3 24 24」) であることを前提にしている
 const DOING_FILL = '<path d="M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>';
 const CANCELED_BAR = '<path d="M7 11h10v2H7z"/>';
@@ -237,7 +241,7 @@ const inside = (frame: string, shape: string): string => frame.replace(/<\/svg>$
 
 // 状態の記号の代わりに描く絵。未完了と完了は、小さな文書を変換して変換器が描いた絵を取り出す (絵そのものを、ここに持たずに済ませる)。
 // 変換器が知らない作業中と中止は、未完了の枠に印を足して作る。記号を絵にしない構成の変換器では null
-function markIconsOf(transformer: TransformerLike): MarkIcons | null {
+function markIconsOf(transformer: TransformerLike): TaskIcons | null {
     const known = markIcons.get(transformer);
     if (known !== undefined) return known;
     const root = transformer.transform('# a\n\n## [ ] b\n\n## [x] c\n').root as MarkmapNode;
@@ -253,6 +257,13 @@ function drawLeadingMark(html: string, transformer: TransformerLike): string {
     const mark = LEADING_MARK.exec(html)?.[1];
     const icons = mark === undefined ? null : markIconsOf(transformer);
     return mark === undefined || icons === null ? html : html.replace(LEADING_MARK, () => `${icons[taskStateOf(mark as TaskMark)]} `);
+}
+
+// ノードの内容の先頭にある状態の記号を、別の状態のものに差し替える。絵なら絵、文字のままなら文字を差し替え、どちらでもなければそのまま。
+// 原文を解析し直せない場面 (単体の HTML) で、タスクの状態だけを進めるのに使う
+export function replaceLeadingMark(html: string, state: TaskState, icons: TaskIcons | null): string {
+    if (icons !== null && LEADING_ICON.test(html)) return html.replace(LEADING_ICON, () => icons[state]);
+    return html.replace(LEADING_MARK, () => `[${taskMarkOf(state)}] `);
 }
 
 export function parseDocument(original: string, { transformer }: ParseOptions): ParsedDocument {
@@ -304,6 +315,7 @@ export function parseDocument(original: string, { transformer }: ParseOptions): 
         nodes,
         frontmatter,
         extracted,
+        taskIcons: markIconsOf(transformer),
         styleUrls: (assets.styles ?? []).flatMap((item) => {
             const href = item.type === 'stylesheet' && typeof item.data === 'object' && item.data !== null ? (item.data as { href?: unknown }).href : null;
             return typeof href === 'string' ? [href] : [];

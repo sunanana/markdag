@@ -143,6 +143,7 @@ draw(true);
 - `toggleTask(source, line, cycle?)` moves the mark on that line to the next one in `cycle` (default `[' ', 'x']`; pass `GraphModel.taskCycle` to follow the document's `markdag.tasks.cycle`) and keeps line endings. A line outside the source, or a mark that is not in `cycle`, returns the source unchanged. `nextTaskMark(mark, cycle)`, `taskStateOf(mark)` and `taskMarkOf(state)` are exported for applications that write their own toggling.
 - A task is a list item or a heading whose first line starts with `[ ]`, `[/]`, `[x]` (`[X]`) or `[-]`. `node.task` is `{ line, state, checked }`: `line` is that source line, `state` is `todo`, `doing`, `done` or `canceled`, and `checked` is `state === 'done'`.
 - Node elements carry `data-task` with the state, `data-task-fixed` when the state is not in the cycle (no pointer cursor, and a click is reported as `hook-rejected`), and `data-dimmed` when the state is in `markdag.tasks.dim`. The label of a task (everything but the details) is wrapped in `span.mdag-task-label`; the stylesheet strikes it through for `canceled`. `GraphModel.taskCycle` and `GraphModel.taskDim` hold the parsed `markdag.tasks`.
+- `ParsedDocument.taskIcons` holds the SVG of each task state as the transformer draws it (`null` when the transformer leaves the marks as text). `replaceLeadingMark(html, state, icons)` swaps the mark at the start of a node's `html` for another state, for applications that move a task without parsing the source again.
 - `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
 - `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details.display: always`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
@@ -390,6 +391,7 @@ const html = buildStandaloneHtml({
 | `hookScripts` | The source text of the modules named by `markdag.hooks.$ref`, keyed by the path as written. They are loaded as modules when the page opens (through a blob URL), so each has to be self-contained JavaScript. Omit it and no hooks are loaded (`markdag.rules` still work). Hooks run unsandboxed in the reader's browser: include them only for trusted documents |
 | `view` | `theme`, `details`, `legend`, `animate`, as in the `render` options |
 | `state` | `folded`: the ids from `view.getFolded()`, applied over the document's initial fold state. `transform`: `{ x, y, k }`; when omitted the page fits the whole diagram, which is the sensible default because the transform depends on the container size |
+| `tasks` | `readonly` (default): a click on a task changes nothing. `scratch`: a click moves the task along `markdag.tasks.cycle` inside the page only, by swapping the state and the mark on the parsed document (`ParsedDocument.taskIcons`), so no transformer is needed; `markdag.rules` and the hooks still decide first. Nothing is saved: reopening the file shows the exported state |
 | `title` | The page title. `markdag` by default |
 | `lang` | The `lang` attribute of `<html>`. None by default |
 | `containerClass` | Extra classes on the container, next to `markdag`, so that a stylesheet can target `.markdag.my-app` |
@@ -400,12 +402,12 @@ const html = buildStandaloneHtml({
 What the page does:
 
 - The container fills the viewport (`body` has no margin, the container is `100vh`). Colors come from the stylesheet and `css`.
-- Tasks are read-only, because there is nowhere to save a rewritten source. A click on a task changes nothing, and the cursor stays default (the container carries `data-tasks="readonly"`).
+- Tasks are read-only by default, because there is nowhere to save a rewritten source: a click changes nothing and the cursor stays default. With `tasks: 'scratch'` a click moves the mark inside the page. The container carries the mode as `data-tasks`.
 - `styleUrls` of the parsed document are ignored: the page links no external stylesheet. Put what the document needs (KaTeX, Prism) into `css`.
 - Diagnostics go to the developer console (`console.warn`), and the diagram handle is `window.markdagStandalone`.
 - Size: the core runtime is about 270 KB (87 KB gzipped) and the stylesheet 11 KB, plus the embedded data.
 
-The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. An application can call it to preview exactly what the exported page will show. In `markdag/core`, `options.transformer` is required when only `source` is given; `markdag` falls back to the default transformer.
+The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. Like `MarkdagView`, it does not add the stylesheet: the exported page embeds it, and an application that calls `mountStandalone` itself (to preview exactly what the exported page will show) loads `markdag/style.css`. In `markdag/core`, `options.transformer` is required when only `source` is given; `markdag` falls back to the default transformer.
 
 The types are exported: `StandaloneOptions`, `StandaloneData`, `StandaloneState`, `StandaloneViewOptions`, `StandaloneRuntime` from `markdag/standalone`, and `StandaloneData`, `StandaloneDiagram`, `MountOptions` from the two entries.
 

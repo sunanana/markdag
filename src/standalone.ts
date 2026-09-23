@@ -4,7 +4,7 @@ import coreRuntime from '../dist/markdag.core.iife.js?raw';
 import style from './style.css?inline';
 import { renderStandalonePage, type StandaloneOptions } from './standalone/page';
 
-export type { StandaloneData, StandaloneDiagram, StandaloneState, StandaloneViewOptions } from './standalone/mount';
+export type { StandaloneData, StandaloneDiagram, StandaloneState, StandaloneTasks, StandaloneViewOptions } from './standalone/mount';
 export type { StandaloneOptions, StandaloneRuntime } from './standalone/page';
 
 export function buildStandaloneHtml(options: StandaloneOptions): string {

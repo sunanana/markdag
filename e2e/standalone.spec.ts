@@ -38,9 +38,44 @@ const DOC = [
 // 文書が宣言したフックの実体。ソース文字列で渡し、開いたときにモジュールとして読み込まれる
 const BADGE_HOOK = 'export function decorateNode(context) { return { badge: "b" + context.node.id }; }';
 
+// ノードの id は、Root = 1, Work = 2, Task A = 3, Task B = 4, Fixed = 5, Task C = 6。Task A の原文の行は 16 (0 始まり)
+const SCRATCH_DOC = [
+    '---',
+    'markdag:',
+    '    tasks:',
+    "        cycle: [' ', '/', 'x']",
+    '    rules:',
+    '        taskToggle:',
+    '            readonlyGroups:',
+    '                - locked',
+    '    hooks:',
+    '        $ref: ./watch.hooks.js',
+    '---',
+    '',
+    '# Root',
+    '',
+    '## Work',
+    '',
+    '- [ ] Task A',
+    '- [x] Task B',
+    '',
+    '## Fixed %locked',
+    '',
+    '- [ ] Task C',
+    '',
+].join('\n');
+// 切り替えのあとにフックが見る文書を、テストから読めるように window に置く
+const WATCH_HOOK = 'export function onTaskToggle(context) { globalThis.toggled = { state: context.nextState, line: context.line, source: context.doc.source }; }';
+
 async function open(page: Page): Promise<void> {
     await page.goto('/e2e/harness.html');
     await page.waitForFunction(() => 'harness' in window);
+}
+
+// mountStandalone は MarkdagView と同じでスタイルシートを足さない (書き出した HTML は自分で埋めている)。カーソルを見るテストではページに読み込む
+async function openStyled(page: Page): Promise<void> {
+    await open(page);
+    await page.addStyleTag({ path: 'src/style.css' });
 }
 
 // 解析には DOM が要るので、解析結果は開発サーバのページで作る
@@ -75,7 +110,7 @@ test.describe('mountStandalone', () => {
     });
 
     test('タスクをクリックしても状態は変わらず、指の形にもならない', async ({ page }) => {
-        await open(page);
+        await openStyled(page);
         await page.evaluate(async (markdown) => {
             const target = window as unknown as TestWindow;
             const { core, createTransformer } = target.harness;
@@ -116,6 +151,68 @@ test.describe('mountStandalone', () => {
         }, DOC);
         expect(result.refused).toContain('変換器');
         expect(result.nodes).toBe(7);
+    });
+
+    test('scratch では、クリックでタスクの記号がページの中だけで進み、規則は効いたままになる', async ({ page }) => {
+        await openStyled(page);
+        const before = await page.evaluate(
+            async ({ markdown, hook }) => {
+                const target = window as unknown as TestWindow;
+                const { core, createTransformer } = target.harness;
+                const container = document.getElementById('a');
+                if (!container) throw new Error('container is missing');
+                const parsed = core.parseDocument(markdown, { transformer: createTransformer() });
+                target.standalone = await core.mountStandalone(container, { parsed, source: markdown, tasks: 'scratch', hookScripts: { './watch.hooks.js': hook }, view: { animate: false } });
+                const icon = (id: number) => document.querySelector(`#a .mdag-node[data-id="${id}"] .mdag-content svg`)?.outerHTML ?? null;
+                return { tasks: container.dataset.tasks, diagnostics: target.standalone.diagnostics, todo: icon(3), done: icon(4), hasIcons: parsed.taskIcons !== null };
+            },
+            { markdown: SCRATCH_DOC, hook: WATCH_HOOK },
+        );
+        expect(before.tasks).toBe('scratch');
+        expect(before.diagnostics).toEqual([]);
+        expect(before.hasIcons).toBe(true);
+        const taskA = page.locator('#a .mdag-node[data-id="3"]');
+        const content = taskA.locator('.mdag-content');
+        expect(await content.evaluate((element) => getComputedStyle(element).cursor)).toBe('pointer');
+
+        // 未完了 → 作業中 (変換器が知らない絵は、未完了の枠に印を足して作る)
+        await content.click();
+        await expect(taskA).toHaveAttribute('data-task', 'doing');
+        const doing = await page.evaluate(() => ({
+            icon: document.querySelector('#a .mdag-node[data-id="3"] .mdag-content svg')?.outerHTML,
+            toggled: (globalThis as unknown as { toggled: { state: string; line: number; source: string } }).toggled,
+            folded: (window as unknown as TestWindow).standalone.view.getFolded(),
+        }));
+        expect(doing.icon).not.toBe(before.todo);
+        expect(doing.icon).not.toBe(before.done);
+        expect(doing.icon).toContain(before.todo?.replace(/<\/svg>$/, '') ?? 'never');
+        expect(doing.toggled.state).toBe('doing');
+        expect(doing.toggled.line).toBe(16);
+        expect(doing.toggled.source.split('\n')[16]).toBe('- [/] Task A');
+        expect(doing.folded).toEqual([]);
+
+        // 作業中 → 完了 (完了の絵は文書の中の完了のノードと同じ)
+        await content.click();
+        await expect(taskA).toHaveAttribute('data-task', 'done');
+        expect(await page.evaluate(() => document.querySelector('#a .mdag-node[data-id="3"] .mdag-content svg')?.outerHTML)).toBe(before.done);
+
+        // readonlyGroups の規則は効いたまま
+        const taskC = page.locator('#a .mdag-node[data-id="6"]');
+        await taskC.locator('.mdag-content').click();
+        await expect(taskC).toHaveAttribute('data-task', 'todo');
+    });
+
+    test('scratch は原文だけの経路でも動き、解析し直して描く', async ({ page }) => {
+        await open(page);
+        await page.evaluate(async (markdown) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            target.standalone = await target.harness.markdag.mountStandalone(container, { source: markdown, tasks: 'scratch', view: { animate: false } });
+        }, SCRATCH_DOC);
+        const taskA = page.locator('#a .mdag-node[data-id="3"]');
+        await taskA.locator('.mdag-content').click();
+        await expect(taskA).toHaveAttribute('data-task', 'doing');
     });
 
     test('フックのソースが読めなければ、警告の診断にして図は描く', async ({ page }) => {

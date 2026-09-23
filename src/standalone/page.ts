@@ -56,9 +56,9 @@ const embedJson = (value: unknown): string =>
     JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
 export function renderStandalonePage(options: StandaloneOptions, defaults: StandaloneRuntime): string {
-    const { parsed, source, types, hookScripts, view, state, title = DEFAULT_TITLE, lang, containerClass, css = [], head = '', runtime = {} } = options;
+    const { parsed, source, types, hookScripts, view, state, tasks, title = DEFAULT_TITLE, lang, containerClass, css = [], head = '', runtime = {} } = options;
     if (parsed === undefined && source === undefined) throw new Error('parsed か source のどちらかが要ります');
-    const data: StandaloneData = { parsed, source, types, hookScripts, view, state };
+    const data: StandaloneData = { parsed, source, types, hookScripts, view, state, tasks };
     const script = runtime.script ?? defaults.script;
     const style = runtime.style ?? defaults.style;
     const classes = [CONTAINER_CLASS, ...(containerClass ?? '').split(/\s+/).filter((name) => name !== '')].join(' ');

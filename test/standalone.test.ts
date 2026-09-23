@@ -1,6 +1,6 @@
 // 単体の HTML の骨組み。DOM を使わない部分 (埋め込みと逃がし方) を確かめる。開いたときの動きは e2e が見る
 import { describe, expect, it } from 'vitest';
-import type { ParsedDocument } from '../src/parse/document';
+import { replaceLeadingMark, type ParsedDocument, type TaskIcons } from '../src/parse/document';
 import { CONTAINER_CLASS, DATA_ID, renderStandalonePage, type StandaloneRuntime } from '../src/standalone/page';
 
 const RUNTIME: StandaloneRuntime = { script: 'var markdag = { mountStandalone() {} };', style: '.markdag { color: red; }' };
@@ -13,6 +13,7 @@ const PARSED: ParsedDocument = {
     frontmatter: { markdag: {} },
     extracted: true,
     styleUrls: [],
+    taskIcons: null,
 };
 
 // ページに埋めた JSON を、開いたときと同じように読み戻す
@@ -24,14 +25,14 @@ function embeddedData(html: string): unknown {
 
 describe('renderStandalonePage', () => {
     it('解析結果と状態を JSON で埋め、ランタイムとスタイルシートを入れる', () => {
-        const html = renderStandalonePage({ parsed: PARSED, title: 'A & B', state: { folded: [1] }, view: { theme: 'dark' }, types: { './t.yaml': { x: 1 } } }, RUNTIME);
+        const html = renderStandalonePage({ parsed: PARSED, title: 'A & B', state: { folded: [1] }, view: { theme: 'dark' }, types: { './t.yaml': { x: 1 } }, tasks: 'scratch' }, RUNTIME);
         expect(html.startsWith('<!doctype html>\n<html>\n')).toBe(true);
         expect(html).toContain('<title>A &amp; B</title>');
         expect(html).toContain(`<style>\n${RUNTIME.style}\n</style>`);
         expect(html).toContain(`<script>\n${RUNTIME.script}\n</script>`);
         expect(html).toContain(`<div class="${CONTAINER_CLASS}"></div>`);
         expect(html).toContain('markdag.mountStandalone(');
-        expect(embeddedData(html)).toEqual({ parsed: PARSED, state: { folded: [1] }, view: { theme: 'dark' }, types: { './t.yaml': { x: 1 } } });
+        expect(embeddedData(html)).toEqual({ parsed: PARSED, state: { folded: [1] }, view: { theme: 'dark' }, types: { './t.yaml': { x: 1 } }, tasks: 'scratch' });
     });
 
     it('埋めた JSON の中の < はタグとして読まれない形にする', () => {
@@ -70,5 +71,21 @@ describe('renderStandalonePage', () => {
         expect(() => renderStandalonePage({ source: '# a' }, RUNTIME)).not.toThrow();
         expect(() => renderStandalonePage({ parsed: PARSED, runtime: { script: 'var a = 1; /* <!-- */ var b = "<script>";' } }, RUNTIME)).toThrow('埋め込めません');
         expect(() => renderStandalonePage({ parsed: PARSED, runtime: { script: 'var a = "<!--";' } }, RUNTIME)).not.toThrow();
+    });
+});
+
+describe('replaceLeadingMark', () => {
+    const icons: TaskIcons = { todo: '<svg data-s="todo"></svg>', doing: '<svg data-s="doing"></svg>', done: '<svg data-s="done"></svg>', canceled: '<svg data-s="canceled"></svg>' };
+
+    it('先頭の絵を、状態の絵に差し替える', () => {
+        expect(replaceLeadingMark('<svg data-s="todo"></svg> Task <svg></svg>', 'done', icons)).toBe('<svg data-s="done"></svg> Task <svg></svg>');
+        expect(replaceLeadingMark('<svg data-s="done"></svg> Task', 'doing', icons)).toBe('<svg data-s="doing"></svg> Task');
+    });
+
+    it('文字のままの記号は文字で差し替え、先頭に記号がなければ変えない', () => {
+        expect(replaceLeadingMark('[ ] Task', 'done', icons)).toBe('[x] Task');
+        expect(replaceLeadingMark('[x] Task', 'canceled', null)).toBe('[-] Task');
+        expect(replaceLeadingMark('<p>[ ] Task</p>', 'done', icons)).toBe('<p>[ ] Task</p>');
+        expect(replaceLeadingMark('<svg data-s="todo"></svg> Task', 'done', null)).toBe('<svg data-s="todo"></svg> Task');
     });
 });

@@ -12,12 +12,12 @@ export { buildModel, checkFrontmatter } from './model/model';
 export type { Diagnostic, DimDisplayMode, DisplayMode, GraphModel, GroupDef, LegendItem, LegendPosition, ModelOptions, SourcePosition, TagDisplayMode, TaskDimOptions } from './model/model';
 export { formatTag, PRIMITIVES, suggestTagKeys, suggestTagValues } from './model/tags';
 export type { Primitive, TagKeyDef, TagValueType } from './model/tags';
-export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './parse/document';
-export type { NodeTag, OutlineNode, ParsedDocument, ParseOptions, TaskMark, TaskState, TransformerLike } from './parse/document';
+export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, replaceLeadingMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './parse/document';
+export type { NodeTag, OutlineNode, ParsedDocument, ParseOptions, TaskIcons, TaskMark, TaskState, TransformerLike } from './parse/document';
 export { formatDiagnostics } from './render';
 export type { MarkdagDiagram } from './render';
 export type { Rect } from './layout/layout';
-export type { MountOptions, StandaloneData, StandaloneDiagram, StandaloneState, StandaloneViewOptions } from './standalone/mount';
+export type { MountOptions, StandaloneData, StandaloneDiagram, StandaloneState, StandaloneTasks, StandaloneViewOptions } from './standalone/mount';
 export { MarkdagView } from './view/view';
 export type { LayoutOverride, LayoutSnapshot, ViewHooks, ViewOptions, ViewTransform } from './view/view';
 
