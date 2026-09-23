@@ -37,6 +37,8 @@
 .mdag-node[data-details="always"]:not([data-tags="never"]) .mdag-tags { display: inline; }
 /* タスクの項目は、記号でも文字でもクリックで状態を切り替えられる。順 (markdag.tasks.cycle) にない状態は変わらないので、押せる見た目にしない */
 .mdag-node[data-task]:not([data-task-fixed]) .mdag-content { cursor: pointer; }
+/* 書き出した HTML ではタスクを切り替えられないので、指の形にしない */
+.markdag[data-tasks="readonly"] .mdag-node[data-task] .mdag-content { cursor: auto; }
 /* 中止のタスクは文字に取り消し線を引く (詳細には引かない) */
 .mdag-node[data-task="canceled"] .mdag-task-label { text-decoration: line-through; }
 /* 薄く表示するタスク (markdag.tasks.dim)。強調から外れたノードと同じ濃さにし、ポインタを載せている間だけ元に戻す */

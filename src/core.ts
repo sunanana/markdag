@@ -13,5 +13,7 @@ export type { NodeTag, OutlineNode, ParsedDocument, ParseOptions, TaskMark, Task
 export { formatDiagnostics, render } from './render';
 export type { MarkdagDiagram, RenderOptions } from './render';
 export type { Rect } from './layout/layout';
+export { mountStandalone } from './standalone/mount';
+export type { MountOptions, StandaloneData, StandaloneDiagram, StandaloneState, StandaloneViewOptions } from './standalone/mount';
 export { MarkdagView } from './view/view';
 export type { LayoutOverride, LayoutSnapshot, ViewHooks, ViewOptions, ViewTransform } from './view/view';

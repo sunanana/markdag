@@ -2,6 +2,7 @@
 import { defaultTransformer } from './parse/default-transformer';
 import { parseDocument as parseWith, type ParsedDocument, type ParseOptions } from './parse/document';
 import { render as renderWith, type MarkdagDiagram, type RenderOptions as RequiredRenderOptions } from './render';
+import { mountStandalone as mountWith, type MountOptions, type StandaloneData, type StandaloneDiagram } from './standalone/mount';
 
 export { createHookBridge } from './bridge';
 export type { HookBridge, HookBridgeOptions } from './bridge';
@@ -16,6 +17,7 @@ export type { NodeTag, OutlineNode, ParsedDocument, ParseOptions, TaskMark, Task
 export { formatDiagnostics } from './render';
 export type { MarkdagDiagram } from './render';
 export type { Rect } from './layout/layout';
+export type { MountOptions, StandaloneData, StandaloneDiagram, StandaloneState, StandaloneViewOptions } from './standalone/mount';
 export { MarkdagView } from './view/view';
 export type { LayoutOverride, LayoutSnapshot, ViewHooks, ViewOptions, ViewTransform } from './view/view';
 
@@ -27,4 +29,9 @@ export function parseDocument(source: string, options: Partial<ParseOptions> = {
 
 export function render(container: HTMLElement, markdown: string, options: RenderOptions = {}): MarkdagDiagram {
     return renderWith(container, markdown, { ...options, transformer: options.transformer ?? defaultTransformer() });
+}
+
+// 変換器は、原文だけを受けたときにだけ要る (解析結果を受けたときは markmap-lib を動かさない)
+export function mountStandalone(container: HTMLElement, data: StandaloneData, options: MountOptions = {}): Promise<StandaloneDiagram> {
+    return mountWith(container, data, { transformer: options.transformer ?? (data.parsed === undefined ? defaultTransformer() : undefined) });
 }

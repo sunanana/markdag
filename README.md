@@ -15,6 +15,8 @@ console.log(diagram.diagnostics);
 
 `render` draws the diagram inside the element, with pan, zoom and folding. It runs in the browser. Install it with `npm install markdag`. Details are in `docs/usage.md`.
 
+`markdag/standalone` writes a diagram as one HTML file that opens on its own, with the interaction kept. See `docs/usage.md`.
+
 ## Documentation
 
 Everything needed to use markdag is under `docs/`. If you are an AI agent:

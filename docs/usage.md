@@ -14,6 +14,7 @@ npm install markdag
 | --- | --- |
 | `markdag` | The default entry. Parses with markmap-lib's standard `Transformer` |
 | `markdag/core` | The same API, but you pass the transformer. Does not import markmap-lib (see [Bring your own transformer](#bring-your-own-transformer)) |
+| `markdag/standalone` | `buildStandaloneHtml`: writes a diagram as one HTML file that opens on its own (see [Standalone HTML](#standalone-html)) |
 | `markdag/style.css` | The stylesheet, for pages that set `injectStyle: false` |
 | `markdag/frontmatter.schema.json` | JSON Schema of the frontmatter |
 
@@ -30,6 +31,8 @@ npm run build
 | `dist/core.js` | ES module of the `markdag/core` entry |
 | `dist/chunks/` | Code shared by the two ES modules |
 | `dist/markdag.iife.js` | Everything in one file for a `<script>` tag. Defines the global `markdag` (default entry only) |
+| `dist/markdag.core.iife.js` | The `markdag/core` entry in one file, without markmap-lib. Also defines the global `markdag`. This is the runtime a standalone HTML page carries |
+| `dist/standalone.js` | ES module of the `markdag/standalone` entry, with the core runtime and the stylesheet baked in as strings |
 | `dist/style.css` | The stylesheet |
 | `dist/frontmatter.schema.json` | JSON Schema of the frontmatter |
 | `dist/types/` | Type declarations |
@@ -359,6 +362,52 @@ A node is a copy, not the internal one: `id`, `refId`, `text` (the reference tex
 `ctx.api` has `focusNode(id, scale?)`, `revealNode(id)`, `setFolded(ids)`, `getFolded()`, `fit()`, `getTransform()`, `setTransform(transform)` and `update(markdown)`. `setFolded` and the rest do not go through `beforeFold`, so a hook that blocks folding can still fold the diagram itself. A change started this way does not run the `before*` hooks again, and the `on*` hooks it triggers get `byHook: true`. Nesting deeper than four levels is dropped with a `hook-failed` diagnostic.
 
 Modules run in the order they are declared, the application's own hooks last. A `before*` hook that returns `false` ends the round: the hooks after it are not called. A hook that throws is skipped, with a `hook-failed` diagnostic and a call to `onHookError`; the other hooks and the diagram carry on. These diagnostics arrive through `onDiagnostic` because they happen while the reader works, not when the document is rendered; the ones about the declaration itself (`hooks-unresolved`, `hook-unknown-export`, `hook-invalid-export`) are part of `diagnostics`.
+
+## Standalone HTML
+
+`markdag/standalone` turns a diagram into one HTML file that opens on its own (from `file://`, as an attachment, on a static host), with folding, pan, zoom, the legend, the task marks and the details popover still working. The core runtime (`dist/markdag.core.iife.js`) and the stylesheet are baked into the module at build time, so the caller's bundler needs no special handling, and the page loads nothing from outside: whatever should be visible has to be inside what you pass.
+
+```ts
+import { buildStandaloneHtml } from 'markdag/standalone';
+
+const html = buildStandaloneHtml({
+    title: 'Release plan',
+    parsed, // the parseDocument result, with image URLs already rewritten to data: URIs
+    types, // the same object you pass to buildModel or render
+    view: { theme: 'dark' },
+    state: { folded: diagram.view.getFolded() },
+    css: ['.markdag { --markdag-bg: #101418; }'],
+});
+```
+
+`buildStandaloneHtml` builds a string and does not touch the DOM, so it runs in Node as well. `parseDocument`, which produces `parsed`, does need the DOM (`DOMParser`): call it in a browser, or in Node supply a `DOMParser` (jsdom or similar) on `globalThis` first. Options:
+
+| Option | Meaning |
+| --- | --- |
+| `parsed` | A `ParsedDocument`. The page draws it without a transformer, so the core runtime is enough. Rewrite the image URLs in `nodes[].html` (and `details`) before passing it: the page cannot reach relative paths |
+| `source` | The Markdown text. With `parsed`, it only positions diagnostics. Without `parsed`, the page parses it when opened, which needs a runtime with the default transformer: pass the contents of `dist/markdag.iife.js` as `runtime.script` |
+| `types` | The resolved `markdag.types.$ref` files, keyed by the path as written. Plain objects, embedded as JSON |
+| `hookScripts` | The source text of the modules named by `markdag.hooks.$ref`, keyed by the path as written. They are loaded as modules when the page opens (through a blob URL), so each has to be self-contained JavaScript. Omit it and no hooks are loaded (`markdag.rules` still work). Hooks run unsandboxed in the reader's browser: include them only for trusted documents |
+| `view` | `theme`, `details`, `legend`, `animate`, as in the `render` options |
+| `state` | `folded`: the ids from `view.getFolded()`, applied over the document's initial fold state. `transform`: `{ x, y, k }`; when omitted the page fits the whole diagram, which is the sensible default because the transform depends on the container size |
+| `title` | The page title. `markdag` by default |
+| `lang` | The `lang` attribute of `<html>`. None by default |
+| `containerClass` | Extra classes on the container, next to `markdag`, so that a stylesheet can target `.markdag.my-app` |
+| `css` | Stylesheets added after markdag's own: color variables, `@font-face` with data: URIs, the CSS of math or code highlighting |
+| `head` | HTML added at the end of `<head>`, as it is |
+| `runtime` | `script` and `style` replace the baked-in runtime and stylesheet |
+
+What the page does:
+
+- The container fills the viewport (`body` has no margin, the container is `100vh`). Colors come from the stylesheet and `css`.
+- Tasks are read-only, because there is nowhere to save a rewritten source. A click on a task changes nothing, and the cursor stays default (the container carries `data-tasks="readonly"`).
+- `styleUrls` of the parsed document are ignored: the page links no external stylesheet. Put what the document needs (KaTeX, Prism) into `css`.
+- Diagnostics go to the developer console (`console.warn`), and the diagram handle is `window.markdagStandalone`.
+- Size: the core runtime is about 270 KB (87 KB gzipped) and the stylesheet 11 KB, plus the embedded data.
+
+The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. An application can call it to preview exactly what the exported page will show. In `markdag/core`, `options.transformer` is required when only `source` is given; `markdag` falls back to the default transformer.
+
+The types are exported: `StandaloneOptions`, `StandaloneData`, `StandaloneState`, `StandaloneViewOptions`, `StandaloneRuntime` from `markdag/standalone`, and `StandaloneData`, `StandaloneDiagram`, `MountOptions` from the two entries.
 
 ## Diagnostics without rendering
 

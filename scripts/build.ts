@@ -2,6 +2,7 @@
 // ES モジュール版は依存を外に出し (使う側のバンドラが解決する)、IIFE 版は依存をすべて含めて script タグ 1 本で動くようにする。
 // 依存を外に出すかどうかは出力の形ごとに変えられないので、ビルドを 2 回に分ける。
 // スタイルシートと frontmatter のスキーマは、単体でも参照できるよう、そのままの形でも置く。
+// 単体の HTML を書き出す入口は、変換器を含まない IIFE 版とスタイルシートを焼き込んだ ES モジュールにするので、IIFE 版のあとに作る。
 import { copyFileSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,6 +62,33 @@ await build({
         emptyOutDir: false,
         minify: true,
         lib: { entry: here('../src/index.ts'), formats: ['iife'], name: 'markdag', fileName: () => 'markdag.iife.js' },
+    },
+});
+
+// 変換器を渡す入口の IIFE 版。markmap-lib を含まないぶん小さく、解析結果を埋めた単体の HTML はこれで動く
+await build({
+    ...shared,
+    build: {
+        outDir: here('../dist/'),
+        emptyOutDir: false,
+        minify: true,
+        lib: { entry: here('../src/core.ts'), formats: ['iife'], name: 'markdag', fileName: () => 'markdag.core.iife.js' },
+    },
+});
+
+// script タグに埋めたとき、閉じタグは文字の置き換えで逃がせるが、`<!--` のあとに `<script` が続くコードは逃がせない。
+// 埋める側で断るより先に、ここで気づけるようにする
+const coreRuntime = readFileSync(here('../dist/markdag.core.iife.js'), 'utf8');
+if (/<!--[\s\S]*<script/i.test(coreRuntime)) throw new Error('dist/markdag.core.iife.js に「<!--」と「<script」が続けて現れるので、HTML に埋め込めない');
+
+// 単体の HTML を書き出す入口。上の IIFE 版とスタイルシートを文字として焼き込むので、利用者のバンドラには何も求めない
+await build({
+    ...shared,
+    build: {
+        outDir: here('../dist/'),
+        emptyOutDir: false,
+        minify: false,
+        lib: { entry: here('../src/standalone.ts'), formats: ['es'], fileName: () => 'standalone.js' },
     },
 });
 
