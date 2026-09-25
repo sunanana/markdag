@@ -1,0 +1,629 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "frontmatter のない文書",
+        "refText": "frontmatter のない文書",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 0,
+          "end": 1
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "frontmatter &#x306e;&#x306a;&#x3044;&#x6587;&#x66f8;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "設計 %design $design",
+        "refText": "設計 %design $design",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 2,
+          "end": 3
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x8a2d;&#x8a08; %design &#x24;design",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Task A #owner:alice",
+        "refText": "Task A #owner:alice",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 4,
+          "end": 5
+        },
+        "task": {
+          "line": 4,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Task A #owner:alice",
+        "leadingIcon": true
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"></path></svg> Task B",
+        "refText": "Task B",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 5,
+          "end": 7
+        },
+        "task": {
+          "line": 5,
+          "state": "done",
+          "checked": true
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg> Task B",
+        "leadingIcon": true
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "実装",
+        "refText": "実装",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 7,
+          "end": 8
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x5b9f;&#x88c5;",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 5,
+        "depth": 3,
+        "html": "Leaf",
+        "refText": "Leaf",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 9,
+          "end": 11
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Leaf",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {},
+    "extracted": false,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "frontmatter のない文書",
+          "width": 152,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "設計 %design $design",
+          "width": 160,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "Task A #owner:alice",
+          "width": 168,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "Task B",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "実装",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "Leaf",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 5,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            6,
+            5
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 168,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 248,
+            "y": -32.28125,
+            "width": 176,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 248,
+            "y": 12.28125,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 504,
+            "y": -45.46875,
+            "width": 184,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 504,
+            "y": -19.09375,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 376,
+            "y": 12.28125,
+            "width": 64,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          168,
+          11.25
+        ],
+        "target": [
+          248,
+          -11.40625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          424,
+          -11.40625
+        ],
+        "target": [
+          504,
+          -24.78125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          424,
+          -11.40625
+        ],
+        "target": [
+          504,
+          1.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          168,
+          11.25
+        ],
+        "target": [
+          248,
+          33.15625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          296,
+          33.15625
+        ],
+        "target": [
+          376,
+          32.96875
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -45.46875,
+      "width": 688,
+      "height": 77.75
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          248
+        ],
+        [
+          5,
+          248
+        ],
+        [
+          6,
+          376
+        ],
+        [
+          3,
+          504
+        ],
+        [
+          4,
+          504
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            248
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            256
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            264
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            144
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

@@ -2,7 +2,7 @@
 
 markdag takes a Markdown string and draws the diagram inside an element you give it. It is used like markmap: `render(element, markdown)`. It does not return an SVG string. The diagram is built from absolutely positioned HTML (the nodes) and SVG layers (lines, frames, fold circles), because nodes can contain arbitrary HTML such as video, iframes and CSS animations.
 
-markdag is a prototype (0.x). The API may change until v1. It runs in the browser: parsing the body uses `DOMParser`.
+markdag is a prototype (0.x). The API may change until v1. Parsing, building the model and the layout run in a WebAssembly module (`markdag.wasm`, compiled from Rust); the view is TypeScript. Load the module once with `await init()` before the first call that parses or draws (see [Initialize](#initialize)). Parsing and building the model need no DOM and run in Node; drawing needs a browser.
 
 ## Install
 
@@ -12,8 +12,8 @@ npm install markdag
 
 | Import | What it is |
 | --- | --- |
-| `markdag` | The default entry. Parses with markmap-lib's standard `Transformer` |
-| `markdag/core` | The same API, but you pass the transformer. Does not import markmap-lib (see [Bring your own transformer](#bring-your-own-transformer)) |
+| `markdag` | The default entry. `render` loads KaTeX and highlight.js from a CDN when a document needs them |
+| `markdag/core` | The same API. Never loads scripts from outside the page (see [`markdag` and `markdag/core`](#markdag-and-markdagcore)) |
 | `markdag/standalone` | `buildStandaloneHtml`: writes a diagram as one HTML file that opens on its own (see [Standalone HTML](#standalone-html)) |
 | `markdag/style.css` | The stylesheet, for pages that set `injectStyle: false` |
 | `markdag/frontmatter.schema.json` | JSON Schema of the frontmatter |
@@ -25,43 +25,89 @@ npm install
 npm run build
 ```
 
+The build compiles the Rust crates first (`cargo build -p markdag-wasm --target wasm32-unknown-unknown --release`), so it needs a Rust toolchain with the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`). `npm run build:wasm` rebuilds only `dist/markdag.wasm`.
+
 | File | What it is |
 | --- | --- |
 | `dist/markdag.js` | ES module of the default entry. Dependencies are left as imports for your bundler |
 | `dist/core.js` | ES module of the `markdag/core` entry |
-| `dist/chunks/` | Code shared by the two ES modules |
-| `dist/markdag.iife.js` | Everything in one file for a `<script>` tag. Defines the global `markdag` (default entry only) |
-| `dist/markdag.core.iife.js` | The `markdag/core` entry in one file, without markmap-lib. Also defines the global `markdag`. This is the runtime a standalone HTML page carries |
+| `dist/chunks/` | Code shared by the two ES modules, and `wasm-embedded.js` (`markdag.wasm` as base64, read only by the development entries) |
+| `dist/markdag.wasm` | The WebAssembly module. The ES modules load it from next to themselves |
+| `dist/markdag.dev.js`, `dist/core.dev.js`, `dist/standalone.dev.js` | Development entries: re-export the matching ES module, but `init()` without a source uses the embedded copy in `dist/chunks/wasm-embedded.js`. Selected by the `development` export condition |
+| `dist/markdag.iife.js` | Everything in one file for a `<script>` tag, with `markdag.wasm` embedded (base64). Defines the global `markdag` (default entry only) |
+| `dist/markdag.core.iife.js` | The `markdag/core` entry in one file, with `markdag.wasm` embedded. Also defines the global `markdag`. This is the runtime a standalone HTML page carries |
 | `dist/standalone.js` | ES module of the `markdag/standalone` entry, with the core runtime and the stylesheet baked in as strings |
 | `dist/style.css` | The stylesheet |
 | `dist/frontmatter.schema.json` | JSON Schema of the frontmatter |
 | `dist/types/` | Type declarations |
+
+## Initialize
+
+Each entry exports `init(source?)`. It loads `markdag.wasm` and resolves when the module is ready. Await it once before the first call that parses, builds a model, lays out or draws:
+
+```ts
+import { init, render } from 'markdag';
+
+await init();
+const diagram = render(document.getElementById('diagram'), markdownText);
+```
+
+- `source` is optional. Without it, the ES module entries load `markdag.wasm` from next to the entry file (`new URL('./markdag.wasm', import.meta.url)`), and the development entries and the IIFE files use an embedded copy. Pass a URL (string or `URL`), a `Response`, the bytes (`BufferSource`) or a compiled `WebAssembly.Module` to load it from somewhere else.
+- Calling `init` again after it resolved does nothing, and calls made while it is loading wait for the same load. If loading fails, the promise rejects and the next `init` tries again.
+- Called before `init` resolved, the functions that need the module throw `WasmNotReadyError`: `parseDocument`, `buildModel`, `checkFrontmatter`, `render`, `toggleTask`, `nextTaskMark`, `replaceLeadingMark`, `suggestTagKeys`, `suggestTagValues`, `buildStandaloneHtml`, and `MarkdagView.setDocument` (the layout). These work without it: `createHookBridge`, `formatTag`, `formatDiagnostics`, `taskMarkOf`, `taskStateOf`, `isTaskMark` and the constants. `isReady()` tells whether the module is loaded.
+- `markdag/standalone` is bundled separately and does not share the module with the other two entries: import and await its own `init` before `buildStandaloneHtml`.
+- Errors: `WasmNotReadyError` (called before `init`), `WasmTrapError` (the module aborted inside a call; `functionName` and `panicMessage` say where. The module is re-created, so the next call works), and `MarkdagError` (a call rejected its input; `code` is `invalid-input`, `layout-error`, `standalone-error` or `output`, and `functionName` names the call). All three are exported from every entry.
+
+In Node, `await init()` reads `markdag.wasm` from the installed package as a file. `parseDocument`, `buildModel` and `checkFrontmatter` then run without a DOM:
+
+```ts
+import { readFile } from 'node:fs/promises';
+import { buildModel, formatDiagnostics, init, parseDocument } from 'markdag';
+
+await init();
+const source = await readFile('plan.md', 'utf8');
+const parsed = parseDocument(source);
+const model = buildModel(parsed.nodes, parsed.frontmatter, source);
+console.log(formatDiagnostics(model.diagnostics));
+```
+
+With a bundler, `await init()` needs no configuration. `package.json` picks the entry by the `development` export condition:
+
+- Development (Vite's dev server, webpack with `mode: 'development'`, or Node with `--conditions=development`): the entries `dist/*.dev.js`, where `init()` decodes the embedded copy of `markdag.wasm`. Nothing depends on where the dev server puts the entry (Vite's dependency pre-bundling moves it), so no `optimizeDeps` setting is needed and no `.wasm` file is requested. The embedded copy adds about 3.7 MB to the development bundle.
+- Production and everything else without the `development` condition (Vite's `vite build`, webpack with `mode: 'production'`, plain Node): the entries write the location as `new URL('./markdag.wasm', import.meta.url)`, which bundlers recognize as an asset. The build copies `markdag.wasm` into the output as a separate file (Vite: `assets/markdag-<hash>.wasm`, webpack: `<hash>.wasm`), rewrites the URL, and does not include the embedded copy.
+
+Verified with Vite 8.3 (dev server, `vite build` and `vite preview`) and webpack 5.111 (both modes). webpack's `mode: 'development'` still emits `markdag.wasm` as an asset, because the development entry imports the production entry, but the page does not request it. `markdag/standalone` always carries the core runtime with its own embedded copy (it is what the exported page runs), so it stays about 3.8 MB in production too.
+
+To load `markdag.wasm` from somewhere else, pass its URL to `init`. The file is exported as `markdag/markdag.wasm`: in Vite, `import wasmUrl from 'markdag/markdag.wasm?url'`; in webpack, `new URL('markdag/markdag.wasm', import.meta.url)`.
 
 ## Render a document
 
 With a bundler:
 
 ```ts
-import { render } from 'markdag';
+import { init, render } from 'markdag';
 
+await init();
 const diagram = render(document.getElementById('diagram'), markdownText);
 console.log(diagram.diagnostics);
 ```
 
-With a script tag:
+With a script tag (the IIFE file embeds `markdag.wasm`, so `init()` takes no argument and makes no request):
 
 ```html
 <div id="diagram" style="height: 600px"></div>
 <script src="dist/markdag.iife.js"></script>
 <script>
-    const diagram = markdag.render(document.getElementById('diagram'), markdownText);
+    markdag.init().then(() => {
+        const diagram = markdag.render(document.getElementById('diagram'), markdownText);
+    });
 </script>
 ```
 
 - Give the container a height. The diagram fills the container and pans and zooms inside it. A container with no height is given `480px`.
 - `render` adds the class `markdag` to the container and replaces its content.
 - The stylesheet is added to `<head>` once, automatically. Pass `injectStyle: false` and load `markdag/style.css` yourself if the page forbids inline styles.
-- When the document uses math or code highlighting, the KaTeX and highlight.js stylesheets are loaded from a CDN. In the browser, markmap-lib's standard `Transformer` also loads the KaTeX and highlight.js scripts from a CDN. To avoid network access, use `markdag/core` with your own transformer.
+- When the document uses math or code highlighting, the KaTeX and highlight.js stylesheets are loaded from a CDN. If the page has no `window.katex` or `window.hljs`, `render` from `markdag` also loads the missing script from jsDelivr once per page and redraws the diagram when it arrives (if it cannot be loaded, math stays as TeX source and code stays uncolored). `render` from `markdag/core` never loads scripts: it uses KaTeX and highlight.js only when the page already has them. The loaded scripts are pinned to exact versions (`katex@0.16.18/dist/katex.min.js` and `@highlightjs/cdn-assets@11.11.1/highlight.min.js`) and carry Subresource Integrity (`integrity` with a sha384 hash and `crossorigin="anonymous"`), so if the CDN serves different bytes the browser refuses to run the script and the diagram stays as it is when the script cannot be loaded. Changing either version requires replacing its hash, computed from the new file (`curl -s <URL> | openssl dgst -sha384 -binary | openssl base64 -A`). The stylesheets are not covered by SRI.
 - The HTML in the Markdown is inserted into the page as it is, without sanitizing (`<script>` tags do not run, but event handler attributes do). Render only Markdown you trust.
 
 ## `render(container, markdown, options?)`
@@ -86,7 +132,6 @@ Options:
 | `legend` | `boolean` | `true` | Show the legend. Which items appear and the corner where it is placed follow `markdag.legend.display` and `markdag.legend.position` in the document |
 | `animate` | `boolean` | `true` | Animate fold and relayout |
 | `injectStyle` | `boolean` | `true` | Add the stylesheet to `<head>` |
-| `transformer` | `TransformerLike` | markmap-lib's standard `Transformer` | The Markdown-to-tree transformer. Required in `markdag/core` |
 | `types` | `Record<string, unknown>` | none | The files referenced by `markdag.types.$ref`, keyed by the path exactly as written in the document, each parsed from YAML (`null` when it could not be read). markdag does not read files; see [Tag types from other files](#tag-types-from-other-files) |
 | `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]` or `## [ ]`) and the source text changes |
 | `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [View callbacks](#view-callbacks)) |
@@ -97,30 +142,22 @@ Options:
 | `onDiagnostic` | `(diagnostic: Diagnostic) => void` | none | A diagnostic raised while a hook ran (`hook-rejected`, `hook-failed`). Diagnostics of the document itself are in `diagnostics` |
 | `onHookError` | `(error: unknown, info: { event, ref }) => void` | none | A hook threw. The hook is skipped and the rest keep running |
 
+The `transformer` option of versions up to 0.7 is deprecated and ignored (the same goes for `ParseOptions.transformer` and `MountOptions.transformer`): parsing is done in `markdag.wasm`. The `TransformerLike` type is still exported so that existing code compiles.
+
 Colors are CSS custom properties on `.markdag` (`--markdag-bg`, `--markdag-accent`, `--markdag-border`, `--markdag-edge-tree`, and markmap's `--markmap-*`). Override them on the container or an ancestor.
 
-## Bring your own transformer
+## `markdag` and `markdag/core`
 
-`markdag/core` exports the same names as `markdag`, but `parseDocument` and `render` require a `transformer`, and the entry does not import markmap-lib. Use it when the application builds its own transformer (its own plugin set, no CDN access) and does not want markmap-lib's standard one in its bundle.
-
-```ts
-import { Transformer } from 'markmap-lib/no-plugins';
-import { pluginCheckbox, pluginFrontmatter, pluginSourceLines } from 'markmap-lib/plugins';
-import { render } from 'markdag/core';
-
-const transformer = new Transformer([pluginFrontmatter, pluginCheckbox, pluginSourceLines]);
-const diagram = render(container, markdownText, { transformer });
-```
-
-A transformer is any object with markmap-lib's `transform(markdown)` and `getUsedAssets(features)`. It must include the frontmatter plugin and the source-lines plugin. Without source lines, groups, tags, `$id`, tasks and `lines` cannot be attached to nodes, and they are dropped without a diagnostic.
+The two entries export the same names and parse the same way. The difference is what `render` does when a document uses math or code highlighting and the page has no `window.katex` or `window.hljs`: `render` from `markdag` loads the missing script from jsDelivr (see [Render a document](#render-a-document)), and `render` from `markdag/core` does not, so math stays as TeX source and code stays uncolored unless the page loaded KaTeX or highlight.js itself. Use `markdag/core` when the page must not load scripts from outside.
 
 ## Parse, model and view separately
 
 `render` keeps the source text itself. An application that owns the source text (an editor) can connect the three steps on its own:
 
 ```ts
-import { buildModel, MarkdagView, parseDocument, toggleTask } from 'markdag';
+import { buildModel, init, MarkdagView, parseDocument, toggleTask } from 'markdag';
 
+await init();
 const view = new MarkdagView(container, {
     onToggleTask: (node, cycle) => {
         if (!node.task) return;
@@ -143,7 +180,7 @@ draw(true);
 - `toggleTask(source, line, cycle?)` moves the mark on that line to the next one in `cycle` (default `[' ', 'x']`; pass `GraphModel.taskCycle` to follow the document's `markdag.tasks.cycle`) and keeps line endings. A line outside the source, or a mark that is not in `cycle`, returns the source unchanged. `nextTaskMark(mark, cycle)`, `taskStateOf(mark)` and `taskMarkOf(state)` are exported for applications that write their own toggling.
 - A task is a list item or a heading whose first line starts with `[ ]`, `[/]`, `[x]` (`[X]`) or `[-]`. `node.task` is `{ line, state, checked }`: `line` is that source line, `state` is `todo`, `doing`, `done` or `canceled`, and `checked` is `state === 'done'`.
 - Node elements carry `data-task` with the state, `data-task-fixed` when the state is not in the cycle (no pointer cursor, and a click is reported as `hook-rejected`), and `data-dimmed` when the state is in `markdag.tasks.dim`. The label of a task (everything but the details) is wrapped in `span.mdag-task-label`; the stylesheet strikes it through for `canceled`. `GraphModel.taskCycle` and `GraphModel.taskDim` hold the parsed `markdag.tasks`.
-- `ParsedDocument.taskIcons` holds the SVG of each task state as the transformer draws it (`null` when the transformer leaves the marks as text). `replaceLeadingMark(html, state, icons)` swaps the mark at the start of a node's `html` for another state, for applications that move a task without parsing the source again.
+- `ParsedDocument.taskIcons` holds the SVG of each task state (the type allows `null` for documents parsed by versions up to 0.7). `replaceLeadingMark(html, state, icons)` swaps the mark at the start of a node's `html` for another state, for applications that move a task without parsing the source again.
 - `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details.
 - `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details.display: always`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
@@ -214,6 +251,12 @@ const model = buildModel(parsed.nodes, parsed.frontmatter, source, {
 
 `render` takes the same `types` option. A path that is missing from the object, or whose value is `null`, is reported as `types-unresolved`, and keys that refer to a named type are not checked. When `$ref` is a list, later files override earlier ones, and the document's own entries override all of them. Pass the same object to every call that checks the document (rendering and validation), so both report the same diagnostics.
 - CRLF documents are parsed the same as LF documents.
+
+### Limits on the input
+
+- Markdown nested deeper than 500 levels (lists, blockquotes, and inline containers such as emphasis and links) is cut at that depth: the deeper part is not drawn, and `buildModel` reports `nesting-too-deep` (error) when it is given the source.
+- A frontmatter whose YAML collections nest deeper than 100 levels (counting the values that aliases expand to) is not read, and is reported as `yaml-syntax` with the message 入れ子が深すぎます (上限 100 段).
+- The layout rejects numbers it cannot place: a node width or height, or a spacing, that is NaN, infinite, or 1e300 or more in absolute value makes the layout throw `MarkdagError` with `code` `layout-error`. The sizes measured from the DOM do not reach this; it guards against broken input. The depth of the tree itself is not limited.
 
 ## Driving the view
 
@@ -366,11 +409,12 @@ Modules run in the order they are declared, the application's own hooks last. A 
 
 ## Standalone HTML
 
-`markdag/standalone` turns a diagram into one HTML file that opens on its own (from `file://`, as an attachment, on a static host), with folding, pan, zoom, the legend, the task marks and the details popover still working. The core runtime (`dist/markdag.core.iife.js`) and the stylesheet are baked into the module at build time, so the caller's bundler needs no special handling, and the page loads nothing from outside: whatever should be visible has to be inside what you pass.
+`markdag/standalone` turns a diagram into one HTML file that opens on its own (from `file://`, as an attachment, on a static host), with folding, pan, zoom, the legend, the task marks and the details popover still working. The core runtime (`dist/markdag.core.iife.js`, with `markdag.wasm` embedded) and the stylesheet are baked into the module at build time, so the caller's bundler needs no special handling, and the page loads nothing from outside: whatever should be visible has to be inside what you pass.
 
 ```ts
-import { buildStandaloneHtml } from 'markdag/standalone';
+import { buildStandaloneHtml, init } from 'markdag/standalone';
 
+await init(); // this entry has its own init, separate from the one in markdag
 const html = buildStandaloneHtml({
     title: 'Release plan',
     parsed, // the parseDocument result, with image URLs already rewritten to data: URIs
@@ -381,17 +425,17 @@ const html = buildStandaloneHtml({
 });
 ```
 
-`buildStandaloneHtml` builds a string and does not touch the DOM, so it runs in Node as well. `parseDocument`, which produces `parsed`, does need the DOM (`DOMParser`): call it in a browser, or in Node supply a `DOMParser` (jsdom or similar) on `globalThis` first. Options:
+`buildStandaloneHtml` builds a string and does not touch the DOM, so it runs in Node as well, and so does `parseDocument`, which produces `parsed` (after the `init` of its own entry). Options:
 
 | Option | Meaning |
 | --- | --- |
-| `parsed` | A `ParsedDocument`. The page draws it without a transformer, so the core runtime is enough. Rewrite the image URLs in `nodes[].html` (and `details`) before passing it: the page cannot reach relative paths |
-| `source` | The Markdown text. With `parsed`, it only positions diagnostics. Without `parsed`, the page parses it when opened, which needs a runtime with the default transformer: pass the contents of `dist/markdag.iife.js` as `runtime.script` |
+| `parsed` | A `ParsedDocument`. Rewrite the image URLs in `nodes[].html` (and `details`) before passing it: the page cannot reach relative paths |
+| `source` | The Markdown text. With `parsed`, it only positions diagnostics. Without `parsed`, the page parses it when opened |
 | `types` | The resolved `markdag.types.$ref` files, keyed by the path as written. Plain objects, embedded as JSON |
 | `hookScripts` | The source text of the modules named by `markdag.hooks.$ref`, keyed by the path as written. They are loaded as modules when the page opens (through a blob URL), so each has to be self-contained JavaScript. Omit it and no hooks are loaded (`markdag.rules` still work). Hooks run unsandboxed in the reader's browser: include them only for trusted documents |
 | `view` | `theme`, `details`, `legend`, `animate`, as in the `render` options |
 | `state` | `folded`: the ids from `view.getFolded()`, applied over the document's initial fold state. `transform`: `{ x, y, k }`; when omitted the page fits the whole diagram, which is the sensible default because the transform depends on the container size |
-| `tasks` | `readonly` (default): a click on a task changes nothing. `scratch`: a click moves the task along `markdag.tasks.cycle` inside the page only, by swapping the state and the mark on the parsed document (`ParsedDocument.taskIcons`), so no transformer is needed; `markdag.rules` and the hooks still decide first. Nothing is saved: reopening the file shows the exported state |
+| `tasks` | `readonly` (default): a click on a task changes nothing. `scratch`: a click moves the task along `markdag.tasks.cycle` inside the page only, by swapping the state and the mark on the parsed document (`ParsedDocument.taskIcons`); `markdag.rules` and the hooks still decide first. Nothing is saved: reopening the file shows the exported state |
 | `title` | The page title. `markdag` by default |
 | `lang` | The `lang` attribute of `<html>`. None by default |
 | `containerClass` | Extra classes on the container, next to `markdag`, so that a stylesheet can target `.markdag.my-app` |
@@ -404,23 +448,25 @@ What the page does:
 - The container fills the viewport (`body` has no margin, the container is `100vh`). Colors come from the stylesheet and `css`.
 - Tasks are read-only by default, because there is nowhere to save a rewritten source: a click changes nothing and the cursor stays default. With `tasks: 'scratch'` a click moves the mark inside the page. The container carries the mode as `data-tasks`.
 - `styleUrls` of the parsed document are ignored: the page links no external stylesheet. Put what the document needs (KaTeX, Prism) into `css`.
+- When the page opens, it awaits `markdag.init()` (the embedded module) and then draws. If that fails, the reason is shown in the container and logged with `console.error`.
 - Diagnostics go to the developer console (`console.warn`), and the diagram handle is `window.markdagStandalone`.
-- Size: the core runtime is about 270 KB (87 KB gzipped) and the stylesheet 11 KB, plus the embedded data.
+- Size: the core runtime is about 3.8 MB (1.4 MB gzipped), almost all of it the embedded `markdag.wasm` in base64, and the stylesheet 11 KB, plus the embedded data. `docs/examples/notation.md` exports to 3.85 MB (1.40 MB gzipped), about 30 times the size of the same export in 0.7.
 
-The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. Like `MarkdagView`, it does not add the stylesheet: the exported page embeds it, and an application that calls `mountStandalone` itself (to preview exactly what the exported page will show) loads `markdag/style.css`. In `markdag/core`, `options.transformer` is required when only `source` is given; `markdag` falls back to the default transformer.
+The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. It does not call `init`: await `init` first. Like `MarkdagView`, it does not add the stylesheet: the exported page embeds it, and an application that calls `mountStandalone` itself (to preview exactly what the exported page will show) loads `markdag/style.css`. Given only `source`, both entries parse it.
 
 The types are exported: `StandaloneOptions`, `StandaloneData`, `StandaloneState`, `StandaloneViewOptions`, `StandaloneRuntime` from `markdag/standalone`, and `StandaloneData`, `StandaloneDiagram`, `MountOptions` from the two entries.
 
 ## Diagnostics without rendering
 
 ```ts
-import { checkFrontmatter, formatDiagnostics } from 'markdag';
+import { checkFrontmatter, formatDiagnostics, init } from 'markdag';
 import { parse } from 'yaml';
 
+await init();
 const diagnostics = checkFrontmatter(parse(frontmatterText) ?? {}, wholeMarkdownText);
 console.log(formatDiagnostics(diagnostics));
 ```
 
-`checkFrontmatter` needs no DOM and runs in Node. It checks the shape of the frontmatter only: unknown keys, wrong types and values, the form of relation expressions. Resolving references and detecting cycles needs the node tree, so it needs `render` (or `parseDocument` + `buildModel`) in a browser. `npm run check` does that from the command line; see [validation.md](validation.md).
+`checkFrontmatter` checks the shape of the frontmatter only: unknown keys, wrong types and values, the form of relation expressions. Resolving references and detecting cycles needs the node tree: use `parseDocument` + `buildModel` (see the Node example in [Initialize](#initialize)), which need no DOM either. `npm run check` does that from the command line; see [validation.md](validation.md).
 
 `formatDiagnostics` turns diagnostics into text, one per line with the position and an indented hint.

@@ -1,0 +1,3013 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "新機能エピック",
+        "refText": "新機能エピック",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 27,
+          "end": 28
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x65b0;&#x6a5f;&#x80fd;&#x30a8;&#x30d4;&#x30c3;&#x30af;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "仕様策定",
+        "refText": "仕様策定",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 29,
+          "end": 30
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x4ed5;&#x69d8;&#x7b56;&#x5b9a;",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "画面開発",
+        "refText": "画面開発",
+        "refId": null,
+        "groups": [
+          "frontend"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 31,
+          "end": 32
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x753b;&#x9762;&#x958b;&#x767a;",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 3,
+        "depth": 4,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"></path></svg> 一覧画面",
+        "refText": "一覧画面",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 32,
+          "end": 33
+        },
+        "task": {
+          "line": 32,
+          "state": "done",
+          "checked": true
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg> &#x4e00;&#x89a7;&#x753b;&#x9762;",
+        "leadingIcon": true
+      },
+      {
+        "id": 5,
+        "parent": 3,
+        "depth": 4,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 登録画面",
+        "refText": "登録画面",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 33,
+          "end": 35
+        },
+        "task": {
+          "line": 33,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x767b;&#x9332;&#x753b;&#x9762;",
+        "leadingIcon": true
+      },
+      {
+        "id": 6,
+        "parent": 2,
+        "depth": 3,
+        "html": "API開発",
+        "refText": "API開発",
+        "refId": null,
+        "groups": [
+          "backend"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 35,
+          "end": 36
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "API&#x958b;&#x767a;",
+        "leadingIcon": false
+      },
+      {
+        "id": 7,
+        "parent": 6,
+        "depth": 4,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"></path></svg> 登録API <code>POST /items</code>",
+        "refText": "登録API POST /items",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 36,
+          "end": 37
+        },
+        "task": {
+          "line": 36,
+          "state": "done",
+          "checked": true
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg> &#x767b;&#x9332;API <code>POST /items</code>",
+        "leadingIcon": true
+      },
+      {
+        "id": 8,
+        "parent": 6,
+        "depth": 4,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 削除API <code>DELETE /items/:id</code>",
+        "refText": "削除API DELETE /items/:id",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 37,
+          "end": 38
+        },
+        "task": {
+          "line": 37,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x524a;&#x9664;API <code>DELETE /items/:id</code>",
+        "leadingIcon": true
+      },
+      {
+        "id": 9,
+        "parent": 6,
+        "depth": 4,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 一覧取得API <code>GET /items</code>",
+        "refText": "一覧取得API GET /items",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 38,
+          "end": 40
+        },
+        "task": {
+          "line": 38,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x4e00;&#x89a7;&#x53d6;&#x5f97;API <code>GET /items</code>",
+        "leadingIcon": true
+      },
+      {
+        "id": 10,
+        "parent": 1,
+        "depth": 2,
+        "html": "<strong>開発完了</strong>",
+        "refText": "開発完了",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": true,
+        "foldHint": 0,
+        "lines": {
+          "start": 40,
+          "end": 41
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<strong>&#x958b;&#x767a;&#x5b8c;&#x4e86;</strong>",
+        "leadingIcon": false
+      },
+      {
+        "id": 11,
+        "parent": 1,
+        "depth": 2,
+        "html": "リリース準備",
+        "refText": "リリース準備",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 42,
+          "end": 43
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x30ea;&#x30ea;&#x30fc;&#x30b9;&#x6e96;&#x5099;",
+        "leadingIcon": false
+      },
+      {
+        "id": 12,
+        "parent": 11,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> デプロイ手順の確認",
+        "refText": "デプロイ手順の確認",
+        "refId": null,
+        "groups": [
+          "backend"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 43,
+          "end": 44
+        },
+        "task": {
+          "line": 43,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x30c7;&#x30d7;&#x30ed;&#x30a4;&#x624b;&#x9806;&#x306e;&#x78ba;&#x8a8d;",
+        "leadingIcon": true
+      },
+      {
+        "id": 13,
+        "parent": 11,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> ロールバック手順の確認",
+        "refText": "ロールバック手順の確認",
+        "refId": null,
+        "groups": [
+          "backend"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 44,
+          "end": 45
+        },
+        "task": {
+          "line": 44,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x30ed;&#x30fc;&#x30eb;&#x30d0;&#x30c3;&#x30af;&#x624b;&#x9806;&#x306e;&#x78ba;&#x8a8d;",
+        "leadingIcon": true
+      },
+      {
+        "id": 14,
+        "parent": 11,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 受け入れテスト",
+        "refText": "受け入れテスト",
+        "refId": null,
+        "groups": [
+          "qa"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 45,
+          "end": 47
+        },
+        "task": {
+          "line": 45,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x53d7;&#x3051;&#x5165;&#x308c;&#x30c6;&#x30b9;&#x30c8;",
+        "leadingIcon": true
+      },
+      {
+        "id": 15,
+        "parent": 1,
+        "depth": 2,
+        "html": "リリースノート作成",
+        "refText": "リリースノート作成",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 47,
+          "end": 48
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x30ea;&#x30ea;&#x30fc;&#x30b9;&#x30ce;&#x30fc;&#x30c8;&#x4f5c;&#x6210;",
+        "leadingIcon": false
+      },
+      {
+        "id": 16,
+        "parent": 1,
+        "depth": 2,
+        "html": "<strong>リリース</strong>",
+        "refText": "リリース",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": true,
+        "foldHint": 0,
+        "lines": {
+          "start": 49,
+          "end": 50
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<strong>&#x30ea;&#x30ea;&#x30fc;&#x30b9;</strong>",
+        "leadingIcon": false
+      },
+      {
+        "id": 17,
+        "parent": 1,
+        "depth": 2,
+        "html": "効果測定",
+        "refText": "効果測定",
+        "refId": null,
+        "groups": [
+          "backend",
+          "frontend"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 51,
+          "end": 52
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x52b9;&#x679c;&#x6e2c;&#x5b9a;",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "title": "新機能エピック",
+      "markmap": {
+        "colorFreezeLevel": 2,
+        "initialExpandLevel": 3
+      },
+      "markdag": {
+        "relations": {
+          "join": [
+            "仕様策定/* --> 開発完了"
+          ],
+          "chain": [
+            "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+          ],
+          "depends": [
+            "登録API --> 登録画面"
+          ]
+        },
+        "groups": {
+          "backend": {
+            "label": "バックエンド",
+            "color": "#D64545",
+            "boundary": true
+          },
+          "frontend": {
+            "label": "フロントエンド",
+            "color": "#3B7DD8",
+            "boundary": true
+          },
+          "qa": {
+            "label": "QA",
+            "color": "#E0A100"
+          }
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [
+      {
+        "kind": "join",
+        "source": 4,
+        "target": 10,
+        "origin": "仕様策定/* --> 開発完了"
+      },
+      {
+        "kind": "join",
+        "source": 5,
+        "target": 10,
+        "origin": "仕様策定/* --> 開発完了"
+      },
+      {
+        "kind": "join",
+        "source": 7,
+        "target": 10,
+        "origin": "仕様策定/* --> 開発完了"
+      },
+      {
+        "kind": "join",
+        "source": 8,
+        "target": 10,
+        "origin": "仕様策定/* --> 開発完了"
+      },
+      {
+        "kind": "join",
+        "source": 9,
+        "target": 10,
+        "origin": "仕様策定/* --> 開発完了"
+      },
+      {
+        "kind": "chain",
+        "source": 10,
+        "target": 11,
+        "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+      },
+      {
+        "kind": "chain",
+        "source": 11,
+        "target": 15,
+        "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+      },
+      {
+        "kind": "chain",
+        "source": 15,
+        "target": 16,
+        "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+      },
+      {
+        "kind": "chain",
+        "source": 16,
+        "target": 17,
+        "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+      },
+      {
+        "kind": "depends",
+        "source": 7,
+        "target": 5,
+        "origin": "登録API --> 登録画面"
+      }
+    ],
+    "suppressRootLine": [
+      10,
+      11,
+      15,
+      16,
+      17
+    ],
+    "groups": [
+      {
+        "id": "backend",
+        "label": "バックエンド",
+        "color": "#D64545",
+        "boundary": true,
+        "defined": true
+      },
+      {
+        "id": "frontend",
+        "label": "フロントエンド",
+        "color": "#3B7DD8",
+        "boundary": true,
+        "defined": true
+      },
+      {
+        "id": "qa",
+        "label": "QA",
+        "color": "#E0A100",
+        "boundary": false,
+        "defined": true
+      }
+    ],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          [
+            "frontend"
+          ]
+        ],
+        [
+          4,
+          [
+            "frontend"
+          ]
+        ],
+        [
+          5,
+          [
+            "frontend"
+          ]
+        ],
+        [
+          6,
+          [
+            "backend"
+          ]
+        ],
+        [
+          7,
+          [
+            "backend"
+          ]
+        ],
+        [
+          8,
+          [
+            "backend"
+          ]
+        ],
+        [
+          9,
+          [
+            "backend"
+          ]
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          [
+            "backend"
+          ]
+        ],
+        [
+          13,
+          [
+            "backend"
+          ]
+        ],
+        [
+          14,
+          [
+            "qa"
+          ]
+        ],
+        [
+          15,
+          []
+        ],
+        [
+          16,
+          []
+        ],
+        [
+          17,
+          [
+            "backend",
+            "frontend"
+          ]
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          []
+        ],
+        [
+          15,
+          []
+        ],
+        [
+          16,
+          []
+        ],
+        [
+          17,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "info",
+        "code": "ref-prefix",
+        "message": "「登録API --> 登録画面」: 「登録API」は前方一致で「登録API POST /items」に解決しました",
+        "at": {
+          "line": 13,
+          "column": 15,
+          "length": 5
+        },
+        "hint": "書き間違いなら「登録API POST /items」に直します"
+      }
+    ],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "新機能エピック",
+          "width": 72,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "仕様策定",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "画面開発",
+          "width": 48,
+          "height": 20,
+          "groups": [
+            "frontend"
+          ],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "一覧画面",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 3,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "登録画面",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 3,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "API開発",
+          "width": 56,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "登録API POST /items",
+          "width": 152,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 6,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "削除API DELETE /items/:id",
+          "width": 200,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 6,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "一覧取得API GET /items",
+          "width": 160,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 6,
+          "folded": false
+        },
+        {
+          "id": 10,
+          "label": "開発完了",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "リリース準備",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "デプロイ手順の確認",
+          "width": 88,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "ロールバック手順の確認",
+          "width": 104,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "受け入れテスト",
+          "width": 72,
+          "height": 20,
+          "groups": [
+            "qa"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 15,
+          "label": "リリースノート作成",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 16,
+          "label": "リリース",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 17,
+          "label": "効果測定",
+          "width": 48,
+          "height": 20,
+          "groups": [
+            "backend",
+            "frontend"
+          ],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 3,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 3,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 6,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 4,
+          "target": 10,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 5,
+          "target": 10,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 7,
+          "target": 10,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 8,
+          "target": 10,
+          "memberRelationIndexes": [
+            3
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 9,
+          "target": 10,
+          "memberRelationIndexes": [
+            4
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 11,
+          "target": 15,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 15,
+          "target": 16,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 16,
+          "target": 17,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 7,
+          "target": 5,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            3
+          ],
+          [
+            5,
+            3
+          ],
+          [
+            6,
+            2
+          ],
+          [
+            7,
+            6
+          ],
+          [
+            8,
+            6
+          ],
+          [
+            9,
+            6
+          ],
+          [
+            10,
+            7
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            12,
+            11
+          ],
+          [
+            13,
+            11
+          ],
+          [
+            14,
+            11
+          ],
+          [
+            15,
+            11
+          ],
+          [
+            16,
+            15
+          ],
+          [
+            17,
+            16
+          ]
+        ]
+      }
+    },
+    "frames": [
+      {
+        "group": {
+          "id": "backend",
+          "label": "バックエンド",
+          "color": "#D64545",
+          "boundary": true,
+          "defined": true
+        },
+        "members": [
+          6,
+          7,
+          8,
+          9
+        ],
+        "level": 0,
+        "outline": {
+          "x": 304,
+          "y": -0.84375,
+          "width": 384,
+          "height": 115.9375
+        }
+      },
+      {
+        "group": {
+          "id": "backend",
+          "label": "バックエンド",
+          "color": "#D64545",
+          "boundary": true,
+          "defined": true
+        },
+        "members": [
+          12,
+          13
+        ],
+        "level": 0,
+        "outline": {
+          "x": 1152,
+          "y": -44.40625,
+          "width": 136,
+          "height": 62.375
+        }
+      },
+      {
+        "group": {
+          "id": "frontend",
+          "label": "フロントエンド",
+          "color": "#3B7DD8",
+          "boundary": true,
+          "defined": true
+        },
+        "members": [
+          3,
+          4,
+          5
+        ],
+        "level": 0,
+        "outline": {
+          "x": 304,
+          "y": -88.21875,
+          "width": 480,
+          "height": 62.1875
+        }
+      }
+    ],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 168,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 312,
+            "y": -67.125,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 312,
+            "y": 47.125,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 456,
+            "y": -80.21875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 712,
+            "y": -54.03125,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 464,
+            "y": 7.15625,
+            "width": 168,
+            "height": 20
+          }
+        ],
+        [
+          8,
+          {
+            "x": 464,
+            "y": 60.90625,
+            "width": 216,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 464,
+            "y": 87.09375,
+            "width": 176,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 856,
+            "y": 7.15625,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 1000,
+            "y": 7.15625,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 1160,
+            "y": -36.40625,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 1160,
+            "y": -10.03125,
+            "width": 120,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 1160,
+            "y": 24.34375,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          15,
+          {
+            "x": 1160,
+            "y": 50.71875,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          16,
+          {
+            "x": 1344,
+            "y": 50.71875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          17,
+          {
+            "x": 1488,
+            "y": 50.71875,
+            "width": 64,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          256
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          10,
+          144
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          16,
+          0
+        ],
+        [
+          17,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          88,
+          11.25
+        ],
+        "target": [
+          168,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          232,
+          10.875
+        ],
+        "target": [
+          312,
+          -46.4375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 3,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          376,
+          -46.4375
+        ],
+        "target": [
+          456,
+          -59.625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 3,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          376,
+          -46.4375
+        ],
+        "target": [
+          712,
+          -33.4375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          232,
+          10.875
+        ],
+        "target": [
+          312,
+          67.8125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          384,
+          67.8125
+        ],
+        "target": [
+          464,
+          27.75
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          384,
+          67.8125
+        ],
+        "target": [
+          464,
+          81.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 6,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          384,
+          67.8125
+        ],
+        "target": [
+          464,
+          107.6875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1080,
+          28.03125
+        ],
+        "target": [
+          1160,
+          -15.71875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1080,
+          28.03125
+        ],
+        "target": [
+          1160,
+          10.65625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1080,
+          28.03125
+        ],
+        "target": [
+          1160,
+          45.03125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 4,
+          "target": 10,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          520,
+          -59.625
+        ],
+        "target": [
+          856,
+          28.03125
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 5,
+          "target": 10,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          776,
+          -33.4375
+        ],
+        "target": [
+          856,
+          28.03125
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 7,
+          "target": 10,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          632,
+          27.75
+        ],
+        "target": [
+          856,
+          28.03125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 8,
+          "target": 10,
+          "memberRelationIndexes": [
+            3
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          680,
+          81.5
+        ],
+        "target": [
+          856,
+          28.03125
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 9,
+          "target": 10,
+          "memberRelationIndexes": [
+            4
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          640,
+          107.6875
+        ],
+        "target": [
+          856,
+          28.03125
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          920,
+          28.03125
+        ],
+        "target": [
+          1000,
+          28.03125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 11,
+          "target": 15,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1080,
+          28.03125
+        ],
+        "target": [
+          1160,
+          71.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 15,
+          "target": 16,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1264,
+          71.59375
+        ],
+        "target": [
+          1344,
+          71.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 16,
+          "target": 17,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1408,
+          71.59375
+        ],
+        "target": [
+          1488,
+          71.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 7,
+          "target": 5,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          632,
+          27.75
+        ],
+        "target": [
+          712,
+          -33.4375
+        ],
+        "isLayoutLink": false
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -80.21875,
+      "width": 1552,
+      "height": 187.3125
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          168
+        ],
+        [
+          3,
+          312
+        ],
+        [
+          6,
+          312
+        ],
+        [
+          7,
+          464
+        ],
+        [
+          8,
+          464
+        ],
+        [
+          9,
+          464
+        ],
+        [
+          10,
+          856
+        ],
+        [
+          5,
+          712
+        ],
+        [
+          4,
+          456
+        ],
+        [
+          11,
+          1000
+        ],
+        [
+          12,
+          1160
+        ],
+        [
+          13,
+          1160
+        ],
+        [
+          14,
+          1160
+        ],
+        [
+          15,
+          1160
+        ],
+        [
+          16,
+          1344
+        ],
+        [
+          17,
+          1488
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            400
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            248
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            296
+          ]
+        ],
+        [
+          9,
+          [
+            20,
+            256
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            288
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            200
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          15,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          16,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          17,
+          [
+            20,
+            144
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": {
+    "folded": [
+      3,
+      6
+    ],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "新機能エピック",
+          "width": 72,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "仕様策定",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "画面開発",
+          "width": 48,
+          "height": 20,
+          "groups": [
+            "frontend"
+          ],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": true
+        },
+        {
+          "id": 6,
+          "label": "API開発",
+          "width": 56,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": true
+        },
+        {
+          "id": 10,
+          "label": "開発完了",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "リリース準備",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "デプロイ手順の確認",
+          "width": 88,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "ロールバック手順の確認",
+          "width": 104,
+          "height": 20,
+          "groups": [
+            "backend"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "受け入れテスト",
+          "width": 72,
+          "height": 20,
+          "groups": [
+            "qa"
+          ],
+          "depth": 3,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 15,
+          "label": "リリースノート作成",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 16,
+          "label": "リリース",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 17,
+          "label": "効果測定",
+          "width": 48,
+          "height": 20,
+          "groups": [
+            "backend",
+            "frontend"
+          ],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 3,
+          "target": 10,
+          "memberRelationIndexes": [
+            0,
+            1
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "join",
+          "source": 6,
+          "target": 10,
+          "memberRelationIndexes": [
+            2,
+            3,
+            4
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 11,
+          "target": 15,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 15,
+          "target": 16,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 16,
+          "target": 17,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 6,
+          "target": 3,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            6,
+            2
+          ],
+          [
+            10,
+            6
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            12,
+            11
+          ],
+          [
+            13,
+            11
+          ],
+          [
+            14,
+            11
+          ],
+          [
+            15,
+            11
+          ],
+          [
+            16,
+            15
+          ],
+          [
+            17,
+            16
+          ]
+        ]
+      }
+    },
+    "frames": [
+      {
+        "group": {
+          "id": "backend",
+          "label": "バックエンド",
+          "color": "#D64545",
+          "boundary": true,
+          "defined": true
+        },
+        "members": [
+          12,
+          13
+        ],
+        "level": 0,
+        "outline": {
+          "x": 904,
+          "y": -45.875,
+          "width": 136,
+          "height": 62.375
+        }
+      }
+    ],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 168,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 464,
+            "y": -25.6875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 312,
+            "y": 5.6875,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 608,
+            "y": 5.6875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 752,
+            "y": 5.6875,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 912,
+            "y": -37.875,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 912,
+            "y": -11.5,
+            "width": 120,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 912,
+            "y": 22.875,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          15,
+          {
+            "x": 912,
+            "y": 49.25,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          16,
+          {
+            "x": 1096,
+            "y": 49.25,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          17,
+          {
+            "x": 1240,
+            "y": 49.25,
+            "width": 64,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          152
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          10,
+          144
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          16,
+          0
+        ],
+        [
+          17,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          88,
+          11.25
+        ],
+        "target": [
+          168,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          232,
+          10.875
+        ],
+        "target": [
+          464,
+          -5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          232,
+          10.875
+        ],
+        "target": [
+          312,
+          26.375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          832,
+          26.5625
+        ],
+        "target": [
+          912,
+          -17.1875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          832,
+          26.5625
+        ],
+        "target": [
+          912,
+          9.1875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          832,
+          26.5625
+        ],
+        "target": [
+          912,
+          43.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 3,
+          "target": 10,
+          "memberRelationIndexes": [
+            0,
+            1
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        "source": [
+          528,
+          -5
+        ],
+        "target": [
+          608,
+          26.5625
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "join",
+          "source": 6,
+          "target": 10,
+          "memberRelationIndexes": [
+            2,
+            3,
+            4
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        "source": [
+          384,
+          26.375
+        ],
+        "target": [
+          608,
+          26.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          672,
+          26.5625
+        ],
+        "target": [
+          752,
+          26.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 11,
+          "target": 15,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          832,
+          26.5625
+        ],
+        "target": [
+          912,
+          70.125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 15,
+          "target": 16,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1016,
+          70.125
+        ],
+        "target": [
+          1096,
+          70.125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 16,
+          "target": 17,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          1160,
+          70.125
+        ],
+        "target": [
+          1240,
+          70.125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 6,
+          "target": 3,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        "source": [
+          384,
+          26.375
+        ],
+        "target": [
+          464,
+          -5
+        ],
+        "isLayoutLink": false
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -37.875,
+      "width": 1304,
+      "height": 107.125
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          168
+        ],
+        [
+          3,
+          464
+        ],
+        [
+          6,
+          312
+        ],
+        [
+          10,
+          608
+        ],
+        [
+          11,
+          752
+        ],
+        [
+          12,
+          912
+        ],
+        [
+          13,
+          912
+        ],
+        [
+          14,
+          912
+        ],
+        [
+          15,
+          912
+        ],
+        [
+          16,
+          1096
+        ],
+        [
+          17,
+          1240
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            296
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            288
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            200
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          15,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          16,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          17,
+          [
+            20,
+            144
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  }
+}

@@ -1,0 +1,3183 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "Root",
+        "refText": "Root",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 65,
+          "end": 66
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Root",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "Target",
+        "refText": "Target",
+        "refId": "t1",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 67,
+          "end": 68
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Target",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 1,
+        "depth": 2,
+        "html": "Dup",
+        "refText": "Dup",
+        "refId": "dup",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 69,
+          "end": 70
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Dup",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 1,
+        "depth": 2,
+        "html": "Dup 2",
+        "refText": "Dup 2",
+        "refId": "dup",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 71,
+          "end": 72
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Dup 2",
+        "leadingIcon": false
+      },
+      {
+        "id": 5,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> N",
+        "refText": "N",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "n",
+            "values": [
+              "-1.5"
+            ],
+            "at": {
+              "line": 74,
+              "column": 9,
+              "length": 7
+            }
+          },
+          {
+            "key": "i",
+            "values": [
+              "3.0"
+            ],
+            "at": {
+              "line": 74,
+              "column": 17,
+              "length": 6
+            }
+          },
+          {
+            "key": "lv",
+            "values": [
+              "4"
+            ],
+            "at": {
+              "line": 74,
+              "column": 24,
+              "length": 5
+            }
+          },
+          {
+            "key": "mix",
+            "values": [
+              "none"
+            ],
+            "at": {
+              "line": 74,
+              "column": 30,
+              "length": 9
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 73,
+          "end": 74
+        },
+        "task": {
+          "line": 73,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> N",
+        "leadingIcon": true
+      },
+      {
+        "id": 6,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> N2",
+        "refText": "N2",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "n",
+            "values": [
+              "3.0"
+            ],
+            "at": {
+              "line": 75,
+              "column": 10,
+              "length": 6
+            }
+          },
+          {
+            "key": "i",
+            "values": [
+              "-1"
+            ],
+            "at": {
+              "line": 75,
+              "column": 17,
+              "length": 5
+            }
+          },
+          {
+            "key": "lv",
+            "values": [
+              "1"
+            ],
+            "at": {
+              "line": 75,
+              "column": 23,
+              "length": 5
+            }
+          },
+          {
+            "key": "mix",
+            "values": [
+              "2",
+              "9"
+            ],
+            "at": {
+              "line": 75,
+              "column": 29,
+              "length": 6
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 74,
+          "end": 75
+        },
+        "task": {
+          "line": 74,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> N2",
+        "leadingIcon": true
+      },
+      {
+        "id": 7,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> T",
+        "refText": "T",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "dt",
+            "values": [
+              "2026-10-01 09:30"
+            ],
+            "at": {
+              "line": 76,
+              "column": 9,
+              "length": 22
+            }
+          },
+          {
+            "key": "t",
+            "values": [
+              "24:00"
+            ],
+            "at": {
+              "line": 76,
+              "column": 32,
+              "length": 8
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 75,
+          "end": 76
+        },
+        "task": {
+          "line": 75,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> T",
+        "leadingIcon": true
+      },
+      {
+        "id": 8,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> T2",
+        "refText": "T2",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "dt",
+            "values": [
+              "2026-10-01T09:30:15+09:00"
+            ],
+            "at": {
+              "line": 77,
+              "column": 10,
+              "length": 29
+            }
+          },
+          {
+            "key": "t",
+            "values": [
+              "09:30:00"
+            ],
+            "at": {
+              "line": 77,
+              "column": 40,
+              "length": 11
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 76,
+          "end": 77
+        },
+        "task": {
+          "line": 76,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> T2",
+        "leadingIcon": true
+      },
+      {
+        "id": 9,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> T3",
+        "refText": "T3",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "dt",
+            "values": [
+              "2025-12-31T23:59"
+            ],
+            "at": {
+              "line": 78,
+              "column": 10,
+              "length": 20
+            }
+          },
+          {
+            "key": "t",
+            "values": [
+              "18:01"
+            ],
+            "at": {
+              "line": 78,
+              "column": 31,
+              "length": 8
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 77,
+          "end": 78
+        },
+        "task": {
+          "line": 77,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> T3",
+        "leadingIcon": true
+      },
+      {
+        "id": 10,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> D",
+        "refText": "D",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "d",
+            "values": [
+              "1.5h"
+            ],
+            "at": {
+              "line": 79,
+              "column": 9,
+              "length": 7
+            }
+          },
+          {
+            "key": "ref",
+            "values": [
+              "$t1"
+            ],
+            "at": {
+              "line": 79,
+              "column": 17,
+              "length": 8
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 78,
+          "end": 79
+        },
+        "task": {
+          "line": 78,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> D",
+        "leadingIcon": true
+      },
+      {
+        "id": 11,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> D2",
+        "refText": "D2",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "d",
+            "values": [
+              "30m"
+            ],
+            "at": {
+              "line": 80,
+              "column": 10,
+              "length": 6
+            }
+          },
+          {
+            "key": "ref",
+            "values": [
+              "$nope"
+            ],
+            "at": {
+              "line": 80,
+              "column": 17,
+              "length": 10
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 79,
+          "end": 80
+        },
+        "task": {
+          "line": 79,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> D2",
+        "leadingIcon": true
+      },
+      {
+        "id": 12,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> D3",
+        "refText": "D3",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "d",
+            "values": [
+              "2w"
+            ],
+            "at": {
+              "line": 81,
+              "column": 10,
+              "length": 5
+            }
+          },
+          {
+            "key": "ref",
+            "values": [
+              "$dup"
+            ],
+            "at": {
+              "line": 81,
+              "column": 16,
+              "length": 9
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 80,
+          "end": 81
+        },
+        "task": {
+          "line": 80,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> D3",
+        "leadingIcon": true
+      },
+      {
+        "id": 13,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> D4",
+        "refText": "D4",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "d",
+            "values": [
+              "3"
+            ],
+            "at": {
+              "line": 82,
+              "column": 10,
+              "length": 4
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 81,
+          "end": 82
+        },
+        "task": {
+          "line": 81,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> D4",
+        "leadingIcon": true
+      },
+      {
+        "id": 14,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Due",
+        "refText": "Due",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "due",
+            "values": [
+              "2026-02-30"
+            ],
+            "at": {
+              "line": 83,
+              "column": 11,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 82,
+          "end": 83
+        },
+        "task": {
+          "line": 82,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Due",
+        "leadingIcon": true
+      },
+      {
+        "id": 15,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Due2",
+        "refText": "Due2",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "due",
+            "values": [
+              "2024-02-29"
+            ],
+            "at": {
+              "line": 84,
+              "column": 12,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 83,
+          "end": 84
+        },
+        "task": {
+          "line": 83,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Due2",
+        "leadingIcon": true
+      },
+      {
+        "id": 16,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Due3",
+        "refText": "Due3",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "due",
+            "values": [
+              "0099-01-01"
+            ],
+            "at": {
+              "line": 85,
+              "column": 12,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 84,
+          "end": 85
+        },
+        "task": {
+          "line": 84,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Due3",
+        "leadingIcon": true
+      },
+      {
+        "id": 17,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Due4",
+        "refText": "Due4",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "due",
+            "values": [
+              "1999-12-31"
+            ],
+            "at": {
+              "line": 86,
+              "column": 12,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 85,
+          "end": 86
+        },
+        "task": {
+          "line": 85,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Due4",
+        "leadingIcon": true
+      },
+      {
+        "id": 18,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> S",
+        "refText": "S",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "s",
+            "values": [
+              "abcd"
+            ],
+            "at": {
+              "line": 87,
+              "column": 9,
+              "length": 7
+            }
+          },
+          {
+            "key": "single",
+            "values": [
+              "a",
+              "b"
+            ],
+            "at": {
+              "line": 87,
+              "column": 17,
+              "length": 11
+            }
+          },
+          {
+            "key": "n",
+            "values": [],
+            "at": {
+              "line": 87,
+              "column": 29,
+              "length": 2
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 86,
+          "end": 87
+        },
+        "task": {
+          "line": 86,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> S",
+        "leadingIcon": true
+      },
+      {
+        "id": 19,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> S2",
+        "refText": "S2",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "s",
+            "values": [
+              "a"
+            ],
+            "at": {
+              "line": 88,
+              "column": 10,
+              "length": 4
+            }
+          },
+          {
+            "key": "single",
+            "values": [],
+            "at": {
+              "line": 88,
+              "column": 15,
+              "length": 7
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 87,
+          "end": 88
+        },
+        "task": {
+          "line": 87,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> S2",
+        "leadingIcon": true
+      },
+      {
+        "id": 20,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> S3",
+        "refText": "S3",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "s",
+            "values": [
+              "abcdef"
+            ],
+            "at": {
+              "line": 89,
+              "column": 10,
+              "length": 9
+            }
+          },
+          {
+            "key": "priority",
+            "values": [
+              "low"
+            ],
+            "at": {
+              "line": 89,
+              "column": 20,
+              "length": 13
+            }
+          },
+          {
+            "key": "loop",
+            "values": [
+              "x"
+            ],
+            "at": {
+              "line": 89,
+              "column": 34,
+              "length": 7
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 88,
+          "end": 90
+        },
+        "task": {
+          "line": 88,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> S3",
+        "leadingIcon": true
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "types": {
+          "$ref": [
+            "./types.yaml",
+            "./missing-types.yaml"
+          ],
+          "level": {
+            "type": "integer",
+            "min": 1,
+            "max": 5,
+            "description": "重要度"
+          },
+          "high": {
+            "type": "level",
+            "min": 3
+          },
+          "loopA": {
+            "type": "loopB"
+          },
+          "loopB": {
+            "type": "loopA"
+          },
+          "string": {
+            "type": "enum",
+            "values": [
+              "x"
+            ]
+          },
+          "badnum": {
+            "type": "number",
+            "pattern": "^x$"
+          },
+          "short": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 4
+          }
+        },
+        "tags": {
+          "keys": {
+            "n": {
+              "type": "number",
+              "min": -2,
+              "max": 10
+            },
+            "i": {
+              "type": "integer"
+            },
+            "lv": {
+              "type": "high"
+            },
+            "mix": {
+              "type": [
+                "level",
+                "enum"
+              ],
+              "values": [
+                "none"
+              ]
+            },
+            "dt": {
+              "type": "datetime",
+              "min": "2026-01-01T00:00"
+            },
+            "t": {
+              "type": "time",
+              "max": "18:00"
+            },
+            "d": {
+              "type": "duration",
+              "min": "1h"
+            },
+            "ref": {
+              "type": "nodeId"
+            },
+            "due": {
+              "type": "date",
+              "min": "2000-01-01"
+            },
+            "s": {
+              "type": "short"
+            },
+            "single": {
+              "type": "string"
+            },
+            "loop": {
+              "type": "loopA"
+            },
+            "priority": {
+              "type": "priority"
+            }
+          }
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          []
+        ],
+        [
+          15,
+          []
+        ],
+        [
+          16,
+          []
+        ],
+        [
+          17,
+          []
+        ],
+        [
+          18,
+          []
+        ],
+        [
+          19,
+          []
+        ],
+        [
+          20,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          [
+            {
+              "key": "n",
+              "values": [
+                "-1.5"
+              ],
+              "at": {
+                "line": 74,
+                "column": 9,
+                "length": 7
+              }
+            },
+            {
+              "key": "i",
+              "values": [
+                "3.0"
+              ],
+              "at": {
+                "line": 74,
+                "column": 17,
+                "length": 6
+              }
+            },
+            {
+              "key": "lv",
+              "values": [
+                "4"
+              ],
+              "at": {
+                "line": 74,
+                "column": 24,
+                "length": 5
+              }
+            },
+            {
+              "key": "mix",
+              "values": [
+                "none"
+              ],
+              "at": {
+                "line": 74,
+                "column": 30,
+                "length": 9
+              }
+            }
+          ]
+        ],
+        [
+          6,
+          [
+            {
+              "key": "n",
+              "values": [
+                "3.0"
+              ],
+              "at": {
+                "line": 75,
+                "column": 10,
+                "length": 6
+              }
+            },
+            {
+              "key": "i",
+              "values": [
+                "-1"
+              ],
+              "at": {
+                "line": 75,
+                "column": 17,
+                "length": 5
+              }
+            },
+            {
+              "key": "lv",
+              "values": [
+                "1"
+              ],
+              "at": {
+                "line": 75,
+                "column": 23,
+                "length": 5
+              }
+            },
+            {
+              "key": "mix",
+              "values": [
+                "2",
+                "9"
+              ],
+              "at": {
+                "line": 75,
+                "column": 29,
+                "length": 6
+              }
+            }
+          ]
+        ],
+        [
+          7,
+          [
+            {
+              "key": "dt",
+              "values": [
+                "2026-10-01 09:30"
+              ],
+              "at": {
+                "line": 76,
+                "column": 9,
+                "length": 22
+              }
+            },
+            {
+              "key": "t",
+              "values": [
+                "24:00"
+              ],
+              "at": {
+                "line": 76,
+                "column": 32,
+                "length": 8
+              }
+            }
+          ]
+        ],
+        [
+          8,
+          [
+            {
+              "key": "dt",
+              "values": [
+                "2026-10-01T09:30:15+09:00"
+              ],
+              "at": {
+                "line": 77,
+                "column": 10,
+                "length": 29
+              }
+            },
+            {
+              "key": "t",
+              "values": [
+                "09:30:00"
+              ],
+              "at": {
+                "line": 77,
+                "column": 40,
+                "length": 11
+              }
+            }
+          ]
+        ],
+        [
+          9,
+          [
+            {
+              "key": "dt",
+              "values": [
+                "2025-12-31T23:59"
+              ],
+              "at": {
+                "line": 78,
+                "column": 10,
+                "length": 20
+              }
+            },
+            {
+              "key": "t",
+              "values": [
+                "18:01"
+              ],
+              "at": {
+                "line": 78,
+                "column": 31,
+                "length": 8
+              }
+            }
+          ]
+        ],
+        [
+          10,
+          [
+            {
+              "key": "d",
+              "values": [
+                "1.5h"
+              ],
+              "at": {
+                "line": 79,
+                "column": 9,
+                "length": 7
+              }
+            },
+            {
+              "key": "ref",
+              "values": [
+                "$t1"
+              ],
+              "at": {
+                "line": 79,
+                "column": 17,
+                "length": 8
+              }
+            }
+          ]
+        ],
+        [
+          11,
+          [
+            {
+              "key": "d",
+              "values": [
+                "30m"
+              ],
+              "at": {
+                "line": 80,
+                "column": 10,
+                "length": 6
+              }
+            },
+            {
+              "key": "ref",
+              "values": [
+                "$nope"
+              ],
+              "at": {
+                "line": 80,
+                "column": 17,
+                "length": 10
+              }
+            }
+          ]
+        ],
+        [
+          12,
+          [
+            {
+              "key": "d",
+              "values": [
+                "2w"
+              ],
+              "at": {
+                "line": 81,
+                "column": 10,
+                "length": 5
+              }
+            },
+            {
+              "key": "ref",
+              "values": [
+                "$dup"
+              ],
+              "at": {
+                "line": 81,
+                "column": 16,
+                "length": 9
+              }
+            }
+          ]
+        ],
+        [
+          13,
+          [
+            {
+              "key": "d",
+              "values": [
+                "3"
+              ],
+              "at": {
+                "line": 82,
+                "column": 10,
+                "length": 4
+              }
+            }
+          ]
+        ],
+        [
+          14,
+          [
+            {
+              "key": "due",
+              "values": [
+                "2026-02-30"
+              ],
+              "at": {
+                "line": 83,
+                "column": 11,
+                "length": 15
+              }
+            }
+          ]
+        ],
+        [
+          15,
+          [
+            {
+              "key": "due",
+              "values": [
+                "2024-02-29"
+              ],
+              "at": {
+                "line": 84,
+                "column": 12,
+                "length": 15
+              }
+            }
+          ]
+        ],
+        [
+          16,
+          [
+            {
+              "key": "due",
+              "values": [
+                "0099-01-01"
+              ],
+              "at": {
+                "line": 85,
+                "column": 12,
+                "length": 15
+              }
+            }
+          ]
+        ],
+        [
+          17,
+          [
+            {
+              "key": "due",
+              "values": [
+                "1999-12-31"
+              ],
+              "at": {
+                "line": 86,
+                "column": 12,
+                "length": 15
+              }
+            }
+          ]
+        ],
+        [
+          18,
+          [
+            {
+              "key": "s",
+              "values": [
+                "abcd"
+              ],
+              "at": {
+                "line": 87,
+                "column": 9,
+                "length": 7
+              }
+            },
+            {
+              "key": "single",
+              "values": [
+                "a",
+                "b"
+              ],
+              "at": {
+                "line": 87,
+                "column": 17,
+                "length": 11
+              }
+            },
+            {
+              "key": "n",
+              "values": [],
+              "at": {
+                "line": 87,
+                "column": 29,
+                "length": 2
+              }
+            }
+          ]
+        ],
+        [
+          19,
+          [
+            {
+              "key": "s",
+              "values": [
+                "a"
+              ],
+              "at": {
+                "line": 88,
+                "column": 10,
+                "length": 4
+              }
+            },
+            {
+              "key": "single",
+              "values": [],
+              "at": {
+                "line": 88,
+                "column": 15,
+                "length": 7
+              }
+            }
+          ]
+        ],
+        [
+          20,
+          [
+            {
+              "key": "s",
+              "values": [
+                "abcdef"
+              ],
+              "at": {
+                "line": 89,
+                "column": 10,
+                "length": 9
+              }
+            },
+            {
+              "key": "priority",
+              "values": [
+                "low"
+              ],
+              "at": {
+                "line": 89,
+                "column": 20,
+                "length": 13
+              }
+            },
+            {
+              "key": "loop",
+              "values": [
+                "x"
+              ],
+              "at": {
+                "line": 89,
+                "column": 34,
+                "length": 7
+              }
+            }
+          ]
+        ]
+      ]
+    },
+    "tagKeys": [
+      {
+        "key": "n",
+        "alternatives": [
+          {
+            "primitive": "number",
+            "min": -2,
+            "max": 10
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "i",
+        "alternatives": [
+          {
+            "primitive": "integer"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "lv",
+        "alternatives": [],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "mix",
+        "alternatives": [
+          {
+            "primitive": "enum",
+            "values": [
+              "none"
+            ]
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "dt",
+        "alternatives": [
+          {
+            "primitive": "datetime",
+            "min": "2026-01-01T00:00"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "t",
+        "alternatives": [
+          {
+            "primitive": "time",
+            "max": "18:00"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "d",
+        "alternatives": [
+          {
+            "primitive": "duration",
+            "min": "1h"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "ref",
+        "alternatives": [
+          {
+            "primitive": "nodeId"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "due",
+        "alternatives": [
+          {
+            "primitive": "date",
+            "min": "2000-01-01"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "s",
+        "alternatives": [],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "single",
+        "alternatives": [
+          {
+            "primitive": "string"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "loop",
+        "alternatives": [],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "priority",
+        "alternatives": [],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      }
+    ],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "warning",
+        "code": "types-unresolved",
+        "message": "markdag.types.$ref「./missing-types.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)",
+        "at": {
+          "line": 6,
+          "column": 15,
+          "length": 20
+        },
+        "hint": "ファイルが YAML のキーと値の組として読めるか確かめます"
+      },
+      {
+        "severity": "warning",
+        "code": "type-reserved",
+        "message": "markdag.types.string は組み込みの型と同じ名前なので定義できません",
+        "at": {
+          "line": 19,
+          "column": 9,
+          "length": 7
+        },
+        "hint": "別の名前にします"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「N」の #i:3.0: 整数で書きます",
+        "at": {
+          "line": 74,
+          "column": 17,
+          "length": 6
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-multiple",
+        "message": "「N2」の #mix:2,9 は値を 1 つだけ書くキーです",
+        "at": {
+          "line": 75,
+          "column": 29,
+          "length": 6
+        },
+        "hint": "複数の値を許すなら markdag.tags.keys.mix に multiple: true を書きます"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「N2」の #mix:2,9: none のどれかで書きます",
+        "at": {
+          "line": 75,
+          "column": 29,
+          "length": 6
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「N2」の #mix:2,9: none のどれかで書きます",
+        "at": {
+          "line": 75,
+          "column": 29,
+          "length": 6
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「T」の #t:24:00: HH:MM の時刻で書きます",
+        "at": {
+          "line": 76,
+          "column": 32,
+          "length": 8
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「T3」の #dt:2025-12-31T23:59: 2026-01-01T00:00 以上で書きます",
+        "at": {
+          "line": 78,
+          "column": 10,
+          "length": 20
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「T3」の #t:18:01: 18:00 以下で書きます",
+        "at": {
+          "line": 78,
+          "column": 31,
+          "length": 8
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「D2」の #d:30m: 1h 以上で書きます",
+        "at": {
+          "line": 80,
+          "column": 10,
+          "length": 6
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「D2」の #ref:$nope: $nope を持つノードがありません",
+        "at": {
+          "line": 80,
+          "column": 17,
+          "length": 10
+        },
+        "hint": "行末に $名前 を付けたノードを指します"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「D3」の #ref:$dup: $dup を持つノードが 2 個あります",
+        "at": {
+          "line": 81,
+          "column": 16,
+          "length": 9
+        },
+        "hint": "同じ $id を 2 つ以上のノードに書かないようにします"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「D4」の #d:3: 30m / 2h / 3d / 1w のような期間で書きます",
+        "at": {
+          "line": 82,
+          "column": 10,
+          "length": 4
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「Due」の #due:2026-02-30: YYYY-MM-DD の日付で書きます",
+        "at": {
+          "line": 83,
+          "column": 11,
+          "length": 15
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「Due3」の #due:0099-01-01: YYYY-MM-DD の日付で書きます",
+        "at": {
+          "line": 85,
+          "column": 12,
+          "length": 15
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-type",
+        "message": "「Due4」の #due:1999-12-31: 2000-01-01 以上で書きます",
+        "at": {
+          "line": 86,
+          "column": 12,
+          "length": 15
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "tag-multiple",
+        "message": "「S」の #single:a,b は値を 1 つだけ書くキーです",
+        "at": {
+          "line": 87,
+          "column": 17,
+          "length": 11
+        },
+        "hint": "複数の値を許すなら markdag.tags.keys.single に multiple: true を書きます"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-missing-value",
+        "message": "「S」の #n には値が要ります (数値 (-2 以上、10 以下))",
+        "at": {
+          "line": 87,
+          "column": 29,
+          "length": 2
+        },
+        "hint": "#n:値 の形で書きます"
+      },
+      {
+        "severity": "warning",
+        "code": "tag-missing-value",
+        "message": "「S2」の #single には値が要ります (文字列)",
+        "at": {
+          "line": 88,
+          "column": 15,
+          "length": 7
+        },
+        "hint": "#single:値 の形で書きます"
+      }
+    ],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "Target",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "Dup",
+          "width": 40,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "Dup 2",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "N",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "N2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "T",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "T2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "T3",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 10,
+          "label": "D",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "D2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "D3",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "D4",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "Due",
+          "width": 40,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 15,
+          "label": "Due2",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 16,
+          "label": "Due3",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 17,
+          "label": "Due4",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 18,
+          "label": "S",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 19,
+          "label": "S2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 20,
+          "label": "S3",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 15,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 16,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 17,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 18,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 19,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 20,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            4
+          ],
+          [
+            6,
+            4
+          ],
+          [
+            7,
+            4
+          ],
+          [
+            8,
+            4
+          ],
+          [
+            9,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            11,
+            4
+          ],
+          [
+            12,
+            4
+          ],
+          [
+            13,
+            4
+          ],
+          [
+            14,
+            4
+          ],
+          [
+            15,
+            4
+          ],
+          [
+            16,
+            4
+          ],
+          [
+            17,
+            4
+          ],
+          [
+            18,
+            4
+          ],
+          [
+            19,
+            4
+          ],
+          [
+            20,
+            4
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -124.78125,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 144,
+            "y": -10,
+            "width": 56,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 144,
+            "y": 104.78125,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 296,
+            "y": -93.03125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 296,
+            "y": -66.65625,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 296,
+            "y": -40.28125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          8,
+          {
+            "x": 296,
+            "y": -13.90625,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 296,
+            "y": 12.46875,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 296,
+            "y": 38.84375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 296,
+            "y": 65.21875,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 296,
+            "y": 91.59375,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 296,
+            "y": 117.96875,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 296,
+            "y": 144.34375,
+            "width": 56,
+            "height": 20
+          }
+        ],
+        [
+          15,
+          {
+            "x": 296,
+            "y": 170.71875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          16,
+          {
+            "x": 296,
+            "y": 197.09375,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          17,
+          {
+            "x": 296,
+            "y": 223.46875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          18,
+          {
+            "x": 296,
+            "y": 249.84375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          19,
+          {
+            "x": 296,
+            "y": 276.21875,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          20,
+          {
+            "x": 296,
+            "y": 302.59375,
+            "width": 48,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          16,
+          0
+        ],
+        [
+          17,
+          0
+        ],
+        [
+          18,
+          0
+        ],
+        [
+          19,
+          0
+        ],
+        [
+          20,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -103.90625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          125.65625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          -72.34375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          -45.96875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          -19.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          6.78125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          33.15625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          59.53125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          85.90625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          112.28125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          138.65625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          165.03125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 15,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          191.40625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 16,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          217.78125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 17,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          244.15625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 18,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          270.53125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 19,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          296.90625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 20,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          125.65625
+        ],
+        "target": [
+          296,
+          323.28125
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -124.78125,
+      "width": 360,
+      "height": 447.375
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          3,
+          144
+        ],
+        [
+          4,
+          144
+        ],
+        [
+          5,
+          296
+        ],
+        [
+          6,
+          296
+        ],
+        [
+          7,
+          296
+        ],
+        [
+          8,
+          296
+        ],
+        [
+          9,
+          296
+        ],
+        [
+          10,
+          296
+        ],
+        [
+          11,
+          296
+        ],
+        [
+          12,
+          296
+        ],
+        [
+          13,
+          296
+        ],
+        [
+          14,
+          296
+        ],
+        [
+          15,
+          296
+        ],
+        [
+          16,
+          296
+        ],
+        [
+          17,
+          296
+        ],
+        [
+          18,
+          296
+        ],
+        [
+          19,
+          296
+        ],
+        [
+          20,
+          296
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            136
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          9,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            136
+          ]
+        ],
+        [
+          15,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          16,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          17,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          18,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          19,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          20,
+          [
+            20,
+            128
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

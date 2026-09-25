@@ -1,0 +1,689 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "Root",
+        "refText": "Root",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 12,
+          "end": 13
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Root",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "Work",
+        "refText": "Work",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 14,
+          "end": 15
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Work",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Task A",
+        "refText": "Task A",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 16,
+          "end": 17
+        },
+        "task": {
+          "line": 16,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Task A",
+        "leadingIcon": true
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"></path></svg> Task B",
+        "refText": "Task B",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 17,
+          "end": 19
+        },
+        "task": {
+          "line": 17,
+          "state": "done",
+          "checked": true
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg> Task B",
+        "leadingIcon": true
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "Fixed",
+        "refText": "Fixed",
+        "refId": null,
+        "groups": [
+          "locked"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 19,
+          "end": 20
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Fixed",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 5,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Task C",
+        "refText": "Task C",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 21,
+          "end": 23
+        },
+        "task": {
+          "line": 21,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Task C",
+        "leadingIcon": true
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "tasks": {
+          "cycle": [
+            " ",
+            "/",
+            "x"
+          ]
+        },
+        "rules": {
+          "taskToggle": {
+            "readonlyGroups": [
+              "locked"
+            ]
+          }
+        },
+        "hooks": {
+          "$ref": "./watch.hooks.js"
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [
+      {
+        "id": "locked",
+        "label": "locked",
+        "color": null,
+        "boundary": false,
+        "defined": false
+      }
+    ],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          [
+            "locked"
+          ]
+        ],
+        [
+          6,
+          [
+            "locked"
+          ]
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "/",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "info",
+        "code": "hooks-unresolved",
+        "message": "markdag.hooks.$ref「./watch.hooks.js」は読み込まれていないので、このフックは動きません",
+        "at": {
+          "line": 10,
+          "column": 15,
+          "length": 16
+        },
+        "hint": "このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)"
+      }
+    ],
+    "hooks": {
+      "hooks": [
+        {
+          "ref": "markdag.rules",
+          "exports": [
+            "beforeTaskToggle"
+          ]
+        }
+      ],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "Work",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "Task A",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "Task B",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "Fixed",
+          "width": 56,
+          "height": 20,
+          "groups": [
+            "locked"
+          ],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "Task C",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 5,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            6,
+            5
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -32.28125,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 144,
+            "y": 12.28125,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 288,
+            "y": -45.46875,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 288,
+            "y": -19.09375,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 296,
+            "y": 12.28125,
+            "width": 80,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -11.40625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          208,
+          -11.40625
+        ],
+        "target": [
+          288,
+          -24.78125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          208,
+          -11.40625
+        ],
+        "target": [
+          288,
+          1.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          33.15625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          33.15625
+        ],
+        "target": [
+          296,
+          32.96875
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -45.46875,
+      "width": 376,
+      "height": 77.75
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          5,
+          144
+        ],
+        [
+          6,
+          296
+        ],
+        [
+          3,
+          288
+        ],
+        [
+          4,
+          288
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            160
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

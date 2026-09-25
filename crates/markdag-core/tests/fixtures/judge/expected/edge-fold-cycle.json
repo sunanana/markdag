@@ -1,0 +1,1054 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "Root",
+        "refText": "Root",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 9,
+          "end": 10
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Root",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "A",
+        "refText": "A",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 1,
+        "lines": {
+          "start": 11,
+          "end": 12
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "A1",
+        "refText": "A1",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 13,
+          "end": 14
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A1",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "A2",
+        "refText": "A2",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 14,
+          "end": 16
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A2",
+        "leadingIcon": false
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "B",
+        "refText": "B",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 16,
+          "end": 17
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "B",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 1,
+        "depth": 2,
+        "html": "C",
+        "refText": "C",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 18,
+          "end": 19
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "C",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "relations": {
+          "depends": [
+            "A1 --> B",
+            "B --> A2",
+            "C --> A1"
+          ]
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [
+      {
+        "kind": "depends",
+        "source": 3,
+        "target": 5,
+        "origin": "A1 --> B"
+      },
+      {
+        "kind": "depends",
+        "source": 5,
+        "target": 4,
+        "origin": "B --> A2"
+      },
+      {
+        "kind": "depends",
+        "source": 6,
+        "target": 3,
+        "origin": "C --> A1"
+      }
+    ],
+    "suppressRootLine": [
+      5
+    ],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "A",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "A1",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "A2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "B",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "C",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 3,
+          "target": 5,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 4,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 6,
+          "target": 3,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            3
+          ],
+          [
+            6,
+            1
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -23.375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 144,
+            "y": 3.375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 264,
+            "y": -39.25,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 512,
+            "y": -7.5,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 392,
+            "y": -39.25,
+            "width": 40,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          248
+        ],
+        [
+          5,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -2.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -2.5
+        ],
+        "target": [
+          264,
+          -18.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -2.5
+        ],
+        "target": [
+          512,
+          13.1875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          24.25
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 3,
+          "target": 5,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          312,
+          -18.5625
+        ],
+        "target": [
+          392,
+          -18.375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 4,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          432,
+          -18.375
+        ],
+        "target": [
+          512,
+          13.1875
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 6,
+          "target": 3,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          24.25
+        ],
+        "target": [
+          264,
+          -18.5625
+        ],
+        "isLayoutLink": false
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -39.25,
+      "width": 560,
+      "height": 62.625
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          6,
+          144
+        ],
+        [
+          3,
+          264
+        ],
+        [
+          4,
+          512
+        ],
+        [
+          5,
+          392
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            376
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            120
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": {
+    "folded": [
+      2
+    ],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "A",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": true
+        },
+        {
+          "id": 5,
+          "label": "B",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "C",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 2,
+          "target": 5,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 2,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": true,
+          "excludedFromLayout": true
+        },
+        {
+          "kind": "depends",
+          "source": 6,
+          "target": 2,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            5,
+            2
+          ],
+          [
+            6,
+            1
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 264,
+            "y": -23.375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 144,
+            "y": 3.375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 384,
+            "y": -23.375,
+            "width": 40,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          120
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          5,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          264,
+          -2.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          24.25
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 2,
+          "target": 5,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        "source": [
+          304,
+          -2.5
+        ],
+        "target": [
+          384,
+          -2.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 2,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": true,
+          "excludedFromLayout": true
+        },
+        "source": [
+          424,
+          -2.5
+        ],
+        "target": [
+          264,
+          -2.5
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 6,
+          "target": 2,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": true,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          24.25
+        ],
+        "target": [
+          264,
+          -2.5
+        ],
+        "isLayoutLink": false
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -23.375,
+      "width": 424,
+      "height": 46.75
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          264
+        ],
+        [
+          6,
+          144
+        ],
+        [
+          5,
+          384
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            240
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            120
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  }
+}

@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
 import type { Harness } from './harness';
 import type { ParsedDocument, StandaloneDiagram } from '../src/index';
-import type { buildStandaloneHtml as BuildStandaloneHtml, StandaloneOptions } from '../src/standalone';
+import type { buildStandaloneHtml as BuildStandaloneHtml, init as Init, StandaloneOptions } from '../src/standalone';
 
 type TestWindow = Window & { harness: Harness; standalone: StandaloneDiagram; markdagStandalone: StandaloneDiagram };
 
@@ -138,18 +138,22 @@ test.describe('mountStandalone', () => {
         expect(transform).toEqual({ x: 10, y: 20, k: 0.5 });
     });
 
-    test('原文だけのときは、既定の入口では標準の変換器で解析し、変換器を渡す入口では断る', async ({ page }) => {
+    test('原文だけのときは、既定の入口でも core の入口でも Rust で解析して描く', async ({ page }) => {
         await open(page);
         const result = await page.evaluate(async (markdown) => {
             const target = window as unknown as TestWindow;
             const container = document.getElementById('a');
             if (!container) throw new Error('container is missing');
             let refused = '';
-            await target.harness.core.mountStandalone(container, { source: markdown }).catch((error: Error) => (refused = error.message));
+            const viaCore = await target.harness.core.mountStandalone(container, { source: markdown, view: { animate: false } }).catch((error: Error) => (refused = error.message));
+            const coreNodes = document.querySelectorAll('#a .mdag-node').length;
+            if (typeof viaCore !== 'string') viaCore.destroy();
             target.standalone = await target.harness.markdag.mountStandalone(container, { source: markdown, view: { animate: false } });
-            return { refused, count: target.standalone.view.getFolded().length, nodes: document.querySelectorAll('#a .mdag-node').length };
+            return { refused, coreNodes, count: target.standalone.view.getFolded().length, nodes: document.querySelectorAll('#a .mdag-node').length };
         }, DOC);
-        expect(result.refused).toContain('変換器');
+        // 変換器 (markmap-lib) を使わなくなったので、core の入口も原文だけで描く (A-194 の案 1、依頼者が 2026-09-25 に採用)
+        expect(result.refused).toBe('');
+        expect(result.coreNodes).toBe(7);
         expect(result.nodes).toBe(7);
     });
 
@@ -237,7 +241,9 @@ test.describe('書き出した HTML', () => {
 
     async function exportPage(page: Page, options: Omit<StandaloneOptions, 'parsed'>): Promise<string> {
         const parsed = await parseInPage(page, DOC);
-        const { buildStandaloneHtml } = (await import(pathToFileURL(DIST).href)) as { buildStandaloneHtml: typeof BuildStandaloneHtml };
+        const { buildStandaloneHtml, init } = (await import(pathToFileURL(DIST).href)) as { buildStandaloneHtml: typeof BuildStandaloneHtml; init: typeof Init };
+        // ページの組み立ては wasm なので、先に init を待つ (既定では dist の隣の markdag.wasm を読む)
+        await init();
         const file = test.info().outputPath('standalone.html');
         writeFileSync(file, buildStandaloneHtml({ parsed, ...options }));
         return pathToFileURL(file).href;

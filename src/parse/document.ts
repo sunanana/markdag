@@ -1,9 +1,8 @@
-// parse 層 (簡易版)。Markdown を変換器 (markmap-lib の Transformer と同じ形のもの) でノードの木にし、markdag の付加情報
-// (タグ、$id、参照用のテキスト、マイルストーン、詳細) を取り出す。markdown-it のトークンの段階では加工せず、原文の行を前処理してから変換し、
-// 行番号でノードに対応づける (順序付きリストの番号、全角スペースの警告などは扱わない)。
-// 変換器は呼び出し側から受け取り、ここでは特定の変換器を import しない (利用者が自分の構成の変換器に差し替えられるようにするため)。
-// HTML の読み取りに DOMParser を使うので、ブラウザで動かす。
-import { taskMarkAt, taskMarkOf, taskStateOf, type TaskMark, type TaskState } from './task';
+// parse 層の包み。Markdown をノードの木にする解析は Rust (wasm の parse_document) が行い、ここは境界の結果を公開の形に直す:
+// 数式とコードの印 (features) を外部のスタイルシートの URL (styleUrls) に直して欄を消し、ページに KaTeX と highlight.js があれば
+// 印の要素に飾り (組版と色付け) を当てる。変換器 (markmap-lib) は使わない。wasm を init する前に呼ぶと WasmNotReadyError を投げる。
+import { callJson } from '../wasm/boundary';
+import type { TaskState } from './task';
 
 export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './task';
 export type { TaskMark, TaskState } from './task';
@@ -41,7 +40,7 @@ export interface OutlineNode {
     milestone: boolean;
     // Markdown のコメントによる折りたたみの指定。1 = そのノード、2 = 配下もすべて
     foldHint: number;
-    // 原文での行の範囲 (0 始まり。end の行は含まない)。変換器が行を付けなかったノードは null
+    // 原文での行の範囲 (0 始まり。end の行は含まない)。原文の行に対応しないノードは null
     lines: { start: number; end: number } | null;
     // タスク (`- [ ]`, `## [/]` など) の場合の、原文での行 (0 始まり) と状態。checked は state が done のこと。それ以外は null
     task: { line: number; state: TaskState; checked: boolean } | null;
@@ -57,268 +56,113 @@ export interface ParsedDocument {
     extracted: boolean;
     // 数式やコードの色付けに必要な、外部のスタイルシートの URL
     styleUrls: string[];
-    // 状態ごとの記号の絵。変換器が記号を絵にしない構成なら null。
+    // 状態ごとの記号の絵。Rust の解析は常に返す (null は Rust 化の前の、記号を絵にしない変換器の名残)。
     // 原文を解析し直さずに記号だけを差し替える場面 (単体の HTML でのタスクの切り替え) で使う
     taskIcons: TaskIcons | null;
 }
 
-// Markdown をノードの木にする変換器に求める形。markmap-lib の Transformer がこれに当てはまる。
-// frontmatter を読むプラグインと、ノードに原文の行を付けるプラグインを含むこと。
-// 行が付かないと、タグ、$id、タスク、行の範囲のどれもノードに対応づけられず、黙って抜け落ちる
+// Markdown をノードの木にする変換器の形。Rust 化の前は parseDocument に渡していた。今は使わない (型を import している利用者のために残す)
+/** @deprecated 解析は Rust で行うので、変換器は使いません */
 export interface TransformerLike {
     transform(markdown: string): { root: unknown; features: unknown; frontmatter?: unknown };
     getUsedAssets(features: unknown): { styles?: Array<{ type: string; data: unknown }> };
 }
 
 export interface ParseOptions {
-    transformer: TransformerLike;
+    /** @deprecated 解析は Rust で行うので、渡しても使いません */
+    transformer?: TransformerLike;
 }
 
-interface MarkmapNode {
-    content: string;
-    children?: MarkmapNode[];
-    payload?: { lines?: string; fold?: number; tag?: string };
+// 状態ごとの記号の絵 (SVG)
+export type TaskIcons = Record<TaskState, string>;
+
+// 文書が数式やコードを含むか (境界の ParsedDocument の features)
+interface ParsedFeatures {
+    math: boolean;
+    code: boolean;
 }
 
-interface LineAnnotation {
-    groups: string[];
-    tags: NodeTag[];
-    refId: string | null;
+// 境界の parse_document と render_document が返す解析の結果。styleUrls の代わりに features を持つ
+export type RawParsedDocument = Omit<ParsedDocument, 'styleUrls'> & { features: ParsedFeatures };
+
+// 数式とコードの色付けのスタイルシート。Rust 化の前の変換器 (markmap-lib の katex と hljs のプラグイン) が返していた URL と同じもの (決定 12)。
+// 順も変換器のプラグインの順 (数式が先)
+export const MATH_STYLE_URL = 'https://cdn.jsdelivr.net/npm/katex@0.16.18/dist/katex.min.css';
+export const CODE_STYLE_URL = 'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/default.min.css';
+
+const styleUrlsOf = (features: ParsedFeatures): string[] => [...(features.math ? [MATH_STYLE_URL] : []), ...(features.code ? [CODE_STYLE_URL] : [])];
+
+// ページに読み込まれた KaTeX と highlight.js (グローバル変数)。どちらもなければ印のまま (TeX の原文と色なしのコード) で返す。
+// 変換器を使っていたころも、ページに KaTeX がなければ TeX の原文のまま返していた (migration/judge/accepted.md の 10 行目)
+interface KatexLike {
+    renderToString(tex: string, options: { displayMode: boolean; throwOnError: boolean }): string;
 }
-
-const FRONTMATTER = /^---\r?\n[\s\S]*?\n---\r?\n/;
-const HEADING = /^#{1,6}[ \t]+\S/;
-const LIST_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]+\S/;
-const FENCE = /^[ \t]*(```|~~~)/;
-// 大文字で書かれた完了の記号と、その前に置かれた行頭の記号 (リストの記号か、見出しの #)
-const UPPER_MARK = /^([ \t]*(?:(?:[-*+]|\d+[.)])[ \t]+|#{1,6}[ \t]+)?)\[X\](?=[ \t])/;
-const SETEXT_UNDERLINE = /^[ \t]{0,3}(?:=+|-+)[ \t]*\r?$/;
-// 行末の印。`%名前` はグループ、`#キー` と `#キー:値` はタグ (値は " で囲めば空白を含められる)、`$名前` は id
-const TRAILING_TOKEN = /[ \t]+(%[\p{L}\p{N}_-]+|#[\p{L}\p{N}_-]+(?::(?:"[^"]*"|[^\s"]+))?|\$[A-Za-z][A-Za-z0-9_-]*)[ \t]*$/u;
-const DIGITS_ONLY = /^\d+$/;
-
-// `#キー:値` のトークンをタグにする。値は , で区切って複数にし、" で囲んだ値は区切らずそのまま 1 つの値にする
-function parseTag(token: string, at: SourcePosition): NodeTag {
-    const colon = token.indexOf(':');
-    if (colon < 0) return { key: token.slice(1), values: [], at };
-    const raw = token.slice(colon + 1);
-    const values = raw.startsWith('"') ? [raw.slice(1, -1)] : raw.split(',').filter((value) => value !== '');
-    return { key: token.slice(1, colon), values, at };
+interface HljsLike {
+    getLanguage(name: string): unknown;
+    highlight(code: string, options: { language: string; ignoreIllegals: boolean }): { value: string };
 }
+const globalOf = <T>(name: string, method: string): T | null => {
+    const value = (globalThis as Record<string, unknown>)[name];
+    return value !== null && typeof value === 'object' && typeof (value as Record<string, unknown>)[method] === 'function' ? (value as T) : null;
+};
 
-// 同じキーを 1 行に 2 回書いたら、値をつなげて 1 つにする (書かれた順。位置は最初のもの)
-function mergeTags(tags: NodeTag[]): NodeTag[] {
-    const merged: NodeTag[] = [];
-    for (const tag of tags) {
-        const known = merged.find((item) => item.key === tag.key);
-        if (known) known.values.push(...tag.values);
-        else merged.push({ key: tag.key, values: [...tag.values], at: tag.at });
-    }
-    return merged;
-}
-
-// 本文の行 (frontmatter とコードブロックの中を除く) を、1 行ずつ書き換える。行数は変えない
-function rewriteBodyLines(source: string, rewrite: (line: string, index: number, lines: string[]) => string): string {
-    const frontmatterLines = (FRONTMATTER.exec(source)?.[0].split('\n').length ?? 1) - 1;
-    let inFence = false;
-    return source
-        .split('\n')
-        .map((line, index, lines) => {
-            if (index < frontmatterLines) return line;
-            if (FENCE.test(line)) inFence = !inFence;
-            return inFence ? line : rewrite(line, index, lines);
-        })
-        .join('\n');
-}
-
-// 完了の記号の大文字 (`[X]`) を、小文字にそろえる。変換器が絵にするのは小文字だけで、大文字は文字のまま残るため。
-// 文字数も行数も変えない
-function normalizeTaskMarks(source: string): string {
-    return rewriteBodyLines(source, (line, index, lines) => {
-        const match = UPPER_MARK.exec(line);
-        if (!match) return line;
-        // 行頭の記号がない行は、下線で書く見出し (次の行が === か ---) のときだけがタスク
-        if ((match[1] ?? '').trim() === '' && !SETEXT_UNDERLINE.test(lines[index + 1] ?? '')) return line;
-        return line.replace('[X]', '[x]');
-    });
-}
-
-// 見出しとリスト項目の 1 行目の末尾から、`%グループ`、`#タグ`、`$id` を取り除く。行数は変えない
-function stripAnnotations(source: string): { text: string; annotations: Map<number, LineAnnotation> } {
-    const annotations = new Map<number, LineAnnotation>();
-    const text = rewriteBodyLines(source, (line, index) => {
-        if (!(HEADING.test(line) || LIST_ITEM.test(line))) return line;
-
-        const annotation: LineAnnotation = { groups: [], tags: [], refId: null };
-        // 改行が CRLF の文書では、行の終わりに \r が残る。末尾の照合の邪魔になるので外しておき、最後に戻す
-        const carriage = line.endsWith('\r') ? '\r' : '';
-        let rest = carriage === '' ? line : line.slice(0, -1);
-        for (let match = TRAILING_TOKEN.exec(rest); match; match = TRAILING_TOKEN.exec(rest)) {
-            const token = match[1] ?? '';
-            const sigil = token[0];
-            // 数字だけの名前 (Issue #123、%50 など) は印にしない。$id は 1 つまで
-            if (sigil !== '$' && DIGITS_ONLY.test(token.slice(1).split(':')[0] ?? '')) break;
-            if (sigil === '$' && annotation.refId !== null) break;
-            // 末尾から順に取るので、先頭に足して書かれた順にそろえる
-            if (sigil === '%') annotation.groups.unshift(token.slice(1));
-            else if (sigil === '#') {
-                // 診断が本文の行を指せるよう、印の位置を残す (行は 1 始まり、桁は文字数で数える)
-                const start = match.index + match[0].indexOf(token);
-                annotation.tags.unshift(parseTag(token, { line: index + 1, column: [...rest.slice(0, start)].length + 1, length: [...token].length }));
-            } else annotation.refId = token.slice(1);
-            rest = rest.slice(0, match.index);
-        }
-        annotation.tags = mergeTags(annotation.tags);
-        if (annotation.groups.length > 0 || annotation.tags.length > 0 || annotation.refId !== null) annotations.set(index, annotation);
-        return rest + carriage;
-    });
-    return { text, annotations };
-}
-
-const normalize = (text: string): string => text.normalize('NFC').replace(/[ \t\n]+/g, ' ').trim();
-
-// 1 行目 (最初の <br> より前) の、装飾と状態の記号を除いた文字と、全体が 1 つの太字で包まれているか
-function describeFirstLine(html: string): { refText: string; milestone: boolean } {
-    const body = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body;
-    for (const svg of body.querySelectorAll('svg')) svg.remove();
-    const firstBreak = body.querySelector('br');
-    if (firstBreak) {
-        const range = body.ownerDocument.createRange();
-        range.setStartBefore(firstBreak);
-        range.setEndAfter(body.lastChild ?? firstBreak);
-        range.deleteContents();
-    }
-    const meaningful = [...body.childNodes].filter((node) => normalize(node.textContent ?? '') !== '');
-    const only = meaningful.length === 1 ? meaningful[0] : undefined;
+// 文書が使う飾りのうち、ページにまだライブラリがないもの (styleUrls で文書が数式やコードを使うかを見る)
+export function missingDecorators(parsed: Pick<ParsedDocument, 'styleUrls'>): { math: boolean; code: boolean } {
     return {
-        refText: normalize(body.textContent ?? ''),
-        milestone: only !== undefined && only.nodeType === Node.ELEMENT_NODE && (only as Element).tagName === 'STRONG',
+        math: parsed.styleUrls.includes(MATH_STYLE_URL) && globalOf<KatexLike>('katex', 'renderToString') === null,
+        code: parsed.styleUrls.includes(CODE_STYLE_URL) && globalOf<HljsLike>('hljs', 'highlight') === null,
     };
 }
 
-// 詳細の引用ブロックに付ける印 (クラス)。描画の側は、この印で詳細を隠したり、その場に開いて見せたりする
-const DETAILS_CLASS = 'mdag-details';
+// 印の要素の中身は Rust が & < > " だけを文字参照にして書いている
+const unescapeHtml = (text: string): string => text.replace(/&(amp|lt|gt|quot);/g, (_whole, name: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"' })[name] ?? '');
 
-// ノードの内容から、詳細 (Markdown の引用ブロック) を見分ける。引用ブロックは書かれた位置に残して印だけを付け (html)、
-// 参照用のテキストを取り出すための、詳細を除いた内容 (plain) と、詳細だけをまとめたもの (details) も返す。
-// HTML のタグで直接書いた blockquote は、変換時に付く行番号の属性を持たないので対象にならず、内容として表示される
-function splitDetails(html: string): { html: string; plain: string; details: string | null } {
-    if (!html.includes('<blockquote')) return { html, plain: html, details: null };
-    const body = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html').body;
-    const quotes = [...body.querySelectorAll(':scope > blockquote[data-lines]')];
-    if (quotes.length === 0) return { html, plain: html, details: null };
-    for (const quote of quotes) quote.classList.add(DETAILS_CLASS);
-    const marked = body.innerHTML.trim();
-    for (const quote of quotes) quote.remove();
-    return { html: marked, plain: body.innerHTML.trim(), details: quotes.map((quote) => quote.innerHTML.trim()).join('\n') };
+const MATH_MARK = /<(span|div) class="(mdag-math|mdag-math-block)">([^<]*)<\/\1>/g;
+const CODE_MARK = /<code class="language-([^"]*)">([^<]*)<\/code>/g;
+
+// ノードの html (と詳細) の数式とコードの印に、ページにある KaTeX と highlight.js で飾りを当てる。文字列の変換だけで DOM は触らない
+function decorateHtml(html: string, katex: KatexLike | null, hljs: HljsLike | null): string {
+    let result = html;
+    if (katex !== null) {
+        result = result.replace(MATH_MARK, (_whole, tag: string, kind: string, tex: string) => {
+            const rendered = katex.renderToString(unescapeHtml(tex), { displayMode: kind === 'mdag-math-block', throwOnError: false });
+            return `<${tag} class="${kind}">${rendered}</${tag}>`;
+        });
+    }
+    if (hljs !== null) {
+        result = result.replace(CODE_MARK, (whole, language: string, code: string) => {
+            const name = unescapeHtml(language);
+            if (!hljs.getLanguage(name)) return whole;
+            return `<code class="language-${language}">${hljs.highlight(unescapeHtml(code), { language: name, ignoreIllegals: true }).value}</code>`;
+        });
+    }
+    return result;
 }
 
-// 変換器がノードに付けた行の範囲 (「開始,終了」の文字) を読む
-function lineRange(lines: string | undefined): OutlineNode['lines'] {
-    const [start, end] = (lines ?? '').split(',').map((part) => (part.trim() === '' ? Number.NaN : Number(part)));
-    return start !== undefined && end !== undefined && Number.isInteger(start) && Number.isInteger(end) ? { start, end } : null;
+// 境界の解析の結果を公開の ParsedDocument にする。parse_document と render_document の両方の結果にこれを当てる (設計文書 (c))
+export function decorateParsed(raw: RawParsedDocument): ParsedDocument {
+    const { features, ...rest } = raw;
+    const katex = features.math ? globalOf<KatexLike>('katex', 'renderToString') : null;
+    const hljs = features.code ? globalOf<HljsLike>('hljs', 'highlight') : null;
+    const nodes =
+        katex === null && hljs === null
+            ? rest.nodes
+            : rest.nodes.map((node) => ({
+                  ...node,
+                  html: decorateHtml(node.html, katex, hljs),
+                  details: node.details === null ? null : decorateHtml(node.details, katex, hljs),
+              }));
+    // 欄の順は Rust 化の前の parseDocument が返したものに合わせる (nodes、frontmatter、extracted、taskIcons、styleUrls)
+    return { nodes, frontmatter: rest.frontmatter, extracted: rest.extracted, taskIcons: rest.taskIcons, styleUrls: styleUrlsOf(features) };
 }
 
-// タスクになるのは、リスト項目と見出し。どちらも 1 行目が状態の記号 (`[ ]`, `[/]`, `[x]`, `[X]`, `[-]`) から始まるもの
-function taskAt(sourceLines: string[], line: number, tag: string | undefined): OutlineNode['task'] {
-    const kind = tag === 'li' ? 'item' : /^h[1-6]$/.test(tag ?? '') ? 'heading' : null;
-    const mark = kind === null ? null : taskMarkAt(sourceLines[line] ?? '', kind);
-    if (mark === null) return null;
-    const state = taskStateOf(mark);
-    return { line, state, checked: state === 'done' };
-}
-
-// 状態ごとの記号の絵 (SVG)。変換器が描いた未完了と完了の絵と、そこから作った作業中と中止の絵
-export type TaskIcons = Record<TaskState, string>;
-
-const LEADING_ICON = /^<svg[\s\S]*?<\/svg>/;
-const LEADING_MARK = /^\[( |x|\/|-)\] /;
-const markIcons = new WeakMap<TransformerLike, TaskIcons | null>();
-// 作業中と中止の絵は、未完了の枠の中に印を足した形。左半分の塗りと横線で、枠が markmap の絵 (viewBox「0 -3 24 24」) であることを前提にしている
-const DOING_FILL = '<path d="M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>';
-const CANCELED_BAR = '<path d="M7 11h10v2H7z"/>';
-const inside = (frame: string, shape: string): string => frame.replace(/<\/svg>$/, `${shape}</svg>`);
-
-// 状態の記号の代わりに描く絵。未完了と完了は、小さな文書を変換して変換器が描いた絵を取り出す (絵そのものを、ここに持たずに済ませる)。
-// 変換器が知らない作業中と中止は、未完了の枠に印を足して作る。記号を絵にしない構成の変換器では null
-function markIconsOf(transformer: TransformerLike): TaskIcons | null {
-    const known = markIcons.get(transformer);
-    if (known !== undefined) return known;
-    const root = transformer.transform('# a\n\n## [ ] b\n\n## [x] c\n').root as MarkmapNode;
-    const [todo, done] = (root.children ?? []).map((child) => LEADING_ICON.exec(child.content)?.[0]);
-    const icons = todo !== undefined && done !== undefined ? { todo, done, doing: inside(todo, DOING_FILL), canceled: inside(todo, CANCELED_BAR) } : null;
-    markIcons.set(transformer, icons);
-    return icons;
-}
-
-// 変換器が絵にせず文字のまま残した状態の記号を、ほかのタスクと見た目も参照用のテキストもそろうよう、同じ絵に置き換える。
-// 文書の最初のブロックが見出しのときの `[ ]` と `[x]` と、変換器が知らない `[/]` と `[-]` が残る
-function drawLeadingMark(html: string, transformer: TransformerLike): string {
-    const mark = LEADING_MARK.exec(html)?.[1];
-    const icons = mark === undefined ? null : markIconsOf(transformer);
-    return mark === undefined || icons === null ? html : html.replace(LEADING_MARK, () => `${icons[taskStateOf(mark as TaskMark)]} `);
+// options は Rust 化の前の変換器の指定の名残で、使わない
+export function parseDocument(source: string, _options?: ParseOptions): ParsedDocument {
+    return decorateParsed(callJson<RawParsedDocument>('parse_document', { source }));
 }
 
 // ノードの内容の先頭にある状態の記号を、別の状態のものに差し替える。絵なら絵、文字のままなら文字を差し替え、どちらでもなければそのまま。
 // 原文を解析し直せない場面 (単体の HTML) で、タスクの状態だけを進めるのに使う
 export function replaceLeadingMark(html: string, state: TaskState, icons: TaskIcons | null): string {
-    if (icons !== null && LEADING_ICON.test(html)) return html.replace(LEADING_ICON, () => icons[state]);
-    return html.replace(LEADING_MARK, () => `[${taskMarkOf(state)}] `);
-}
-
-export function parseDocument(original: string, { transformer }: ParseOptions): ParsedDocument {
-    // 行と桁は変えないので、このあとの行番号は原文のものとしてそのまま使える
-    const source = normalizeTaskMarks(original);
-    const probe = transformer.transform(source);
-    // frontmatter は「キー: 値」の形でない文書もある (一覧や文字列だけ)。形が違うことの診断は model 層が出すので、
-    // ここでは抽出をしない判断にだけ使う。markdag の指定はすべて markdag キーの下にあるので、そのキーの有無で決まる
-    const frontmatter = (probe.frontmatter ?? {}) as Record<string, unknown>;
-    const isMapping = typeof frontmatter === 'object' && frontmatter !== null && !Array.isArray(frontmatter);
-    const extracted = isMapping && 'markdag' in frontmatter;
-
-    const { text, annotations } = extracted ? stripAnnotations(source) : { text: source, annotations: new Map() };
-    const result = extracted ? transformer.transform(text) : probe;
-    const assets = transformer.getUsedAssets(result.features);
-
-    const sourceLines = source.split('\n');
-    const nodes: OutlineNode[] = [];
-    const visit = (node: MarkmapNode, parent: number | null, depth: number): void => {
-        const id = nodes.length + 1;
-        const lines = lineRange(node.payload?.lines);
-        const startLine = lines?.start ?? Number.NaN;
-        const annotation = annotations.get(startLine);
-        const task = taskAt(sourceLines, startLine, node.payload?.tag);
-        const content = task === null ? node.content : drawLeadingMark(node.content, transformer);
-        const { html, plain, details } = extracted ? splitDetails(content) : { html: content, plain: content, details: null };
-        const firstLine = describeFirstLine(plain);
-        const title = typeof frontmatter.title === 'string' ? frontmatter.title : '';
-        nodes.push({
-            id,
-            parent,
-            depth,
-            html,
-            refText: firstLine.refText || (parent === null ? normalize(title) : ''),
-            refId: annotation?.refId ?? null,
-            groups: annotation?.groups ?? [],
-            tags: annotation?.tags ?? [],
-            milestone: extracted && firstLine.milestone,
-            foldHint: node.payload?.fold ?? 0,
-            lines,
-            task,
-            details,
-        });
-        for (const child of node.children ?? []) visit(child, id, depth + 1);
-    };
-    visit(result.root as MarkmapNode, null, 1);
-
-    return {
-        nodes,
-        frontmatter,
-        extracted,
-        taskIcons: markIconsOf(transformer),
-        styleUrls: (assets.styles ?? []).flatMap((item) => {
-            const href = item.type === 'stylesheet' && typeof item.data === 'object' && item.data !== null ? (item.data as { href?: unknown }).href : null;
-            return typeof href === 'string' ? [href] : [];
-        }),
-    };
+    return callJson<{ html: string }>('replace_leading_mark', { html, state, icons }).html;
 }

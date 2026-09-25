@@ -1,0 +1,21 @@
+[package]
+name = "markdag-core"
+description = "Turn Markdown into a DAG diagram: parse, model and layout"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+comrak = { version = "0.55", default-features = false }
+saphyr-parser = "0.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+indexmap = { version = "2", features = ["serde"] }
+regex = "1"
+regress = "0.10"
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+# 審判の突き合わせのテスト (tests/) だけが loader を使う。本番の YAML の読み取りは saphyr-parser のイベントから (A-120)
+saphyr = "0.0"

@@ -1,12 +1,12 @@
 // フックの仕組み。文書 (frontmatter の markdag.hooks) は「どのフックを使うか」を名前で宣言するだけで、
-// ファイルの解決と読み込みは呼び出し側が行う。この層は、宣言と渡された実体の突き合わせ、予約された名前の検証、
-// 呼び出しの順序と取りやめの扱いを受け持つ。DOM にも view にも依存せず、図への操作は呼び出し側が渡す api 越しに行う。
+// ファイルの解決と読み込みは呼び出し側が行う。宣言と渡された実体の突き合わせと予約された名前の検証は Rust (model の包みが呼ぶ) が行い、
+// この層は呼び出しの順序と取りやめの扱いを受け持つ。DOM にも view にも依存せず、図への操作は呼び出し側が渡す api 越しに行う。
 // フックはページの JS としてそのまま動く。隔離はしていないので、読み込むかどうかの判断は呼び出し側に置く。
 import type { RelationKind } from '../layout/input-types';
 import type { OutlineNode } from '../parse/document';
 import type { TaskState } from '../parse/task';
 import type { Diagnostic, GraphModel } from './model';
-import { closest, isRecord } from './util';
+import { isRecord } from './util';
 
 // 事前に呼ぶフック。false を返すと、その操作を取りやめる
 export const BEFORE_HOOKS = ['beforeUpdate', 'beforeTaskToggle', 'beforeFold', 'beforeSelectEdge', 'beforeSelectGroup', 'beforeDetailsShow'] as const;
@@ -287,93 +287,6 @@ export interface ResolvedHooks {
     options: Record<string, unknown>;
 }
 
-export interface HookIssue {
-    severity: Diagnostic['severity'];
-    code: string;
-    message: string;
-    hint: string | null;
-    // frontmatter の中の場所 (呼び出し側が位置に直す)
-    path: Array<string | number> | null;
-}
-
-// frontmatter の markdag.hooks と、呼び出し側が渡したモジュールを突き合わせる。
-// 形と型の誤りはスキーマがすでに警告にしているので、ここでは読めるものだけを拾う
-export function resolveHooks(raw: unknown, provided: Record<string, unknown> | undefined): ResolvedHooks & { issues: HookIssue[] } {
-    const issues: HookIssue[] = [];
-    const declared = isRecord(raw) ? raw : {};
-    const options = isRecord(declared.options) ? declared.options : {};
-    const single = typeof declared.$ref === 'string';
-    const refs = single ? [declared.$ref as string] : Array.isArray(declared.$ref) ? declared.$ref.filter((item): item is string => typeof item === 'string') : [];
-    const hooks: ResolvedHook[] = [];
-    refs.forEach((ref, index) => {
-        const path = single ? ['markdag', 'hooks', '$ref'] : ['markdag', 'hooks', '$ref', index];
-        const loaded = provided?.[ref];
-        if (!isRecord(loaded)) {
-            // TypeScript のフックは markdag では変換しないので、読み込む側に変換器が要ることを添える
-            const typescript = /\.[cm]?tsx?$/.test(ref) ? '。.ts は markdag では変換しないので、読み込む側で JavaScript にしてから渡します (変換器がなければ .js で書きます)' : '';
-            // hookRefs を渡していないアプリはフックを読み込まない方針なので、文書の誤りではなく知らせるだけにする。
-            // 渡しているのに見つからない、または読めなかったものは、書き手が直せる問題として警告にする
-            issues.push({
-                severity: provided === undefined ? 'info' : 'warning',
-                code: 'hooks-unresolved',
-                message: `markdag.hooks.$ref「${ref}」は読み込まれていないので、このフックは動きません`,
-                hint:
-                    provided === undefined
-                        ? `このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)${typescript}`
-                        : loaded === undefined
-                          ? `呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)${typescript}`
-                          : `モジュールとして読めるか (名前付きの export があるか) 確かめます${typescript}`,
-                path,
-            });
-            return;
-        }
-        hooks.push({ ref, module: pickHooks(ref, loaded, issues, path) });
-    });
-    return { hooks, options, issues };
-}
-
-// モジュールの export から、予約された名前の関数だけを取り出す。
-// 書き間違いを黙って落とすと「フックが動かない」だけが残るので、拾えなかった関数は警告にする
-function pickHooks(ref: string, loaded: Record<string, unknown>, issues: HookIssue[], path: Array<string | number>): HookModule {
-    const module: Record<string, unknown> = {};
-    for (const [name, value] of Object.entries(loaded)) {
-        if ((HOOK_EVENTS as string[]).includes(name)) {
-            if (typeof value === 'function') module[name] = value;
-            else {
-                issues.push({
-                    severity: 'warning',
-                    code: 'hook-invalid-export',
-                    message: `${ref} の「${name}」は関数ではないので、フックとして呼びません`,
-                    hint: `export function ${name}(ctx) { ... } の形で書きます`,
-                    path,
-                });
-            }
-            continue;
-        }
-        if (name === 'default') {
-            issues.push({
-                severity: 'warning',
-                code: 'hook-unknown-export',
-                message: `${ref} の default export は拾いません`,
-                hint: `フックは名前付きで export します (${HOOK_EVENTS.slice(0, 3).join(', ')} など)`,
-                path,
-            });
-            continue;
-        }
-        // 関数でない export は、フックが内部で使う定数と区別できないので黙って見送る
-        if (typeof value !== 'function') continue;
-        const near = closest(name, HOOK_EVENTS);
-        issues.push({
-            severity: 'warning',
-            code: 'hook-unknown-export',
-            message: `${ref} の「${name}」は予約された名前ではないので、フックとして呼びません`,
-            hint: near === null ? `予約された名前だけが呼ばれます (${HOOK_EVENTS.slice(0, 6).join(', ')} ほか)` : `「${near}」の書き間違いなら直します`,
-            path,
-        });
-    }
-    return module as HookModule;
-}
-
 // 組み込みの規則 (frontmatter の markdag.rules) から作ったフック。groups は readonlyGroups に書かれた名前
 export interface RulesModule {
     module: HookModule;
@@ -393,7 +306,8 @@ export function unfinishedUpstream(doc: HookDocument, node: HookNode): HookNode[
 }
 
 // frontmatter の markdag.rules を、組み込みのフックにする。コードを書かずに使える規則で、
-// 文書が宣言したフックより先に評価する。何も有効になっていなければ null
+// 文書が宣言したフックより先に評価する。何も有効になっていなければ null。
+// 設定の読み取りは Rust も行い (rules_module)、model の包みは Rust が読んだ設定をこの関数の形に戻して渡す (閉包は JS にしか作れない)
 export function rulesModule(raw: unknown): RulesModule | null {
     if (!isRecord(raw)) return null;
     const taskToggle = isRecord(raw.taskToggle) ? raw.taskToggle : {};

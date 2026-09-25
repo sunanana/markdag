@@ -1,0 +1,455 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "全角空白の文書",
+        "refText": "全角空白の文書",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 7,
+          "end": 8
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x5168;&#x89d2;&#x7a7a;&#x767d;&#x306e;&#x6587;&#x66f8;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "設計　%team",
+        "refText": "設計　%team",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 9,
+          "end": 10
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x8a2d;&#x8a08;&#x3000;%team",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "[ ]　記号のあとが全角空白",
+        "refText": "[ ]　記号のあとが全角空白",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 12,
+          "end": 13
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "[ ]&#x3000;&#x8a18;&#x53f7;&#x306e;&#x3042;&#x3068;&#x304c;&#x5168;&#x89d2;&#x7a7a;&#x767d;",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 普通の項目 #owner:山田　太郎<br>\n　- 全角空白で字下げした行",
+        "refText": "普通の項目 #owner:山田　太郎",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 13,
+          "end": 16
+        },
+        "task": {
+          "line": 13,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x666e;&#x901a;&#x306e;&#x9805;&#x76ee; #owner:&#x5c71;&#x7530;&#x3000;&#x592a;&#x90ce;<br>\n&#x3000;- &#x5168;&#x89d2;&#x7a7a;&#x767d;&#x3067;&#x5b57;&#x4e0b;&#x3052;&#x3057;&#x305f;&#x884c;",
+        "leadingIcon": true
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "groups": {
+          "team": {
+            "label": "チーム"
+          }
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [
+      {
+        "id": "team",
+        "label": "チーム",
+        "color": null,
+        "boundary": false,
+        "defined": true
+      }
+    ],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "全角空白の文書",
+          "width": 72,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "設計　%team",
+          "width": 80,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "[ ]　記号のあとが全角空白",
+          "width": 128,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "普通の項目 #owner:山田　太郎",
+          "width": 160,
+          "height": 34,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 168,
+            "y": -10,
+            "width": 96,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 344,
+            "y": -30.1875,
+            "width": 144,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 344,
+            "y": -3.8125,
+            "width": 176,
+            "height": 34
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          88,
+          11.25
+        ],
+        "target": [
+          168,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          264,
+          10.875
+        ],
+        "target": [
+          344,
+          -9.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          264,
+          10.875
+        ],
+        "target": [
+          344,
+          30.875
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -30.1875,
+      "width": 520,
+      "height": 60.375
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          168
+        ],
+        [
+          3,
+          344
+        ],
+        [
+          4,
+          344
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            176
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            224
+          ]
+        ],
+        [
+          4,
+          [
+            34,
+            256
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

@@ -1,0 +1,530 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "記法",
+        "refText": "記法",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 4,
+          "end": 5
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x8a18;&#x6cd5;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "<mark>強調</mark> と <ins>挿入</ins>",
+        "refText": "強調 と 挿入",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 6,
+          "end": 7
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<mark>&#x5f37;&#x8abf;</mark> &#x3068; <ins>&#x633f;&#x5165;</ins>",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 1,
+        "depth": 2,
+        "html": "<sub>下付き</sub> と <sup>上付き</sup>",
+        "refText": "下付き と 上付き",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 7,
+          "end": 8
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<sub>&#x4e0b;&#x4ed8;&#x304d;</sub> &#x3068; <sup>&#x4e0a;&#x4ed8;&#x304d;</sup>",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 1,
+        "depth": 2,
+        "html": "<s>取り消し</s> と <strong>太字</strong> と <em>斜体</em>",
+        "refText": "取り消し と 太字 と 斜体",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 8,
+          "end": 9
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<s>&#x53d6;&#x308a;&#x6d88;&#x3057;</s> &#x3068; <strong>&#x592a;&#x5b57;</strong> &#x3068; <em>&#x659c;&#x4f53;</em>",
+        "leadingIcon": false
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "<code>コード</code> と <a href=\"https://example.com\">リンク</a>",
+        "refText": "コード と リンク",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 9,
+          "end": 11
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<code>&#x30b3;&#x30fc;&#x30c9;</code> &#x3068; <a href=\"https://example.com\">&#x30ea;&#x30f3;&#x30af;</a>",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "markdag": null
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "記法",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "強調 と 挿入",
+          "width": 72,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "下付き と 上付き",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "取り消し と 太字 と 斜体",
+          "width": 128,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "コード と リンク",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            1
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 128,
+            "y": -50.125,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 128,
+            "y": -23.375,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 128,
+            "y": 3.375,
+            "width": 144,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 128,
+            "y": 30.125,
+            "width": 104,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          48,
+          11.25
+        ],
+        "target": [
+          128,
+          -29.25
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          48,
+          11.25
+        ],
+        "target": [
+          128,
+          -2.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          48,
+          11.25
+        ],
+        "target": [
+          128,
+          24.25
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          48,
+          11.25
+        ],
+        "target": [
+          128,
+          51
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -50.125,
+      "width": 272,
+      "height": 100.25
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          128
+        ],
+        [
+          3,
+          128
+        ],
+        [
+          4,
+          128
+        ],
+        [
+          5,
+          128
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            224
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            184
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

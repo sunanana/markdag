@@ -6,14 +6,19 @@ It is at the prototype stage. The notation and the API may change without notice
 
 ## Usage
 
-```ts
-import { render } from 'markdag';
+```sh
+npm install markdag
+```
 
+```ts
+import { init, render } from 'markdag';
+
+await init(); // loads markdag.wasm, once
 const diagram = render(document.getElementById('diagram'), markdownText);
 console.log(diagram.diagnostics);
 ```
 
-`render` draws the diagram inside the element, with pan, zoom and folding. It runs in the browser. Install it with `npm install markdag`. Details are in `docs/usage.md`.
+`render` draws the diagram inside the element, with pan, zoom and folding. Drawing runs in the browser. Parsing, building the model and the layout are written in Rust and run as WebAssembly (`markdag.wasm`), so `await init()` is needed before the first call; `parseDocument` and `buildModel` also run in Node. Details are in `docs/usage.md`.
 
 `markdag/standalone` writes a diagram as one HTML file that opens on its own, with the interaction kept. See `docs/usage.md`.
 
@@ -38,13 +43,13 @@ docs/
 
 The examples are written in Japanese. `docs/writing-guide.md` has an English one.
 
-The source is under `src/`: `parse/` (Markdown to a node tree), `model/` (relations, groups, diagnostics, and the frontmatter JSON Schema), `layout/` (fold projection and coordinates), `view/` (rendering and interaction), `style.css`, `index.ts` (the public entry) and `core.ts` (the entry that takes your own transformer).
+The core is the Rust crate `crates/markdag-core` (parsing, the model and diagnostics, the layout, the standalone page), compiled to WebAssembly by `crates/markdag-wasm`. Building needs a Rust toolchain with the `wasm32-unknown-unknown` target. The TypeScript under `src/` wraps it: `parse/`, `model/` and `layout/` call the WebAssembly module, `wasm/` loads it, `view/` does the rendering and interaction, plus `style.css`, `index.ts` (the public entry) and `core.ts` (the entry that loads nothing from a CDN). The frontmatter JSON Schema is `src/model/frontmatter.schema.json`.
 
 ## Relation to markmap
 
 This is not a fork.
 
-The DAG construction, layout, rendering, and frontmatter validation are our own implementation.
+The DAG construction, layout, rendering, and frontmatter validation are our own implementation. The Markdown-to-tree rules follow markmap (markmap-lib and markmap-html-parser) and are ported to Rust; markmap is not a dependency.
 
 What was copied, and the list of dependencies, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 

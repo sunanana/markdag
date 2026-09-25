@@ -1,0 +1,761 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "Root",
+        "refText": "Root",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 7,
+          "end": 8
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Root",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "Design",
+        "refText": "Design",
+        "refId": null,
+        "groups": [
+          "design"
+        ],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 9,
+          "end": 10
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Design",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> Task A",
+        "refText": "Task A",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 11,
+          "end": 12
+        },
+        "task": {
+          "line": 11,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> Task A",
+        "leadingIcon": true
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"></path></svg> Task B",
+        "refText": "Task B",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 12,
+          "end": 14
+        },
+        "task": {
+          "line": 12,
+          "state": "done",
+          "checked": true
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg> Task B",
+        "leadingIcon": true
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "Build",
+        "refText": "Build",
+        "refId": "api",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 14,
+          "end": 15
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Build",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 5,
+        "depth": 3,
+        "html": "Deep",
+        "refText": "Deep",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 16,
+          "end": 17
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Deep",
+        "leadingIcon": false
+      },
+      {
+        "id": 7,
+        "parent": 6,
+        "depth": 4,
+        "html": "Leaf",
+        "refText": "Leaf",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 18,
+          "end": 20
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Leaf",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "relations": {
+          "depends": [
+            "$api --> Design"
+          ]
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [
+      {
+        "kind": "depends",
+        "source": 5,
+        "target": 2,
+        "origin": "$api --> Design"
+      }
+    ],
+    "suppressRootLine": [
+      2
+    ],
+    "groups": [
+      {
+        "id": "design",
+        "label": "design",
+        "color": null,
+        "boundary": false,
+        "defined": false
+      }
+    ],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          [
+            "design"
+          ]
+        ],
+        [
+          3,
+          [
+            "design"
+          ]
+        ],
+        [
+          4,
+          [
+            "design"
+          ]
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "Design",
+          "width": 64,
+          "height": 20,
+          "groups": [
+            "design"
+          ],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "Task A",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "Task B",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "Build",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "Deep",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 5,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "Leaf",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 6,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 2,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            6,
+            5
+          ],
+          [
+            7,
+            6
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 144,
+            "y": -10,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 296,
+            "y": -32.1875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 296,
+            "y": 12.1875,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 440,
+            "y": -32.1875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 456,
+            "y": -1,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 456,
+            "y": 25.375,
+            "width": 80,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          376,
+          33.0625
+        ],
+        "target": [
+          456,
+          19.6875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          376,
+          33.0625
+        ],
+        "target": [
+          456,
+          46.0625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          10.875
+        ],
+        "target": [
+          296,
+          -11.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          360,
+          -11.5
+        ],
+        "target": [
+          440,
+          -11.59375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 2,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          10.875
+        ],
+        "target": [
+          296,
+          33.0625
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -32.1875,
+      "width": 536,
+      "height": 77.5625
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          5,
+          144
+        ],
+        [
+          2,
+          296
+        ],
+        [
+          6,
+          296
+        ],
+        [
+          7,
+          440
+        ],
+        [
+          3,
+          456
+        ],
+        [
+          4,
+          456
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            144
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

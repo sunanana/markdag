@@ -1,12 +1,12 @@
 // 単体の HTML に埋め込んだ素材 (解析結果か原文、型定義、フックのソース、表示の指定、開閉の状態) から、要素の中に図を組み立てる。
 // 書き出した HTML の script から呼ぶためのものだが、アプリが書き出す前の確認に同じ素材で呼んでもよい。
-// 解析結果を受けたときは変換器なしで描く (markmap-lib を含まないランタイムで足りる)。原文だけのときは変換器で解析する。
+// 解析結果を受けたときはモデルの組み立てだけを行い、原文だけのときは解析から行う (どちらも Rust (wasm) を呼ぶので、先に init を待つ)。
 // タスクの切り替えは、書き換えた原文の保存先がないので既定では受け付けない。scratch を選ぶとページの中だけで切り替わる
 // (解析結果の上で状態と記号を差し替えて描き直す。開き直すと書き出したときの状態に戻る)。
 import { createHookBridge } from '../bridge';
 import type { HookModule } from '../model/hooks';
-import { buildModel, type Diagnostic } from '../model/model';
-import { parseDocument, replaceLeadingMark, toggleTask, type OutlineNode, type ParsedDocument, type TaskMark, type TransformerLike } from '../parse/document';
+import { buildModel, renderDocument, type Diagnostic, type GraphModel } from '../model/model';
+import { replaceLeadingMark, toggleTask, type OutlineNode, type ParsedDocument, type TaskMark, type TransformerLike } from '../parse/document';
 import { nextTaskMark, taskMarkOf, taskStateOf } from '../parse/task';
 import { MarkdagView, type ViewHooks, type ViewOptions, type ViewTransform } from '../view/view';
 
@@ -25,9 +25,9 @@ export interface StandaloneState {
 
 // HTML に JSON で埋める素材。関数や Map を含まないので、そのまま JSON.stringify できる
 export interface StandaloneData {
-    // 解析結果。あれば変換器なしで描く。呼び出し側は、画像の URL の書き換えなどを済ませてから渡す
+    // 解析結果。あれば解析をせずに描く。呼び出し側は、画像の URL の書き換えなどを済ませてから渡す
     parsed?: ParsedDocument;
-    // 原文。parsed がなければこれを変換器で解析する。parsed があるときは診断の位置付けとフックに見せる原文に使うだけで、省略できる
+    // 原文。parsed がなければこれを解析する。parsed があるときは診断の位置付けとフックに見せる原文に使うだけで、省略できる
     source?: string;
     // markdag.types.$ref の解決結果 (書かれたパスをキーにした、YAML を読んだ値)
     types?: Record<string, unknown>;
@@ -48,7 +48,7 @@ export interface StandaloneDiagram {
 }
 
 export interface MountOptions {
-    // 原文だけを受けたときに解析に使う変換器
+    /** @deprecated 解析は Rust で行うので、渡しても使いません */
     transformer?: TransformerLike;
 }
 
@@ -66,7 +66,8 @@ async function importHookScripts(scripts: Record<string, string>): Promise<{ ref
         Object.entries(scripts).map(async ([ref, code]) => {
             const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
             try {
-                refs[ref] = { ...((await import(/* @vite-ignore */ url)) as Record<string, unknown>) };
+                // 印は、利用者のバンドラが式の import を自分の読み込みに置き換えないためのもの (webpack は置き換えると blob の URL を読めない)
+                refs[ref] = { ...((await import(/* @vite-ignore */ /* webpackIgnore: true */ url)) as Record<string, unknown>) };
             } catch (error) {
                 refs[ref] = null;
                 diagnostics.push({
@@ -97,10 +98,8 @@ function toggleParsedTask(parsed: ParsedDocument, id: number, cycle: readonly Ta
 }
 
 export async function mountStandalone(container: HTMLElement, data: StandaloneData, options: MountOptions = {}): Promise<StandaloneDiagram> {
-    const { transformer } = options;
     const fromSource = data.parsed === undefined;
     if (fromSource && data.source === undefined) throw new Error('parsed か source のどちらかが要ります');
-    if (fromSource && transformer === undefined) throw new Error('原文だけを描くには変換器が要ります (markdag/core では transformer を渡します)');
     const tasks: StandaloneTasks = data.tasks ?? 'readonly';
 
     const loaded = data.hookScripts ? await importHookScripts(data.hookScripts) : null;
@@ -141,17 +140,18 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
         viewHooks,
     });
 
-    const build = (document: ParsedDocument, text: string | undefined) => buildModel(document.nodes, document.frontmatter, text, { types: data.types, hookRefs });
+    const extra = { types: data.types, hookRefs };
     const draw = (fit: boolean): void => {
-        let current = parsed ?? parseDocument(source, { transformer: transformer as TransformerLike });
-        let model = build(current, hasSource || fromSource ? source : undefined);
-        if (fromSource) {
-            // transformSource が原文を差し替えたときだけ、差し替えたほうで読み直す
+        let current: ParsedDocument;
+        let model: GraphModel;
+        if (parsed) {
+            current = parsed;
+            model = buildModel(parsed.nodes, parsed.frontmatter, hasSource ? source : undefined, extra);
+        } else {
+            // 解析と組み立ては 1 回の呼び出し。transformSource が原文を差し替えたときだけ、差し替えたほうで読み直す
+            ({ parsed: current, model } = renderDocument(source, extra));
             const rendered = bridge.transform(model, source);
-            if (rendered !== source) {
-                current = parseDocument(rendered, { transformer: transformer as TransformerLike });
-                model = build(current, rendered);
-            }
+            if (rendered !== source) ({ parsed: current, model } = renderDocument(rendered, extra));
         }
         diagnostics = [...model.diagnostics, ...(loaded?.diagnostics ?? [])];
         bridge.setDocument(current, model, fit);

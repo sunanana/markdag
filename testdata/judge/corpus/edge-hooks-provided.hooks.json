@@ -1,0 +1,5 @@
+{
+    "./ok.hooks.js": { "functions": ["beforeTaskToggle", "onTaskToggle"], "values": [] },
+    "./odd.hooks.js": { "functions": ["beforeTaskToggl", "default", "helper"], "values": ["beforeFold"] },
+    "./missing.hooks.js": null
+}

@@ -1,0 +1,2595 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "Root",
+        "refText": "Root",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 33,
+          "end": 34
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Root",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "A",
+        "refText": "A",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 35,
+          "end": 36
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "A1",
+        "refText": "A1",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 37,
+          "end": 38
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A1",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 2,
+        "depth": 3,
+        "html": "A2",
+        "refText": "A2",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 38,
+          "end": 40
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "A2",
+        "leadingIcon": false
+      },
+      {
+        "id": 5,
+        "parent": 1,
+        "depth": 2,
+        "html": "B",
+        "refText": "B",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 40,
+          "end": 41
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "B",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 1,
+        "depth": 2,
+        "html": "C",
+        "refText": "C",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 42,
+          "end": 43
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "C",
+        "leadingIcon": false
+      },
+      {
+        "id": 7,
+        "parent": 1,
+        "depth": 2,
+        "html": "D",
+        "refText": "D",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 44,
+          "end": 45
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "D",
+        "leadingIcon": false
+      },
+      {
+        "id": 8,
+        "parent": 1,
+        "depth": 2,
+        "html": "Sink",
+        "refText": "Sink",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 46,
+          "end": 47
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Sink",
+        "leadingIcon": false
+      },
+      {
+        "id": 9,
+        "parent": 1,
+        "depth": 2,
+        "html": "Leafless",
+        "refText": "Leafless",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 48,
+          "end": 49
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Leafless",
+        "leadingIcon": false
+      },
+      {
+        "id": 10,
+        "parent": 1,
+        "depth": 2,
+        "html": "CI/CD",
+        "refText": "CI/CD",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 50,
+          "end": 51
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "CI/CD",
+        "leadingIcon": false
+      },
+      {
+        "id": 11,
+        "parent": 1,
+        "depth": 2,
+        "html": "$100 budget",
+        "refText": "$100 budget",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 52,
+          "end": 53
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x24;100 budget",
+        "leadingIcon": false
+      },
+      {
+        "id": 12,
+        "parent": 1,
+        "depth": 2,
+        "html": "(draft)",
+        "refText": "(draft)",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 54,
+          "end": 55
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "(draft)",
+        "leadingIcon": false
+      },
+      {
+        "id": 13,
+        "parent": 1,
+        "depth": 2,
+        "html": "R&amp;D",
+        "refText": "R&D",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 56,
+          "end": 57
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "R&amp;D",
+        "leadingIcon": false
+      },
+      {
+        "id": 14,
+        "parent": 1,
+        "depth": 2,
+        "html": "Launch",
+        "refText": "Launch",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "urgent",
+            "values": [],
+            "at": {
+              "line": 59,
+              "column": 11,
+              "length": 7
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 58,
+          "end": 59
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Launch",
+        "leadingIcon": false
+      },
+      {
+        "id": 15,
+        "parent": 1,
+        "depth": 2,
+        "html": "Review",
+        "refText": "Review",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 60,
+          "end": 61
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Review",
+        "leadingIcon": false
+      },
+      {
+        "id": 16,
+        "parent": 1,
+        "depth": 2,
+        "html": "X",
+        "refText": "X",
+        "refId": "dupid",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 62,
+          "end": 63
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "X",
+        "leadingIcon": false
+      },
+      {
+        "id": 17,
+        "parent": 1,
+        "depth": 2,
+        "html": "Y",
+        "refText": "Y",
+        "refId": "dupid",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 64,
+          "end": 65
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "Y",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "markdag": {
+        "relations": {
+          "depends": [
+            "Root/** --> Sink",
+            "A --> B & C",
+            "A & B --> C & D",
+            "(A)",
+            "Leafless/* --> Sink",
+            "CI\\/CD --> Sink",
+            "\\$100 budget --> Sink",
+            "\\(draft) --> Sink",
+            "R&D --> Sink",
+            "A-->B",
+            "- Launch #urgent --> Review",
+            "A/* --> A",
+            "$dupid --> Sink",
+            12
+          ],
+          "chian": [
+            "A --> B"
+          ],
+          "chain": [
+            "A --> B --> C"
+          ]
+        },
+        "groups": {
+          "g": {
+            "members": [
+              "(A)",
+              "Missing"
+            ]
+          }
+        },
+        "branches": [
+          "A/*",
+          "A",
+          "Root/A"
+        ]
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [
+      2
+    ],
+    "relations": [
+      {
+        "kind": "depends",
+        "source": 2,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 3,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 4,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 5,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 6,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 7,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 9,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 10,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 11,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 12,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 13,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 14,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 15,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 16,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 17,
+        "target": 8,
+        "origin": "Root/** --> Sink"
+      },
+      {
+        "kind": "depends",
+        "source": 2,
+        "target": 5,
+        "origin": "A --> B & C"
+      },
+      {
+        "kind": "depends",
+        "source": 2,
+        "target": 6,
+        "origin": "A --> B & C"
+      },
+      {
+        "kind": "depends",
+        "source": 2,
+        "target": 7,
+        "origin": "A & B --> C & D"
+      },
+      {
+        "kind": "depends",
+        "source": 5,
+        "target": 6,
+        "origin": "A & B --> C & D"
+      },
+      {
+        "kind": "depends",
+        "source": 5,
+        "target": 7,
+        "origin": "A & B --> C & D"
+      }
+    ],
+    "suppressRootLine": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "groups": [
+      {
+        "id": "g",
+        "label": "g",
+        "color": null,
+        "boundary": false,
+        "defined": true
+      }
+    ],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          []
+        ],
+        [
+          15,
+          []
+        ],
+        [
+          16,
+          []
+        ],
+        [
+          17,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          [
+            {
+              "key": "urgent",
+              "values": [],
+              "at": {
+                "line": 59,
+                "column": 11,
+                "length": 7
+              }
+            }
+          ]
+        ],
+        [
+          15,
+          []
+        ],
+        [
+          16,
+          []
+        ],
+        [
+          17,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "error",
+        "code": "relation-syntax",
+        "message": "markdag.relations.depends[3] は「半角の空白で挟んだ --> で項を結んだ式」の形で書きます (\"(A)\")",
+        "at": {
+          "line": 8,
+          "column": 15,
+          "length": 3
+        },
+        "hint": "「A --> B」のように、半角の空白で挟んだ --> で結びます (空白の直後の # から行末は YAML のコメントになります)"
+      },
+      {
+        "severity": "error",
+        "code": "relation-syntax",
+        "message": "markdag.relations.depends[9] は「半角の空白で挟んだ --> で項を結んだ式」の形で書きます (\"A-->B\")",
+        "at": {
+          "line": 14,
+          "column": 15,
+          "length": 5
+        },
+        "hint": "「A --> B」のように、半角の空白で挟んだ --> で結びます (空白の直後の # から行末は YAML のコメントになります)"
+      },
+      {
+        "severity": "error",
+        "code": "relation-not-string",
+        "message": "markdag.relations.depends[13] は文字列で書きます (12)",
+        "at": {
+          "line": 18,
+          "column": 15,
+          "length": 2
+        },
+        "hint": "「A --> B: C」のように「: 」を含む式は、行全体を \"…\" で囲みます"
+      },
+      {
+        "severity": "warning",
+        "code": "relation-unknown-key",
+        "message": "markdag.relations のキー「chian」は使えません (fork, join, chain, depends)",
+        "at": {
+          "line": 19,
+          "column": 9,
+          "length": 5
+        },
+        "hint": "もしかして「chain」"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: Root --> Sink",
+        "at": {
+          "line": 5,
+          "column": 27,
+          "length": 4
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "error",
+        "code": "self-loop",
+        "message": "始点と終点が同じです: Sink --> Sink",
+        "at": {
+          "line": 5,
+          "column": 27,
+          "length": 4
+        },
+        "hint": null
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: A --> C",
+        "at": {
+          "line": 7,
+          "column": 25,
+          "length": 1
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "error",
+        "code": "selector-empty",
+        "message": "「Leafless/* --> Sink」: 「Leafless/*」は、配下にノードがないので展開できません",
+        "at": {
+          "line": 9,
+          "column": 15,
+          "length": 8
+        },
+        "hint": "このノード自身を指すなら、末尾の /* を外します"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: CI/CD --> Sink",
+        "at": {
+          "line": 10,
+          "column": 26,
+          "length": 4
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: $100 budget --> Sink",
+        "at": {
+          "line": 11,
+          "column": 32,
+          "length": 4
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: (draft) --> Sink",
+        "at": {
+          "line": 12,
+          "column": 28,
+          "length": 4
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: R&D --> Sink",
+        "at": {
+          "line": 13,
+          "column": 23,
+          "length": 4
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "error",
+        "code": "ref-not-found",
+        "message": "「- Launch #urgent --> Review」: 「- Launch #urgent」に一致するノードがありません",
+        "at": {
+          "line": 15,
+          "column": 16,
+          "length": 16
+        },
+        "hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+      },
+      {
+        "severity": "error",
+        "code": "cycle",
+        "message": "閉路になるので追加しません: A1 --> A",
+        "at": {
+          "line": 16,
+          "column": 15,
+          "length": 9
+        },
+        "hint": "「A」から「A1」へ、すでに道があります。向きを入れ替えるか、この指定を消します"
+      },
+      {
+        "severity": "error",
+        "code": "cycle",
+        "message": "閉路になるので追加しません: A2 --> A",
+        "at": {
+          "line": 16,
+          "column": 15,
+          "length": 9
+        },
+        "hint": "「A」から「A2」へ、すでに道があります。向きを入れ替えるか、この指定を消します"
+      },
+      {
+        "severity": "error",
+        "code": "ref-ambiguous",
+        "message": "「$dupid --> Sink」: $dupid が複数あります",
+        "at": {
+          "line": 17,
+          "column": 15,
+          "length": 6
+        },
+        "hint": "同じ $id を 2 つ以上のノードに書かないようにします"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: A --> B",
+        "at": {
+          "line": 22,
+          "column": 21,
+          "length": 1
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "warning",
+        "code": "duplicate-edge",
+        "message": "同じ線がすでにあります: B --> C",
+        "at": {
+          "line": 22,
+          "column": 27,
+          "length": 1
+        },
+        "hint": "この向きの線はすでにあります。重なった指定を消せます"
+      },
+      {
+        "severity": "warning",
+        "code": "group-invalid",
+        "message": "markdag.groups.g.members「(A)」: members に (X) は書けません",
+        "at": {
+          "line": 26,
+          "column": 19,
+          "length": 3
+        },
+        "hint": "括弧を外して書きます"
+      },
+      {
+        "severity": "warning",
+        "code": "ref-not-found",
+        "message": "markdag.groups.g.members「Missing」: 「Missing」に一致するノードがありません",
+        "at": {
+          "line": 27,
+          "column": 19,
+          "length": 7
+        },
+        "hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+      },
+      {
+        "severity": "warning",
+        "code": "option-invalid",
+        "message": "markdag.branches: 「A/*」は 1 ノードの指定ではありません。枝の起点は 1 ノードで指定します ((X), /*, /** は使えません)",
+        "at": {
+          "line": 29,
+          "column": 11,
+          "length": 3
+        },
+        "hint": "配下をまとめて 1 色にするなら「A」だけを書きます (配下は起点の色を引き継ぎます)"
+      },
+      {
+        "severity": "warning",
+        "code": "option-invalid",
+        "message": "markdag.branches: 「Root/A」は「A」と同じノードで、すでに枝の起点になっています",
+        "at": {
+          "line": 31,
+          "column": 11,
+          "length": 6
+        },
+        "hint": "この行は消せます"
+      }
+    ],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "Root",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "A",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "A1",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "A2",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "B",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "C",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "D",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "Sink",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "Leafless",
+          "width": 80,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 10,
+          "label": "CI/CD",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "$100 budget",
+          "width": 104,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "(draft)",
+          "width": 72,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "R&D",
+          "width": 40,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "Launch",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 15,
+          "label": "Review",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 16,
+          "label": "X",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 17,
+          "label": "Y",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 15,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 16,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 17,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 2,
+          "target": 8,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 3,
+          "target": 8,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 4,
+          "target": 8,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 8,
+          "memberRelationIndexes": [
+            3
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [
+            4
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 9,
+          "target": 8,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 10,
+          "target": 8,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 11,
+          "target": 8,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 12,
+          "target": 8,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 13,
+          "target": 8,
+          "memberRelationIndexes": [
+            10
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 14,
+          "target": 8,
+          "memberRelationIndexes": [
+            11
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 15,
+          "target": 8,
+          "memberRelationIndexes": [
+            12
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 16,
+          "target": 8,
+          "memberRelationIndexes": [
+            13
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 17,
+          "target": 8,
+          "memberRelationIndexes": [
+            14
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 2,
+          "target": 5,
+          "memberRelationIndexes": [
+            15
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [
+            16
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 2,
+          "target": 7,
+          "memberRelationIndexes": [
+            17
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [
+            18
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "depends",
+          "source": 5,
+          "target": 7,
+          "memberRelationIndexes": [
+            19
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            2
+          ],
+          [
+            6,
+            2
+          ],
+          [
+            7,
+            2
+          ],
+          [
+            8,
+            10
+          ],
+          [
+            9,
+            1
+          ],
+          [
+            10,
+            1
+          ],
+          [
+            11,
+            1
+          ],
+          [
+            12,
+            1
+          ],
+          [
+            13,
+            1
+          ],
+          [
+            14,
+            1
+          ],
+          [
+            15,
+            1
+          ],
+          [
+            16,
+            1
+          ],
+          [
+            17,
+            1
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -164.4375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 144,
+            "y": -79.5625,
+            "width": 96,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 144,
+            "y": -47.8125,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 144,
+            "y": -16.0625,
+            "width": 120,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 144,
+            "y": 10.6875,
+            "width": 88,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 144,
+            "y": 37.4375,
+            "width": 56,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 144,
+            "y": 64.1875,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          15,
+          {
+            "x": 144,
+            "y": 90.9375,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          16,
+          {
+            "x": 144,
+            "y": 117.6875,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          17,
+          {
+            "x": 144,
+            "y": 144.4375,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 264,
+            "y": -217.5625,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 264,
+            "y": -191.1875,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 264,
+            "y": -164.8125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 384,
+            "y": -138.0625,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 384,
+            "y": -111.3125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          8,
+          {
+            "x": 504,
+            "y": -47.8125,
+            "width": 64,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          16,
+          0
+        ],
+        [
+          17,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          120
+        ],
+        [
+          7,
+          120
+        ],
+        [
+          8,
+          208
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -143.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          264,
+          -196.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          264,
+          -170.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -58.6875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -26.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          4.8125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          31.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          58.3125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          85.0625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 15,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          111.8125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 16,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          138.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 17,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          165.3125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 2,
+          "target": 8,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 3,
+          "target": 8,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          312,
+          -196.875
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 4,
+          "target": 8,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          312,
+          -170.5
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 8,
+          "memberRelationIndexes": [
+            3
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          304,
+          -143.9375
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [
+            4
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          424,
+          -117.1875
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [
+            5
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          424,
+          -90.4375
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 9,
+          "target": 8,
+          "memberRelationIndexes": [
+            6
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          240,
+          -58.6875
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 10,
+          "target": 8,
+          "memberRelationIndexes": [
+            7
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          -26.9375
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 11,
+          "target": 8,
+          "memberRelationIndexes": [
+            8
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          264,
+          4.8125
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 12,
+          "target": 8,
+          "memberRelationIndexes": [
+            9
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          232,
+          31.5625
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 13,
+          "target": 8,
+          "memberRelationIndexes": [
+            10
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          200,
+          58.3125
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 14,
+          "target": 8,
+          "memberRelationIndexes": [
+            11
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          224,
+          85.0625
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 15,
+          "target": 8,
+          "memberRelationIndexes": [
+            12
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          224,
+          111.8125
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 16,
+          "target": 8,
+          "memberRelationIndexes": [
+            13
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          138.5625
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 17,
+          "target": 8,
+          "memberRelationIndexes": [
+            14
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          165.3125
+        ],
+        "target": [
+          504,
+          -26.9375
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 2,
+          "target": 5,
+          "memberRelationIndexes": [
+            15
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          264,
+          -143.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 2,
+          "target": 6,
+          "memberRelationIndexes": [
+            16
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          384,
+          -117.1875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 2,
+          "target": 7,
+          "memberRelationIndexes": [
+            17
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -143.5625
+        ],
+        "target": [
+          384,
+          -90.4375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 6,
+          "memberRelationIndexes": [
+            18
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          304,
+          -143.9375
+        ],
+        "target": [
+          384,
+          -117.1875
+        ],
+        "isLayoutLink": false
+      },
+      {
+        "edge": {
+          "kind": "depends",
+          "source": 5,
+          "target": 7,
+          "memberRelationIndexes": [
+            19
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          304,
+          -143.9375
+        ],
+        "target": [
+          384,
+          -90.4375
+        ],
+        "isLayoutLink": false
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -217.5625,
+      "width": 568,
+      "height": 382
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          9,
+          144
+        ],
+        [
+          10,
+          144
+        ],
+        [
+          11,
+          144
+        ],
+        [
+          12,
+          144
+        ],
+        [
+          13,
+          144
+        ],
+        [
+          14,
+          144
+        ],
+        [
+          15,
+          144
+        ],
+        [
+          16,
+          144
+        ],
+        [
+          17,
+          144
+        ],
+        [
+          8,
+          504
+        ],
+        [
+          3,
+          264
+        ],
+        [
+          4,
+          264
+        ],
+        [
+          5,
+          264
+        ],
+        [
+          6,
+          384
+        ],
+        [
+          7,
+          384
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            240
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            240
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            352
+          ]
+        ],
+        [
+          9,
+          [
+            20,
+            176
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            200
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            168
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            136
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          15,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          16,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          17,
+          [
+            20,
+            120
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

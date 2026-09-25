@@ -1,0 +1,1006 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "リリースまで",
+        "refText": "リリースまで",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 21,
+          "end": 22
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x30ea;&#x30ea;&#x30fc;&#x30b9;&#x307e;&#x3067;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 設計",
+        "refText": "設計",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 23,
+          "end": 24
+        },
+        "task": {
+          "line": 23,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x8a2d;&#x8a08;",
+        "leadingIcon": true
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 画面の流れを決める\n<blockquote data-lines=\"26,27\" class=\"mdag-details\">\n<p data-lines=\"26,27\">上流がないので、いつでもチェックできる</p>\n</blockquote>",
+        "refText": "画面の流れを決める",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 25,
+          "end": 28
+        },
+        "task": {
+          "line": 25,
+          "state": "todo",
+          "checked": false
+        },
+        "details": "<p data-lines=\"26,27\">上流がないので、いつでもチェックできる</p>",
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 画面の流れを決める\n<blockquote data-lines=\"26,27\" class=\"mdag-details\">\n<p data-lines=\"26,27\">上流がないので、いつでもチェックできる</p>\n</blockquote>",
+        "leadingIcon": true
+      },
+      {
+        "id": 4,
+        "parent": 1,
+        "depth": 2,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 実装",
+        "refText": "実装",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 28,
+          "end": 29
+        },
+        "task": {
+          "line": 28,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x5b9f;&#x88c5;",
+        "leadingIcon": true
+      },
+      {
+        "id": 5,
+        "parent": 4,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 画面を作る",
+        "refText": "画面を作る",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 30,
+          "end": 32
+        },
+        "task": {
+          "line": 30,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x753b;&#x9762;&#x3092;&#x4f5c;&#x308b;",
+        "leadingIcon": true
+      },
+      {
+        "id": 6,
+        "parent": 1,
+        "depth": 2,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> テスト",
+        "refText": "テスト",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 32,
+          "end": 33
+        },
+        "task": {
+          "line": 32,
+          "state": "todo",
+          "checked": false
+        },
+        "details": null,
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg> &#x30c6;&#x30b9;&#x30c8;",
+        "leadingIcon": true
+      },
+      {
+        "id": 7,
+        "parent": 6,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 受け入れの確認\n<blockquote data-lines=\"35,36\" class=\"mdag-details\">\n<p data-lines=\"35,36\">「設計」と「実装」が終わるまで、このチェックは止められる</p>\n</blockquote>",
+        "refText": "受け入れの確認",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 34,
+          "end": 37
+        },
+        "task": {
+          "line": 34,
+          "state": "todo",
+          "checked": false
+        },
+        "details": "<p data-lines=\"35,36\">「設計」と「実装」が終わるまで、このチェックは止められる</p>",
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 受け入れの確認\n<blockquote data-lines=\"35,36\" class=\"mdag-details\">\n<p data-lines=\"35,36\">「設計」と「実装」が終わるまで、このチェックは止められる</p>\n</blockquote>",
+        "leadingIcon": true
+      },
+      {
+        "id": 8,
+        "parent": 1,
+        "depth": 2,
+        "html": "<strong>リリース</strong>",
+        "refText": "リリース",
+        "refId": "release",
+        "groups": [],
+        "tags": [],
+        "milestone": true,
+        "foldHint": 0,
+        "lines": {
+          "start": 37,
+          "end": 38
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<strong>&#x30ea;&#x30ea;&#x30fc;&#x30b9;</strong>",
+        "leadingIcon": false
+      },
+      {
+        "id": 9,
+        "parent": 8,
+        "depth": 3,
+        "html": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 公開の連絡\n<blockquote data-lines=\"40,41\" class=\"mdag-details\">\n<p data-lines=\"40,41\">マイルストーンなので、この枝は閉じられない</p>\n</blockquote>",
+        "refText": "公開の連絡",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 39,
+          "end": 41
+        },
+        "task": {
+          "line": 39,
+          "state": "todo",
+          "checked": false
+        },
+        "details": "<p data-lines=\"40,41\">マイルストーンなので、この枝は閉じられない</p>",
+        "htmlRaw": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"></path></svg> 公開の連絡\n<blockquote data-lines=\"40,41\" class=\"mdag-details\">\n<p data-lines=\"40,41\">マイルストーンなので、この枝は閉じられない</p>\n</blockquote>",
+        "leadingIcon": true
+      }
+    ],
+    "frontmatter": {
+      "title": "規則とフックで操作を止める例",
+      "markdag": {
+        "relations": {
+          "chain": [
+            "設計 --> 実装 --> テスト --> $release"
+          ]
+        },
+        "rules": {
+          "taskToggle": {
+            "requireUpstreamDone": true
+          },
+          "fold": {
+            "keepMilestonesOpen": true
+          }
+        },
+        "hooks": {
+          "$ref": "./task-guard.hooks.js"
+        },
+        "details": {
+          "display": "hover"
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": "hover",
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [
+      {
+        "kind": "chain",
+        "source": 2,
+        "target": 4,
+        "origin": "設計 --> 実装 --> テスト --> $release"
+      },
+      {
+        "kind": "chain",
+        "source": 4,
+        "target": 6,
+        "origin": "設計 --> 実装 --> テスト --> $release"
+      },
+      {
+        "kind": "chain",
+        "source": 6,
+        "target": 8,
+        "origin": "設計 --> 実装 --> テスト --> $release"
+      }
+    ],
+    "suppressRootLine": [
+      4,
+      6,
+      8
+    ],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "info",
+        "code": "hooks-unresolved",
+        "message": "markdag.hooks.$ref「./task-guard.hooks.js」は読み込まれていないので、このフックは動きません",
+        "at": {
+          "line": 17,
+          "column": 15,
+          "length": 21
+        },
+        "hint": "このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)"
+      }
+    ],
+    "hooks": {
+      "hooks": [
+        {
+          "ref": "markdag.rules",
+          "exports": [
+            "beforeFold",
+            "beforeTaskToggle"
+          ]
+        }
+      ],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "リリースまで",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "設計",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "画面の流れを決める",
+          "width": 88,
+          "height": 62,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "実装",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "画面を作る",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "テスト",
+          "width": 40,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "受け入れの確認",
+          "width": 72,
+          "height": 62,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 6,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "リリース",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "公開の連絡",
+          "width": 56,
+          "height": 62,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 8,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 8,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 4,
+          "target": 6,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "chain",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            2
+          ],
+          [
+            5,
+            4
+          ],
+          [
+            6,
+            4
+          ],
+          [
+            7,
+            6
+          ],
+          [
+            8,
+            6
+          ],
+          [
+            9,
+            8
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 160,
+            "y": -10,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 288,
+            "y": -66.328125,
+            "width": 104,
+            "height": 62
+          }
+        ],
+        [
+          4,
+          {
+            "x": 288,
+            "y": 46.328125,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 416,
+            "y": 7.046875,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 416,
+            "y": 85.609375,
+            "width": 56,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 552,
+            "y": 38.421875,
+            "width": 88,
+            "height": 62
+          }
+        ],
+        [
+          8,
+          {
+            "x": 552,
+            "y": 132.796875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 696,
+            "y": 111.796875,
+            "width": 72,
+            "height": 62
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          80,
+          11.25
+        ],
+        "target": [
+          160,
+          10.875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          208,
+          10.875
+        ],
+        "target": [
+          288,
+          -3.640625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          336,
+          67.203125
+        ],
+        "target": [
+          416,
+          27.734375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 6,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          472,
+          106.484375
+        ],
+        "target": [
+          552,
+          101.109375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 8,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          616,
+          153.671875
+        ],
+        "target": [
+          696,
+          174.484375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 2,
+          "target": 4,
+          "memberRelationIndexes": [
+            0
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          208,
+          10.875
+        ],
+        "target": [
+          288,
+          67.203125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 4,
+          "target": 6,
+          "memberRelationIndexes": [
+            1
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          336,
+          67.203125
+        ],
+        "target": [
+          416,
+          106.484375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "chain",
+          "source": 6,
+          "target": 8,
+          "memberRelationIndexes": [
+            2
+          ],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          472,
+          106.484375
+        ],
+        "target": [
+          552,
+          153.671875
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -66.328125,
+      "width": 768,
+      "height": 240.125
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          160
+        ],
+        [
+          3,
+          288
+        ],
+        [
+          4,
+          288
+        ],
+        [
+          5,
+          416
+        ],
+        [
+          6,
+          416
+        ],
+        [
+          7,
+          552
+        ],
+        [
+          8,
+          552
+        ],
+        [
+          9,
+          696
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          3,
+          [
+            62,
+            184
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            136
+          ]
+        ],
+        [
+          7,
+          [
+            62,
+            168
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          9,
+          [
+            62,
+            152
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}

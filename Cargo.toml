@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["crates/markdag-core", "crates/markdag-wasm"]
+
+[workspace.package]
+version = "0.8.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/sunanana/markdag"
+
+# wasm の大きさを優先する。ネイティブ (CLI、MCP) も同じ設定で足りる
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = "debuginfo"
+
+# wasm の name 節 (関数名) を落とす。panic の文面は hook が場所の文字列から作るので要らない。ネイティブの crate の関数名は残す
+[profile.release.package.markdag-wasm]
+strip = "symbols"

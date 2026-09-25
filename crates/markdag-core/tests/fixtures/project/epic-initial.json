@@ -1,0 +1,648 @@
+{
+ "input": {
+  "name": "epic-initial",
+  "nodes": [
+   {
+    "id": 1,
+    "label": "新機能エピック",
+    "width": 72,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 2,
+    "label": "仕様策定",
+    "width": 48,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 3,
+    "label": "画面開発",
+    "width": 48,
+    "height": 20,
+    "groups": [
+     "frontend"
+    ]
+   },
+   {
+    "id": 4,
+    "label": "一覧画面",
+    "width": 48,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 5,
+    "label": "登録画面",
+    "width": 48,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 6,
+    "label": "API開発",
+    "width": 56,
+    "height": 20,
+    "groups": [
+     "backend"
+    ]
+   },
+   {
+    "id": 7,
+    "label": "登録API POST /items",
+    "width": 152,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 8,
+    "label": "削除API DELETE /items/:id",
+    "width": 200,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 9,
+    "label": "一覧取得API GET /items",
+    "width": 160,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 10,
+    "label": "開発完了",
+    "width": 48,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 11,
+    "label": "リリース準備",
+    "width": 64,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 12,
+    "label": "デプロイ手順の確認",
+    "width": 88,
+    "height": 20,
+    "groups": [
+     "backend"
+    ]
+   },
+   {
+    "id": 13,
+    "label": "ロールバック手順の確認",
+    "width": 104,
+    "height": 20,
+    "groups": [
+     "backend"
+    ]
+   },
+   {
+    "id": 14,
+    "label": "受け入れテスト",
+    "width": 72,
+    "height": 20,
+    "groups": [
+     "qa"
+    ]
+   },
+   {
+    "id": 15,
+    "label": "リリースノート作成",
+    "width": 88,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 16,
+    "label": "リリース",
+    "width": 48,
+    "height": 20,
+    "groups": []
+   },
+   {
+    "id": 17,
+    "label": "効果測定",
+    "width": 48,
+    "height": 20,
+    "groups": [
+     "backend",
+     "frontend"
+    ]
+   }
+  ],
+  "treeEdges": [
+   {
+    "source": 1,
+    "target": 2
+   },
+   {
+    "source": 2,
+    "target": 3
+   },
+   {
+    "source": 3,
+    "target": 4
+   },
+   {
+    "source": 3,
+    "target": 5
+   },
+   {
+    "source": 2,
+    "target": 6
+   },
+   {
+    "source": 6,
+    "target": 7
+   },
+   {
+    "source": 6,
+    "target": 8
+   },
+   {
+    "source": 6,
+    "target": 9
+   },
+   {
+    "source": 1,
+    "target": 10
+   },
+   {
+    "source": 1,
+    "target": 11
+   },
+   {
+    "source": 11,
+    "target": 12
+   },
+   {
+    "source": 11,
+    "target": 13
+   },
+   {
+    "source": 11,
+    "target": 14
+   },
+   {
+    "source": 1,
+    "target": 15
+   },
+   {
+    "source": 1,
+    "target": 16
+   },
+   {
+    "source": 1,
+    "target": 17
+   }
+  ],
+  "relations": [
+   {
+    "kind": "join",
+    "source": 4,
+    "target": 10,
+    "origin": "仕様策定/* --> 開発完了"
+   },
+   {
+    "kind": "join",
+    "source": 5,
+    "target": 10,
+    "origin": "仕様策定/* --> 開発完了"
+   },
+   {
+    "kind": "join",
+    "source": 7,
+    "target": 10,
+    "origin": "仕様策定/* --> 開発完了"
+   },
+   {
+    "kind": "join",
+    "source": 8,
+    "target": 10,
+    "origin": "仕様策定/* --> 開発完了"
+   },
+   {
+    "kind": "join",
+    "source": 9,
+    "target": 10,
+    "origin": "仕様策定/* --> 開発完了"
+   },
+   {
+    "kind": "chain",
+    "source": 10,
+    "target": 11,
+    "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+   },
+   {
+    "kind": "chain",
+    "source": 11,
+    "target": 15,
+    "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+   },
+   {
+    "kind": "chain",
+    "source": 15,
+    "target": 16,
+    "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+   },
+   {
+    "kind": "chain",
+    "source": 16,
+    "target": 17,
+    "origin": "開発完了 --> リリース準備 --> リリースノート作成 --> リリース --> 効果測定"
+   },
+   {
+    "kind": "depends",
+    "source": 7,
+    "target": 5,
+    "origin": "登録API --> 登録画面"
+   }
+  ],
+  "suppressRootLine": [
+   10,
+   11,
+   15,
+   16,
+   17
+  ],
+  "folded": [
+   3,
+   6
+  ]
+ },
+ "graph": {
+  "rootId": 1,
+  "nodes": [
+   {
+    "id": 1,
+    "label": "新機能エピック",
+    "width": 72,
+    "height": 20,
+    "groups": [],
+    "depth": 1,
+    "treeParent": null,
+    "folded": false
+   },
+   {
+    "id": 2,
+    "label": "仕様策定",
+    "width": 48,
+    "height": 20,
+    "groups": [],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   },
+   {
+    "id": 3,
+    "label": "画面開発",
+    "width": 48,
+    "height": 20,
+    "groups": [
+     "frontend"
+    ],
+    "depth": 3,
+    "treeParent": 2,
+    "folded": true
+   },
+   {
+    "id": 6,
+    "label": "API開発",
+    "width": 56,
+    "height": 20,
+    "groups": [
+     "backend"
+    ],
+    "depth": 3,
+    "treeParent": 2,
+    "folded": true
+   },
+   {
+    "id": 10,
+    "label": "開発完了",
+    "width": 48,
+    "height": 20,
+    "groups": [],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   },
+   {
+    "id": 11,
+    "label": "リリース準備",
+    "width": 64,
+    "height": 20,
+    "groups": [],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   },
+   {
+    "id": 12,
+    "label": "デプロイ手順の確認",
+    "width": 88,
+    "height": 20,
+    "groups": [
+     "backend"
+    ],
+    "depth": 3,
+    "treeParent": 11,
+    "folded": false
+   },
+   {
+    "id": 13,
+    "label": "ロールバック手順の確認",
+    "width": 104,
+    "height": 20,
+    "groups": [
+     "backend"
+    ],
+    "depth": 3,
+    "treeParent": 11,
+    "folded": false
+   },
+   {
+    "id": 14,
+    "label": "受け入れテスト",
+    "width": 72,
+    "height": 20,
+    "groups": [
+     "qa"
+    ],
+    "depth": 3,
+    "treeParent": 11,
+    "folded": false
+   },
+   {
+    "id": 15,
+    "label": "リリースノート作成",
+    "width": 88,
+    "height": 20,
+    "groups": [],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   },
+   {
+    "id": 16,
+    "label": "リリース",
+    "width": 48,
+    "height": 20,
+    "groups": [],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   },
+   {
+    "id": 17,
+    "label": "効果測定",
+    "width": 48,
+    "height": 20,
+    "groups": [
+     "backend",
+     "frontend"
+    ],
+    "depth": 2,
+    "treeParent": 1,
+    "folded": false
+   }
+  ],
+  "edges": [
+   {
+    "kind": "tree",
+    "source": 1,
+    "target": 2,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "tree",
+    "source": 2,
+    "target": 3,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "tree",
+    "source": 2,
+    "target": 6,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "tree",
+    "source": 11,
+    "target": 12,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "tree",
+    "source": 11,
+    "target": 13,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "tree",
+    "source": 11,
+    "target": 14,
+    "memberRelationIndexes": [],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "join",
+    "source": 3,
+    "target": 10,
+    "memberRelationIndexes": [
+     0,
+     1
+    ],
+    "proxied": true,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "join",
+    "source": 6,
+    "target": 10,
+    "memberRelationIndexes": [
+     2,
+     3,
+     4
+    ],
+    "proxied": true,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "chain",
+    "source": 10,
+    "target": 11,
+    "memberRelationIndexes": [
+     5
+    ],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "chain",
+    "source": 11,
+    "target": 15,
+    "memberRelationIndexes": [
+     6
+    ],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "chain",
+    "source": 15,
+    "target": 16,
+    "memberRelationIndexes": [
+     7
+    ],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "chain",
+    "source": 16,
+    "target": 17,
+    "memberRelationIndexes": [
+     8
+    ],
+    "proxied": false,
+    "excludedFromLayout": false
+   },
+   {
+    "kind": "depends",
+    "source": 6,
+    "target": 3,
+    "memberRelationIndexes": [
+     9
+    ],
+    "proxied": true,
+    "excludedFromLayout": false
+   }
+  ],
+  "layoutParent": [
+   [
+    2,
+    1
+   ],
+   [
+    3,
+    2
+   ],
+   [
+    6,
+    2
+   ],
+   [
+    10,
+    6
+   ],
+   [
+    11,
+    10
+   ],
+   [
+    12,
+    11
+   ],
+   [
+    13,
+    11
+   ],
+   [
+    14,
+    11
+   ],
+   [
+    15,
+    11
+   ],
+   [
+    16,
+    15
+   ],
+   [
+    17,
+    16
+   ]
+  ]
+ },
+ "hints": [
+  [
+   10,
+   [
+    {
+     "node": 7,
+     "relationIndex": 2
+    },
+    {
+     "node": 5,
+     "relationIndex": 1
+    },
+    {
+     "node": 8,
+     "relationIndex": 3
+    },
+    {
+     "node": 4,
+     "relationIndex": 0
+    },
+    {
+     "node": 9,
+     "relationIndex": 4
+    }
+   ]
+  ],
+  [
+   11,
+   [
+    {
+     "node": 10,
+     "relationIndex": 5
+    }
+   ]
+  ],
+  [
+   15,
+   [
+    {
+     "node": 11,
+     "relationIndex": 6
+    }
+   ]
+  ],
+  [
+   16,
+   [
+    {
+     "node": 15,
+     "relationIndex": 7
+    }
+   ]
+  ],
+  [
+   17,
+   [
+    {
+     "node": 16,
+     "relationIndex": 8
+    }
+   ]
+  ]
+ ]
+}

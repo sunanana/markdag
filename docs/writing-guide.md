@@ -73,7 +73,7 @@ markdag:
 
 Groups, tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `%group`, `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
 
-The frontmatter must start on the first line of the file with `---` and end with a line that is only `---`.
+The frontmatter must start on the first line of the file with `---` and end with a line that is only `---`. Save the file without a byte order mark (U+FEFF): after one, the frontmatter is not recognized. In a document without frontmatter, a byte order mark is skipped and the first line is read as usual.
 
 ## 3. Notation in the body
 
@@ -350,13 +350,17 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - A top-level node (a direct child of the root) that is the target of any relation loses its line from the root. This is intended: the node is positioned after its predecessors instead.
 - A relation that duplicates a tree line or an earlier relation is skipped with a `duplicate-edge` warning.
 - A node whose first line is a table, a code block or an HTML block has no text to match, so it cannot be referenced by name and cannot take a tag or `$id`. It is still included in `X/*` and `X/**`.
-- Under one heading, do not mix list items with deeper headings. When a heading has list items and is then followed by a deeper heading, the transformer (markmap-lib) drops those list items without a diagnostic. Give the list its own subheading.
+- Under one heading, do not mix list items with deeper headings. When a heading has list items and is then followed by a deeper heading, the parser (which follows markmap here) drops those list items without a diagnostic. Give the list its own subheading.
 
 ## 7. Not supported yet
 
 - `(X)` (treat the branch of X as one unit and draw a frame around it). It is parsed, reports a `not-supported` warning, and behaves as `X`.
 - A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the group mark, tag or `$id` silently stays as text.
 - Filtering the diagram by tags. Tags are extracted and shown, and applications can read them, but the view has no filter yet.
+- Raw HTML headings. A raw HTML block placed where headings and list items are (`<h2>Design</h2>` on its own) is not drawn, and a heading inside it reports `html-heading-ignored` (info). Write the heading in Markdown (`## Design`). A Markdown heading or list inside a raw HTML wrapper (`<section>`, `<blockquote>`, with blank lines around the Markdown) is a node like any other. Up to 0.7, the raw HTML heading became a node and the wrapped Markdown was dropped. Raw HTML inside a list item is still shown as the item's content.
+- Nesting deeper than 500 levels (lists, blockquotes, emphasis). The deeper part is not drawn and `nesting-too-deep` is reported. In the frontmatter, YAML nested deeper than 100 levels is reported as `yaml-syntax` and the whole frontmatter is ignored.
+- YAML 1.1 tags such as `!!timestamp`, `!!binary` and `!!set`. The value is read as the plain string or collection written after the tag.
+- Only the first YAML syntax error is reported. Fix it and check again to see the next one.
 
 ## 8. Guidelines for a readable diagram
 

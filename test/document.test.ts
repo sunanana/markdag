@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { toggleTask } from '../src/parse/document';
-import { nextTaskMark, taskMarkAt, taskStateOf } from '../src/parse/task';
+import { parseDocument, toggleTask } from '../src/parse/document';
+import { nextTaskMark, taskMarkOf, taskStateOf } from '../src/parse/task';
 
 describe('タスクの状態の反転', () => {
     it('指定の行の記号だけを反転し、ほかの行と改行 (CRLF) はそのまま残す', () => {
@@ -41,14 +41,23 @@ describe('クリックで進む順', () => {
 });
 
 describe('行頭の記号の読み取り', () => {
+    // 1 行から記号を読む関数 (taskMarkAt) は Rust にだけある (A-189。同じ 7 行をそのまま渡す試験は crates/markdag-core/src/parse/task.rs の
+    // task_mark_at_reads_four_marks)。ここでは公開の parseDocument が項目と見出しの行から読んだ状態 (記号に直したもの) で見る
+    const markOf = (source: string, refText: string) => {
+        const node = parseDocument(source).nodes.find((candidate) => candidate.refText === refText);
+        if (!node) throw new Error(`ノードがない: ${refText}`);
+        return node.task === null ? null : taskMarkOf(node.task.state);
+    };
+
     it('4 つの記号を状態にし、知らない記号や、記号のあとに空白のない行はタスクにしない', () => {
-        expect(taskMarkAt('- [/] A', 'item')).toBe('/');
-        expect(taskMarkAt('  * [-] A', 'item')).toBe('-');
-        expect(taskMarkAt('## [X] A', 'heading')).toBe('x');
-        expect(taskMarkAt('[-] Setext', 'heading')).toBe('-');
-        expect(taskMarkAt('[-] plain', 'item')).toBeNull();
-        expect(taskMarkAt('- [?] A', 'item')).toBeNull();
-        expect(taskMarkAt('- [x]A', 'item')).toBeNull();
+        expect(markOf('# root\n- [/] A', 'A')).toBe('/');
+        expect(markOf('# root\n- a\n  * [-] A', 'A')).toBe('-');
+        expect(markOf('# root\n## [X] A', 'A')).toBe('x');
+        expect(markOf('# root\n\n[-] Setext\n---\n', 'Setext')).toBe('-');
+        // 項目の行頭でない行 (項目の続きの段落) の記号はタスクにしない
+        expect(markOf('# root\n- a\n\n  [-] plain', 'a [-] plain')).toBeNull();
+        expect(markOf('# root\n- [?] A', '[?] A')).toBeNull();
+        expect(markOf('# root\n- [x]A', '[x]A')).toBeNull();
         expect(['/', '-', ' ', 'x'].map((mark) => taskStateOf(mark as '/' | '-' | ' ' | 'x'))).toEqual(['doing', 'canceled', 'todo', 'done']);
     });
 });

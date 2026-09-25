@@ -1,0 +1,2222 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "ブロック",
+        "refText": "ブロック",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 4,
+          "end": 5
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x30d6;&#x30ed;&#x30c3;&#x30af;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "表",
+        "refText": "表",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 1,
+        "lines": {
+          "start": 6,
+          "end": 7
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x8868;",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 2,
+        "depth": 3,
+        "html": "<table data-lines=\"8,11\">\n<thead data-lines=\"8,9\">\n<tr data-lines=\"8,9\">\n<th>列 1</th>\n<th>列 2</th>\n</tr>\n</thead>\n<tbody data-lines=\"10,11\">\n<tr data-lines=\"10,11\">\n<td>a</td>\n<td>b</td>\n</tr>\n</tbody>\n</table>",
+        "refText": "列 1 列 2 a b",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 8,
+          "end": 11
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<table data-lines=\"8,11\">\n<thead data-lines=\"8,9\">\n<tr data-lines=\"8,9\">\n<th>&#x5217; 1</th>\n<th>&#x5217; 2</th>\n</tr>\n</thead>\n<tbody data-lines=\"10,11\">\n<tr data-lines=\"10,11\">\n<td>a</td>\n<td>b</td>\n</tr>\n</tbody>\n</table>",
+        "leadingIcon": false
+      },
+      {
+        "id": 4,
+        "parent": 1,
+        "depth": 2,
+        "html": "画像",
+        "refText": "画像",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 12,
+          "end": 13
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x753b;&#x50cf;",
+        "leadingIcon": false
+      },
+      {
+        "id": 5,
+        "parent": 4,
+        "depth": 3,
+        "html": "<img src=\"https://example.com/a.png\" alt=\"絵\">",
+        "refText": "",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 14,
+          "end": 15
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "<img src=\"https://example.com/a.png\" alt=\"&#x7d75;\">",
+        "leadingIcon": false
+      },
+      {
+        "id": 6,
+        "parent": 1,
+        "depth": 2,
+        "html": "引用だけ",
+        "refText": "引用だけ",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 16,
+          "end": 17
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x5f15;&#x7528;&#x3060;&#x3051;",
+        "leadingIcon": false
+      },
+      {
+        "id": 7,
+        "parent": 1,
+        "depth": 2,
+        "html": "番号",
+        "refText": "番号",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 20,
+          "end": 21
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x756a;&#x53f7;",
+        "leadingIcon": false
+      },
+      {
+        "id": 8,
+        "parent": 7,
+        "depth": 3,
+        "html": "3. 三から始まる",
+        "refText": "3. 三から始まる",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 22,
+          "end": 23
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "3. &#x4e09;&#x304b;&#x3089;&#x59cb;&#x307e;&#x308b;",
+        "leadingIcon": false
+      },
+      {
+        "id": 9,
+        "parent": 7,
+        "depth": 3,
+        "html": "4. 四",
+        "refText": "4. 四",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 23,
+          "end": 25
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "4. &#x56db;",
+        "leadingIcon": false
+      },
+      {
+        "id": 10,
+        "parent": 1,
+        "depth": 2,
+        "html": "深い見出し",
+        "refText": "深い見出し",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 25,
+          "end": 26
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x6df1;&#x3044;&#x898b;&#x51fa;&#x3057;",
+        "leadingIcon": false
+      },
+      {
+        "id": 11,
+        "parent": 10,
+        "depth": 3,
+        "html": "3",
+        "refText": "3",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 27,
+          "end": 28
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "3",
+        "leadingIcon": false
+      },
+      {
+        "id": 12,
+        "parent": 11,
+        "depth": 4,
+        "html": "4",
+        "refText": "4",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 29,
+          "end": 30
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "4",
+        "leadingIcon": false
+      },
+      {
+        "id": 13,
+        "parent": 12,
+        "depth": 5,
+        "html": "5",
+        "refText": "5",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 31,
+          "end": 32
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "5",
+        "leadingIcon": false
+      },
+      {
+        "id": 14,
+        "parent": 13,
+        "depth": 6,
+        "html": "6",
+        "refText": "6",
+        "refId": "deep",
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 33,
+          "end": 34
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "6",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "markdag": null
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ],
+        [
+          4,
+          []
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          []
+        ],
+        [
+          9,
+          []
+        ],
+        [
+          10,
+          []
+        ],
+        [
+          11,
+          []
+        ],
+        [
+          12,
+          []
+        ],
+        [
+          13,
+          []
+        ],
+        [
+          14,
+          []
+        ]
+      ]
+    },
+    "tagKeys": [],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "ブロック",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "表",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "列 1 列 2 a b",
+          "width": 104,
+          "height": 202,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 2,
+          "folded": false
+        },
+        {
+          "id": 4,
+          "label": "画像",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "",
+          "width": 0,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "引用だけ",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "番号",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "3. 三から始まる",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 7,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "4. 四",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 7,
+          "folded": false
+        },
+        {
+          "id": 10,
+          "label": "深い見出し",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "3",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 10,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "4",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "5",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 5,
+          "treeParent": 12,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "6",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 6,
+          "treeParent": 13,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 7,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 12,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 13,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            4
+          ],
+          [
+            6,
+            1
+          ],
+          [
+            7,
+            1
+          ],
+          [
+            8,
+            7
+          ],
+          [
+            9,
+            7
+          ],
+          [
+            10,
+            1
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            12,
+            11
+          ],
+          [
+            13,
+            12
+          ],
+          [
+            14,
+            13
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -131.625,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 144,
+            "y": -9.25,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 144,
+            "y": 22.125,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 144,
+            "y": 67.0625,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 144,
+            "y": 111.625,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 264,
+            "y": -222.625,
+            "width": 120,
+            "height": 202
+          }
+        ],
+        [
+          5,
+          {
+            "x": 272,
+            "y": -9.25,
+            "width": 0,
+            "height": 20
+          }
+        ],
+        [
+          8,
+          {
+            "x": 272,
+            "y": 53.875,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 272,
+            "y": 80.25,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 296,
+            "y": 111.625,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 416,
+            "y": 111.625,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 536,
+            "y": 111.625,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 656,
+            "y": 111.625,
+            "width": 40,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -110.75
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 2,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          184,
+          -110.75
+        ],
+        "target": [
+          264,
+          -19.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          11.625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          11.625
+        ],
+        "target": [
+          272,
+          11.4375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          43
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          87.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          87.9375
+        ],
+        "target": [
+          272,
+          74.5625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 7,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          87.9375
+        ],
+        "target": [
+          272,
+          100.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          132.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          132.5
+        ],
+        "target": [
+          296,
+          132.3125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          336,
+          132.3125
+        ],
+        "target": [
+          416,
+          132.21875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 12,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          456,
+          132.21875
+        ],
+        "target": [
+          536,
+          132.171875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 13,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          576,
+          132.171875
+        ],
+        "target": [
+          656,
+          132.1484375
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -222.625,
+      "width": 696,
+      "height": 354.25
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          4,
+          144
+        ],
+        [
+          6,
+          144
+        ],
+        [
+          7,
+          144
+        ],
+        [
+          10,
+          144
+        ],
+        [
+          11,
+          296
+        ],
+        [
+          12,
+          416
+        ],
+        [
+          13,
+          536
+        ],
+        [
+          14,
+          656
+        ],
+        [
+          8,
+          272
+        ],
+        [
+          9,
+          272
+        ],
+        [
+          5,
+          272
+        ],
+        [
+          3,
+          264
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          3,
+          [
+            202,
+            200
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            80
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          9,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            120
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": {
+    "folded": [
+      2
+    ],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "ブロック",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "表",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": true
+        },
+        {
+          "id": 4,
+          "label": "画像",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 5,
+          "label": "",
+          "width": 0,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 4,
+          "folded": false
+        },
+        {
+          "id": 6,
+          "label": "引用だけ",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 7,
+          "label": "番号",
+          "width": 32,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 8,
+          "label": "3. 三から始まる",
+          "width": 88,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 7,
+          "folded": false
+        },
+        {
+          "id": 9,
+          "label": "4. 四",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 7,
+          "folded": false
+        },
+        {
+          "id": 10,
+          "label": "深い見出し",
+          "width": 56,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 11,
+          "label": "3",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 3,
+          "treeParent": 10,
+          "folded": false
+        },
+        {
+          "id": 12,
+          "label": "4",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 4,
+          "treeParent": 11,
+          "folded": false
+        },
+        {
+          "id": 13,
+          "label": "5",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 5,
+          "treeParent": 12,
+          "folded": false
+        },
+        {
+          "id": 14,
+          "label": "6",
+          "width": 24,
+          "height": 20,
+          "groups": [],
+          "depth": 6,
+          "treeParent": 13,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 7,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 12,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 13,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            5,
+            4
+          ],
+          [
+            6,
+            1
+          ],
+          [
+            7,
+            1
+          ],
+          [
+            8,
+            7
+          ],
+          [
+            9,
+            7
+          ],
+          [
+            10,
+            1
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            12,
+            11
+          ],
+          [
+            13,
+            12
+          ],
+          [
+            14,
+            13
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 144,
+            "y": -83.8125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          4,
+          {
+            "x": 144,
+            "y": -57.0625,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          6,
+          {
+            "x": 144,
+            "y": -25.6875,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          7,
+          {
+            "x": 144,
+            "y": 19.25,
+            "width": 48,
+            "height": 20
+          }
+        ],
+        [
+          10,
+          {
+            "x": 144,
+            "y": 63.8125,
+            "width": 72,
+            "height": 20
+          }
+        ],
+        [
+          5,
+          {
+            "x": 272,
+            "y": -57.0625,
+            "width": 0,
+            "height": 20
+          }
+        ],
+        [
+          8,
+          {
+            "x": 272,
+            "y": 6.0625,
+            "width": 104,
+            "height": 20
+          }
+        ],
+        [
+          9,
+          {
+            "x": 272,
+            "y": 32.4375,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          11,
+          {
+            "x": 296,
+            "y": 63.8125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          12,
+          {
+            "x": 416,
+            "y": 63.8125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          13,
+          {
+            "x": 536,
+            "y": 63.8125,
+            "width": 40,
+            "height": 20
+          }
+        ],
+        [
+          14,
+          {
+            "x": 656,
+            "y": 63.8125,
+            "width": 40,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          10,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          8,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          11,
+          0
+        ],
+        [
+          12,
+          0
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -62.9375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 4,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -36.1875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 4,
+          "target": 5,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          -36.1875
+        ],
+        "target": [
+          272,
+          -36.375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 6,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          -4.8125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 7,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          40.125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 7,
+          "target": 8,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          40.125
+        ],
+        "target": [
+          272,
+          26.75
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 7,
+          "target": 9,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          192,
+          40.125
+        ],
+        "target": [
+          272,
+          53.125
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 10,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          64,
+          11.25
+        ],
+        "target": [
+          144,
+          84.6875
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 10,
+          "target": 11,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          216,
+          84.6875
+        ],
+        "target": [
+          296,
+          84.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 11,
+          "target": 12,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          336,
+          84.5
+        ],
+        "target": [
+          416,
+          84.40625
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 12,
+          "target": 13,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          456,
+          84.40625
+        ],
+        "target": [
+          536,
+          84.359375
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 13,
+          "target": 14,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          576,
+          84.359375
+        ],
+        "target": [
+          656,
+          84.3359375
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -83.8125,
+      "width": 696,
+      "height": 167.625
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          144
+        ],
+        [
+          4,
+          144
+        ],
+        [
+          6,
+          144
+        ],
+        [
+          7,
+          144
+        ],
+        [
+          10,
+          144
+        ],
+        [
+          11,
+          296
+        ],
+        [
+          12,
+          416
+        ],
+        [
+          13,
+          536
+        ],
+        [
+          14,
+          656
+        ],
+        [
+          8,
+          272
+        ],
+        [
+          9,
+          272
+        ],
+        [
+          5,
+          272
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          4,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          5,
+          [
+            20,
+            80
+          ]
+        ],
+        [
+          6,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          7,
+          [
+            20,
+            128
+          ]
+        ],
+        [
+          8,
+          [
+            20,
+            184
+          ]
+        ],
+        [
+          9,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          10,
+          [
+            20,
+            152
+          ]
+        ],
+        [
+          11,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          12,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          13,
+          [
+            20,
+            120
+          ]
+        ],
+        [
+          14,
+          [
+            20,
+            120
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BEFORE_HOOKS, createHookDocument, HOOK_EVENTS, HookRunner, ON_HOOKS, resolveHooks, rulesModule, VALUE_HOOKS, type HookApi, type HookDocument, type HookModule } from '../src/model/hooks';
+import { BEFORE_HOOKS, createHookDocument, HOOK_EVENTS, HookRunner, ON_HOOKS, rulesModule, VALUE_HOOKS, type HookApi, type HookDocument, type HookModule } from '../src/model/hooks';
 import { buildModel, type Diagnostic } from '../src/model/model';
 import type { OutlineNode } from '../src/parse/document';
 import type { TaskState } from '../src/parse/task';
@@ -88,43 +88,55 @@ function runnerOf(modules: Array<[string, HookModule]>, doc: HookDocument = docu
 
 const taskFields = { node: documentOf().node(4)!, next: true, nextState: 'done' as const, line: 3 };
 
+// 宣言 (frontmatter の markdag.hooks) と渡されたモジュールの突き合わせは Rust が行う (A-189)。buildModel に frontmatter と原文を渡し、
+// 解決したフックと診断を見る。frontmatter の中の場所 (元の試験の path) は、原文での位置 (診断の at) で見る。
+// yaml は markdag.hooks の中身の行 (frontmatter と同じ内容を書く)
+function declare(hooks: Record<string, unknown>, yaml: string[], hookRefs?: Record<string, unknown>) {
+    const source = ['---', 'markdag:', '  hooks:', ...yaml.map((line) => `    ${line}`), '---', '# リリース計画', ''].join('\n');
+    const model = buildModel(NODES, { markdag: { hooks } }, source, hookRefs === undefined ? {} : { hookRefs });
+    return { hooks: model.hooks.hooks, options: model.hooks.options, diagnostics: model.diagnostics };
+}
+
 describe('フックの宣言の解決', () => {
     it('hookRefs を渡さないアプリでは、フックは動かないと info で知らせる', () => {
-        const resolved = resolveHooks({ $ref: './flow.hooks.js' }, undefined);
+        const resolved = declare({ $ref: './flow.hooks.js' }, ['$ref: ./flow.hooks.js']);
         expect(resolved.hooks).toEqual([]);
-        expect(resolved.issues).toEqual([
+        expect(resolved.diagnostics).toEqual([
             {
                 severity: 'info',
                 code: 'hooks-unresolved',
                 message: 'markdag.hooks.$ref「./flow.hooks.js」は読み込まれていないので、このフックは動きません',
                 hint: 'このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)',
-                path: ['markdag', 'hooks', '$ref'],
+                // markdag.hooks.$ref の値 (4 行目の ./flow.hooks.js)
+                at: { line: 4, column: 11, length: 15 },
             },
         ]);
     });
 
     it('hookRefs を渡しているのに見つからないモジュールは警告にする', () => {
-        const resolved = resolveHooks({ $ref: ['./a.hooks.js', './b.hooks.js'] }, { './b.hooks.js': null });
-        expect(resolved.issues.map((issue) => [issue.severity, issue.hint])).toEqual([
+        const resolved = declare({ $ref: ['./a.hooks.js', './b.hooks.js'] }, ['$ref:', '  - ./a.hooks.js', '  - ./b.hooks.js'], { './b.hooks.js': null });
+        expect(resolved.diagnostics.map((issue) => [issue.severity, issue.hint])).toEqual([
             ['warning', '呼び出し側が import して render の hookRefs に渡します (信頼できる文書のときだけ)'],
             ['warning', 'モジュールとして読めるか (名前付きの export があるか) 確かめます'],
         ]);
     });
 
     it('.ts の $ref が未解決なら、読み込む側で変換する必要があることを添える', () => {
-        const resolved = resolveHooks({ $ref: './flow.hooks.ts' }, undefined);
-        expect(resolved.issues[0]?.hint).toContain('.ts は markdag では変換しないので、読み込む側で JavaScript にしてから渡します');
+        const resolved = declare({ $ref: './flow.hooks.ts' }, ['$ref: ./flow.hooks.ts']);
+        expect(resolved.diagnostics[0]?.hint).toContain('.ts は markdag では変換しないので、読み込む側で JavaScript にしてから渡します');
     });
 
     it('一覧で書いた $ref は、書かれた順に並び、位置は添字で指す', () => {
-        const resolved = resolveHooks({ $ref: ['./a.hooks.js', './b.hooks.js'] }, { './a.hooks.js': { onDocument: () => undefined } });
+        const resolved = declare({ $ref: ['./a.hooks.js', './b.hooks.js'] }, ['$ref:', '  - ./a.hooks.js', '  - ./b.hooks.js'], { './a.hooks.js': { onDocument: () => undefined } });
         expect(resolved.hooks.map((hook) => hook.ref)).toEqual(['./a.hooks.js']);
-        expect(resolved.issues.map((issue) => issue.path)).toEqual([['markdag', 'hooks', '$ref', 1]]);
+        // markdag.hooks.$ref[1] (6 行目の ./b.hooks.js)
+        expect(resolved.diagnostics.map((issue) => issue.at)).toEqual([{ line: 6, column: 9, length: 12 }]);
     });
 
     it('予約された名前の関数だけを拾い、拾えなかった export は警告にする', () => {
-        const resolved = resolveHooks(
+        const resolved = declare(
             { $ref: './flow.hooks.js', options: { strict: true } },
+            ['$ref: ./flow.hooks.js', 'options:', '  strict: true'],
             {
                 './flow.hooks.js': {
                     beforeTaskToggle: () => false,
@@ -137,7 +149,7 @@ describe('フックの宣言の解決', () => {
         );
         expect(Object.keys(resolved.hooks[0]?.module ?? {})).toEqual(['beforeTaskToggle']);
         expect(resolved.options).toEqual({ strict: true });
-        expect(resolved.issues.map((issue) => [issue.code, issue.hint])).toEqual([
+        expect(resolved.diagnostics.map((issue) => [issue.code, issue.hint])).toEqual([
             ['hook-unknown-export', '「beforeTaskToggle」の書き間違いなら直します'],
             ['hook-invalid-export', 'export function onDocument(ctx) { ... } の形で書きます'],
             ['hook-unknown-export', 'フックは名前付きで export します (beforeUpdate, beforeTaskToggle, beforeFold など)'],

@@ -1,16 +1,15 @@
 # Validating a markdag document
 
-Check every document with the `check` command, run from the root of this repository. It renders the document with the built library in a headless browser (the body is parsed with the DOM) and prints the diagnostics.
+Check every document with the `check` command, run from the root of this repository. It runs in Node: it loads the built library (`dist/markdag.js` and `dist/markdag.wasm`), parses the document, builds the model and prints the diagnostics. No browser is needed.
 
 Setup, once:
 
 ```sh
 npm install
-npx playwright install chromium
 npm run build
 ```
 
-Run `npm run build` again whenever the code under `src/` changes.
+`npm run build` also compiles the Rust crates, so it needs a Rust toolchain with the `wasm32-unknown-unknown` target. Run it again whenever the code under `src/` or `crates/` changes.
 
 ```sh
 npm run check -- path/to/document.md
@@ -18,7 +17,7 @@ npm run check -- path/to/document.md
 
 The exit code is 1 when there is at least one `error`, 0 otherwise, and 2 when the file or the build is missing. A document with no problems prints `no diagnostics`.
 
-The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates, and the values of the tags in the body when `markdag.tags.keys` is defined. Files referenced by `markdag.types.$ref` are read relative to the document. It also draws the diagram, so a document that makes rendering throw fails here too.
+The check covers YAML syntax, unknown keys, wrong types and values, the shape of relation expressions, reference resolution, cycles and duplicates, the values of the tags in the body when `markdag.tags.keys` is defined, and body notation that is not drawn (`nesting-too-deep`, `html-heading-ignored`). Files referenced by `markdag.types.$ref` are read relative to the document. It does not lay out or draw the diagram, since that needs a browser, so an error raised while drawing is not caught here.
 
 Modules referenced by `markdag.hooks.$ref` are **not** loaded unless you pass `--hooks`, since checking a document would otherwise run the code it points at. Without the flag, each of them is reported as `hooks-unresolved` with severity `info` (the check does not load hooks); with the flag, a module that cannot be loaded is a `warning`.
 
@@ -26,9 +25,9 @@ Modules referenced by `markdag.hooks.$ref` are **not** loaded unless you pass `-
 npm run check -- --hooks path/to/document.md
 ```
 
-A module written in TypeScript is transpiled with Vite's transformer before it is loaded; it is not type-checked, and type-only imports are dropped. When a module cannot be read, transpiled or imported, the reason is printed on stderr and the library reports `hooks-unresolved`.
+The modules are imported in Node. A module written in TypeScript is transpiled with Vite's transformer before it is loaded; it is not type-checked, and type-only imports are dropped. When a module cannot be read, transpiled or imported, the reason is printed on stderr and the library reports `hooks-unresolved`.
 
-To check only the shape of the frontmatter from Node, without a browser, use `checkFrontmatter` (see [usage.md](usage.md)). It cannot resolve references: `Desing --> Build` passes it, because resolving a name needs the node tree.
+To check a document from your own Node code, call `await init()`, then `parseDocument` and `buildModel` (see [usage.md](usage.md)). `checkFrontmatter` checks only the shape of the frontmatter. It cannot resolve references: `Desing --> Build` passes it, because resolving a name needs the node tree.
 
 ## Reading the output
 
@@ -47,7 +46,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 ```
 
 - `severity` is `error`, `warning` or `info`. An error means that part of the frontmatter was skipped. The diagram is still drawn from the rest.
-- `line:column` is the position in the source file, 1-based, counted in characters. Positions are given for the frontmatter and for the tags in the body (`#key:value` at the end of a node line).
+- `line:column` is the position in the source file, 1-based, counted in characters. Positions are given for the frontmatter, for the tags in the body (`#key:value` at the end of a node line), and for the body notation that is not drawn.
 - The message and the hint are in Japanese. The hint says how to fix the problem, and often names the closest valid key or node (`もしかして「details」` = "did you mean `details`"). Fix the document from the hint rather than from the code alone.
 - `info not-extracted` means the frontmatter has no `markdag` key, so groups, tags, `$id`, details and milestones were not extracted. It also appears after a `yaml-syntax` error, because a frontmatter that fails to parse is ignored as a whole.
 - Aim for no diagnostics. `ref-prefix` is `info`, but it usually means a misspelled node name that happened to match by prefix.
@@ -56,7 +55,7 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 
 | Code | Severity | Layer | Meaning |
 | --- | --- | --- | --- |
-| `yaml-syntax` | error | YAML | The frontmatter is not valid YAML. All of it is ignored |
+| `yaml-syntax` | error | YAML | The frontmatter is not valid YAML, or its collections nest deeper than 100 levels (入れ子が深すぎます). All of it is ignored. Only the first syntax error is reported |
 | `option-unknown` | warning | Shape and type | Unknown key under `markdag` or `markmap`, or a top-level key that looks like a typo of a known key |
 | `option-misplaced` | warning | Shape and type | A key written at the wrong level: `relations`, `groups` or `branches` outside `markdag` (the top-level `relations` and `groups` are the form used up to 0.2.0), or `fork` directly under `markdag`. It is ignored |
 | `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node, a `markdag.rules.taskToggle.readonlyGroups` name that is on no node, and a `markdag.tasks.cycle` with fewer than two marks |
@@ -88,8 +87,12 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | `duplicate-edge` | warning | Graph | The same line already exists, as a tree line or an earlier relation |
 | `shape-mismatch` | warning | Graph | The expression does not have the shape its key expects (see `relations` in the writing guide) |
 | `not-extracted` | info | Body | The frontmatter has no `markdag` key. The document is shown as a plain markmap |
+| `html-heading-ignored` | info | Body | A raw HTML block at the level of headings and list items contains a heading (`<h2>` and so on). The block is not drawn; write the heading as Markdown (`## Heading`) |
+| `nesting-too-deep` | error | Body | Markdown nested deeper than 500 levels (lists, blockquotes, emphasis and other inline containers). The part below that depth is not drawn. Points at the first node that is too deep |
 | `not-supported` | warning | Graph | `(X)` is not supported yet and is treated as `X` |
 
 The reference errors are reported as warnings when they come from `markdag.groups.*.members` or `markdag.branches` instead of `markdag.relations`.
 
 The `Tags` rows take their severity from `markdag.tags.lint` (`warning` by default, or `error`). An `error` there only changes the severity and the exit code: the tag stays as written and the diagram is drawn.
+
+Errors in the input of the layout (a node size or a spacing that is NaN, infinite, or 1e300 or more in absolute value) are not diagnostics: the layout throws `MarkdagError` with `code` `layout-error` (see [usage.md](usage.md)). `check` does not lay out, so it does not report them.

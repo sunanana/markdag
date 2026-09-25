@@ -5,11 +5,11 @@
 import { select } from 'd3-selection';
 import { zoom, zoomIdentity, zoomTransform, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import type { LayoutInput } from '../layout/input-types';
-import { boundsOf, layoutChildrenOf, layoutGraph, MARKMAP_DEFAULTS, type PlacedEdge, type Rect } from '../layout/layout';
+import { boundsOf, layoutDocument, MARKMAP_DEFAULTS, type PlacedEdge, type Rect } from '../layout/layout';
 import { project, type VisibleGraph } from '../layout/project';
 import type { OutlineNode, ParsedDocument } from '../parse/document';
 import { DEFAULT_TASK_CYCLE, taskMarkOf, type TaskMark } from '../parse/task';
-import { computeFrames, countIntruders, frameOutline, frameSpacing, LABEL_HEIGHT, type Frame } from './frames';
+import { frameOutline, LABEL_HEIGHT, projectAndFrames, type Frame } from './frames';
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
 import { formatTag } from '../model/tags';
@@ -94,8 +94,6 @@ const HIGHLIGHT_WIDTH = 3;
 const DURATION = 350;
 // 枠のラベルの左端の、枠の左の辺からの距離
 const FRAME_LABEL_INSET = 6;
-// 枠の張り出しを間隔に反映して配置をやり直す回数の上限。間隔を変えると、枠の張り出しも変わることがある
-const MAX_LAYOUT_PASSES = 4;
 // focusNode で指定したノードを置く、図の領域の上の位置。左と上にはみ出して描かれる内容も見えるよう、隅から離している
 const FOCUS_POINT = { x: 160, y: 120 };
 
@@ -956,36 +954,29 @@ export class MarkdagView {
         };
 
         const started = performance.now();
-        const graph = project(input);
         const override = this.options.layoutOverride;
+        let graph: VisibleGraph;
         if (override === null) {
-            // 兄弟の縦の並びは配置の前に決まっているので、枠のまとまりを先に作り、枠の余白が入るだけ間隔を空ける
-            this.frames = computeFrames(graph, model, layoutChildrenOf(graph));
-            // 枠の上下の端は、メンバーの子の列の広がりで決まる。1 回目の配置では、その張り出しが分からないので、隣のメンバーでない
-            // ノード (葉や、閉じた枝) が枠の矩形に入り込むことがある。2 回目からは、前回の結果の張り出しのぶんだけ間隔を空ける
-            let previous: Map<number, Rect> | undefined;
-            for (let pass = 1; ; pass++) {
-                const result = layoutGraph(graph, {
-                    ...MARKMAP_DEFAULTS,
-                    ignoreProxiedDepends: this.options.ignoreProxiedDepends,
-                    extraSpacing: frameSpacing(this.frames, previous),
-                });
-                this.targets = new Map([...result.nodes].map(([id, placed]) => [id, placed.rect]));
-                this.gaps = new Map([...result.nodes].map(([id, placed]) => [id, placed.gap]));
-                this.edges = result.edges;
-                if (countIntruders(this.frames, this.targets) === 0 || pass === MAX_LAYOUT_PASSES) break;
-                previous = this.targets;
-            }
+            // 射影、枠のまとまり、枠の余白を入れた配置の繰り返しは Rust が 1 回の呼び出しで行う。枠の上下の端はメンバーの子の列の広がりで
+            // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す
+            const result = layoutDocument(input, model, { ignoreProxiedDepends: this.options.ignoreProxiedDepends });
+            graph = result.graph;
+            this.frames = result.frames;
+            this.targets = result.rects;
+            this.gaps = result.gaps;
+            this.edges = result.edges;
         } else {
+            graph = project(input);
             const result = override(graph);
             this.targets = result.rects;
             this.gaps = new Map();
             this.edges = result.edges;
-            // この方式は兄弟の並びを配置の結果で決めるので、枠のまとまりも結果から作る (枠の余白は間隔に反映されない)
+            // この方式は兄弟の並びを配置の結果で決めるので、枠のまとまりも結果から作る (枠の余白は間隔に反映されない)。
+            // 並びは射影の結果が要るので、射影と枠の呼び出しを分ける (射影は 2 回行う)
             const siblings = new Map<number, number[]>();
             for (const [child, parent] of graph.layoutParent) siblings.set(parent, [...(siblings.get(parent) ?? []), child]);
             for (const list of siblings.values()) list.sort((a, b) => (result.rects.get(a)?.y ?? 0) - (result.rects.get(b)?.y ?? 0));
-            this.frames = computeFrames(graph, model, siblings);
+            this.frames = projectAndFrames(input, model, siblings).frames;
         }
         const layoutMs = performance.now() - started;
         this.graph = graph;

@@ -4,7 +4,7 @@
 // アプリの受け口を呼び、on 系で知らせる順序と、フックに渡す文書の写しの作り直しを受け持つ。
 import type { PlacedEdge } from './layout/layout';
 import { createHookDocument, HookRunner, type HookApi, type HookDocument, type HookEdge, type HookEvent, type HookGroup, type HookModule, type ResolvedHook } from './model/hooks';
-import { buildModel, type Diagnostic, type GraphModel } from './model/model';
+import { emptyModel, type Diagnostic, type GraphModel } from './model/model';
 import type { OutlineNode, ParsedDocument } from './parse/document';
 import { nextTaskMark, taskMarkOf, taskStateOf } from './parse/task';
 import type { MarkdagView, ViewHooks } from './view/view';
@@ -52,8 +52,9 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
     // transformSource が差し替えたあとの、実際に解析して描いた文。フックがなければ原文と同じ
     let rendered = source();
     let transformed: string | null = null;
-    // 最後に描いた文書の窓口。最初の transformSource はまだ何も描いていない時点で呼ぶので、空の文書を入れておく
-    let doc: HookDocument = createHookDocument({ nodes: [], model: buildModel([], {}), frontmatter: {}, source, folded: () => [], diagnostics: () => [] });
+    // 最後に描いた文書の窓口。最初の transformSource はまだ何も描いていない時点で呼ぶので、空の文書を入れておく。
+    // 空のモデルは wasm を呼ばずに作る (wasm の init の前でも橋渡しを作れるように)
+    let doc: HookDocument = createHookDocument({ nodes: [], model: emptyModel(), frontmatter: {}, source, folded: () => [], diagnostics: () => [] });
     // アプリが直接渡したフックは、文書が宣言したフックのあとに呼ぶ (アプリが最後に判断できるようにする)
     const ownHooks: ResolvedHook[] = (Array.isArray(options.hooks) ? options.hooks : options.hooks ? [options.hooks] : []).map((module, index) => ({ ref: `アプリの hooks[${index}]`, module }));
 

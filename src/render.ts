@@ -1,10 +1,10 @@
 // Markdown の文字列を受け取り、渡された要素の中に図を描く。
 // 解析、モデルの組み立て、描画をつなぎ、スタイルシートの差し込みと、数式やコードの色付けに要る外部のスタイルシートの読み込みを受け持つ。
-// 原文はここが持ち、タスクの項目のクリックでは原文を書き換えて描き直す。変換器は呼び出し側から受け取る。
+// 原文はここが持ち、タスクの項目のクリックでは原文を書き換えて描き直す。解析とモデルの組み立ては Rust (wasm) を呼ぶので、先に init を待つ。
 import { createHookBridge } from './bridge';
 import type { HookEvent, HookModule } from './model/hooks';
-import { buildModel, type Diagnostic, type ModelOptions } from './model/model';
-import { parseDocument, toggleTask, type ParseOptions } from './parse/document';
+import { renderDocument, type Diagnostic, type ModelOptions } from './model/model';
+import { toggleTask, type ParsedDocument, type ParseOptions } from './parse/document';
 import styleSheet from './style.css?inline';
 import { MarkdagView, type ViewHooks, type ViewOptions } from './view/view';
 
@@ -67,8 +67,20 @@ export function formatDiagnostics(diagnostics: Diagnostic[]): string {
         .join('\n');
 }
 
-export function render(container: HTMLElement, markdown: string, options: RenderOptions): MarkdagDiagram {
-    const { injectStyle = true, onChange, transformer, onFoldChange, onLayout, onTransform, types, hookRefs, hooks, onDiagnostic, onHookError, ...viewOptions } = options;
+// 描いたあとに、文書が使うのにページにない飾りのライブラリ (KaTeX、highlight.js) を読む関数。読めて描き直すべきなら true で解決する。
+// 既定の入口だけが渡す。CDN から読む部品はその入口のファイルだけに入れ、markdag/core と単体 HTML のランタイムの成果物には入れない
+// (zu は markdag/core の成果物に CDN の読み込みの経路がないことを確かめている)
+export type DecoratorLoader = (parsed: ParsedDocument) => Promise<boolean>;
+
+// markdag/core の入口の render。数式とコードの飾りは、ページにある KaTeX と highlight.js だけを使う (外部から JS を読まない)
+export function render(container: HTMLElement, markdown: string, options: RenderOptions = {}): MarkdagDiagram {
+    return renderWith(container, markdown, options, null);
+}
+
+// render の本体。loadDecorators を渡すと (既定の入口)、描いたあとに飾りのライブラリを読み、読めたら描き直す (A-194 (2))。null なら読まない
+export function renderWith(container: HTMLElement, markdown: string, options: RenderOptions, loadDecorators: DecoratorLoader | null): MarkdagDiagram {
+    // transformer は Rust 化の前の名残で、使わない (view の指定に紛れ込まないよう取り除く)
+    const { injectStyle = true, onChange, transformer: _transformer, onFoldChange, onLayout, onTransform, types, hookRefs, hooks, onDiagnostic, onHookError, ...viewOptions } = options;
     if (injectStyle) injectStyleSheet();
 
     // 文書に書かれたままの原文。タスクの切り替えと update が書き換えるのはこちら
@@ -99,16 +111,13 @@ export function render(container: HTMLElement, markdown: string, options: Render
         },
     });
 
+    let destroyed = false;
     const draw = (fit: boolean): Diagnostic[] => {
-        // 使うフックは文書の frontmatter が決めるので、まず原文を読んでフックをそろえる
-        let parsed = parseDocument(source, { transformer });
-        let model = buildModel(parsed.nodes, parsed.frontmatter, source, { types, hookRefs });
+        // 使うフックは文書の frontmatter が決めるので、まず原文を読んでフックをそろえる (解析と組み立ては 1 回の呼び出し)
+        let { parsed, model } = renderDocument(source, { types, hookRefs });
         // transformSource が原文を差し替えたときだけ、差し替えたほうで読み直す
         const rendered = bridge.transform(model, source);
-        if (rendered !== source) {
-            parsed = parseDocument(rendered, { transformer });
-            model = buildModel(parsed.nodes, parsed.frontmatter, rendered, { types, hookRefs });
-        }
+        if (rendered !== source) ({ parsed, model } = renderDocument(rendered, { types, hookRefs }));
         // frontmatter に markdag のキーがない文書は markmap と同じ表示になり、タグや $id は文字のまま残る。
         // 書き手が気づけるよう、診断として知らせる
         const notes: Diagnostic[] = parsed.extracted
@@ -125,7 +134,27 @@ export function render(container: HTMLElement, markdown: string, options: Render
         loadStyleUrls(parsed.styleUrls);
         diagnostics = [...model.diagnostics, ...notes];
         bridge.setDocument(parsed, model, fit);
+        if (loadDecorators !== null) {
+            // 読めたら今の原文で描き直す (ズームとパンは保つ)。読み終える前に文書が差し替わっていても、描くのは最新の原文
+            void loadDecorators(parsed)
+                .then((loaded) => {
+                    if (loaded && !destroyed) redraw();
+                })
+                .catch((error: unknown) => console.error('markdag: 飾りのライブラリを読めませんでした', error));
+        }
         return diagnostics;
+    };
+
+    // 飾りを読めたあとの描き直し。呼び出し元の try の外で走るので、誤り (配置の誤りなど) はここで捕まえて console.error に出し、
+    // 今の図と診断を残す (捕まえない Promise の拒否にしない)
+    const redraw = (): void => {
+        const previous = diagnostics;
+        try {
+            draw(false);
+        } catch (error) {
+            diagnostics = previous;
+            console.error('markdag: 飾りを読んだあとの描き直しに失敗しました。今の図を残します', error);
+        }
     };
 
     const view = new MarkdagView(container, bridge.viewHooks);
@@ -147,6 +176,9 @@ export function render(container: HTMLElement, markdown: string, options: Render
         fit: () => view.fit(),
         expandAll: () => view.expandAll(),
         resetFold: () => view.resetFold(),
-        destroy: () => bridge.destroy(),
+        destroy: () => {
+            destroyed = true;
+            bridge.destroy();
+        },
     };
 }

@@ -1,6 +1,6 @@
 {
     "name": "markdag",
-    "version": "0.7.1",
+    "version": "0.8.0",
     "description": "Turn Markdown into a DAG diagram",
     "license": "MIT",
     "repository": {
@@ -17,16 +17,23 @@
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
-            "import": "./dist/markdag.js"
+            "development": "./dist/markdag.dev.js",
+            "import": "./dist/markdag.js",
+            "default": "./dist/markdag.js"
         },
         "./core": {
             "types": "./dist/types/core.d.ts",
-            "import": "./dist/core.js"
+            "development": "./dist/core.dev.js",
+            "import": "./dist/core.js",
+            "default": "./dist/core.js"
         },
         "./standalone": {
             "types": "./dist/types/standalone.d.ts",
-            "import": "./dist/standalone.js"
+            "development": "./dist/standalone.dev.js",
+            "import": "./dist/standalone.js",
+            "default": "./dist/standalone.js"
         },
+        "./markdag.wasm": "./dist/markdag.wasm",
         "./style.css": "./dist/style.css",
         "./frontmatter.schema.json": "./dist/frontmatter.schema.json"
     },
@@ -41,9 +48,14 @@
     },
     "scripts": {
         "build": "vite-node scripts/build.ts && tsc -p tsconfig.build.json",
+        "build:wasm": "vite-node scripts/build-wasm.ts",
         "prepack": "npm run build",
         "check": "vite-node scripts/check.ts",
         "test": "vitest --run",
+        "test:rust": "cargo test --workspace",
+        "judge": "vite-node scripts/judge/run.ts",
+        "judge:new": "vite-node scripts/judge/run.ts --candidate new --only parsed",
+        "judge:snapshot": "vite-node scripts/judge/snapshot-old.ts",
         "test:e2e": "playwright test",
         "typecheck": "tsc --noEmit",
         "spike:layout": "vite-node spike/layout/run-flextree.ts && vite-node spike/layout/run-dagre.ts && vite-node spike/layout/build-index.ts",
@@ -55,23 +67,19 @@
     "devDependencies": {
         "@dagrejs/dagre": "^3.1.1",
         "@playwright/test": "^1.63.0",
-        "@types/d3-hierarchy": "^3.1.7",
         "@types/d3-selection": "^3.0.12",
         "@types/d3-zoom": "^3.0.8",
         "@types/node": "^22.20.4",
-        "d3-hierarchy": "^3.1.2",
         "d3-shape": "^3.2.0",
         "monaco-editor": "^0.56.0",
         "typescript": "^7.0.2",
         "vite": "^8.3.0",
         "vite-node": "^6.0.0",
-        "vitest": "^5.0.1"
+        "vitest": "^5.0.1",
+        "yaml": "^2.9.1"
     },
     "dependencies": {
-        "d3-flextree": "^2.1.2",
         "d3-selection": "^3.0.0",
-        "d3-zoom": "^3.0.0",
-        "markmap-lib": "^0.18.12",
-        "yaml": "^2.9.1"
+        "d3-zoom": "^3.0.0"
     }
 }

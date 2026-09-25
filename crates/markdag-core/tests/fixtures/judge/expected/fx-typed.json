@@ -1,0 +1,587 @@
+{
+  "parsed": {
+    "nodes": [
+      {
+        "id": 1,
+        "parent": null,
+        "depth": 1,
+        "html": "型つきのタグ",
+        "refText": "型つきのタグ",
+        "refId": null,
+        "groups": [],
+        "tags": [],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 17,
+          "end": 18
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x578b;&#x3064;&#x304d;&#x306e;&#x30bf;&#x30b0;",
+        "leadingIcon": false
+      },
+      {
+        "id": 2,
+        "parent": 1,
+        "depth": 2,
+        "html": "正しい行",
+        "refText": "正しい行",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "priority",
+            "values": [
+              "high"
+            ],
+            "at": {
+              "line": 20,
+              "column": 9,
+              "length": 14
+            }
+          },
+          {
+            "key": "ticket",
+            "values": [
+              "T-1"
+            ],
+            "at": {
+              "line": 20,
+              "column": 24,
+              "length": 11
+            }
+          },
+          {
+            "key": "due",
+            "values": [
+              "2026-10-01"
+            ],
+            "at": {
+              "line": 20,
+              "column": 36,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 19,
+          "end": 20
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x6b63;&#x3057;&#x3044;&#x884c;",
+        "leadingIcon": false
+      },
+      {
+        "id": 3,
+        "parent": 1,
+        "depth": 2,
+        "html": "誤った行",
+        "refText": "誤った行",
+        "refId": null,
+        "groups": [],
+        "tags": [
+          {
+            "key": "priority",
+            "values": [
+              "hgih"
+            ],
+            "at": {
+              "line": 22,
+              "column": 9,
+              "length": 14
+            }
+          },
+          {
+            "key": "ticket",
+            "values": [
+              "T-1"
+            ],
+            "at": {
+              "line": 22,
+              "column": 24,
+              "length": 11
+            }
+          },
+          {
+            "key": "due",
+            "values": [
+              "2026/10/01"
+            ],
+            "at": {
+              "line": 22,
+              "column": 36,
+              "length": 15
+            }
+          }
+        ],
+        "milestone": false,
+        "foldHint": 0,
+        "lines": {
+          "start": 21,
+          "end": 22
+        },
+        "task": null,
+        "details": null,
+        "htmlRaw": "&#x8aa4;&#x3063;&#x305f;&#x884c;",
+        "leadingIcon": false
+      }
+    ],
+    "frontmatter": {
+      "title": "型つきのタグ",
+      "markdag": {
+        "types": {
+          "$ref": "./types.yaml"
+        },
+        "tags": {
+          "lint": "error",
+          "keys": {
+            "priority": {
+              "type": "priority"
+            },
+            "ticket": {
+              "type": "ticket",
+              "unique": true
+            },
+            "due": {
+              "type": "date"
+            }
+          }
+        }
+      }
+    },
+    "extracted": true,
+    "taskIcons": {
+      "todo": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/></svg>",
+      "done": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path d=\"M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m-9 14-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z\"/></svg>",
+      "doing": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M6 5h6v14H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z\"/></svg>",
+      "canceled": "<svg width=\"16\" height=\"16\" viewBox=\"0 -3 24 24\"><path fill-rule=\"evenodd\" d=\"M6 5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-5z\" clip-rule=\"evenodd\"/><path d=\"M7 11h10v2H7z\"/></svg>"
+    },
+    "styleUrls": []
+  },
+  "model": {
+    "detailsMode": null,
+    "legend": [
+      "groups",
+      "branches"
+    ],
+    "legendPosition": "top-right",
+    "edgeHighlight": true,
+    "groupHighlight": true,
+    "branches": [],
+    "relations": [],
+    "suppressRootLine": [],
+    "groups": [],
+    "groupsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          []
+        ],
+        [
+          3,
+          []
+        ]
+      ]
+    },
+    "tagDisplay": "always",
+    "tagsOf": {
+      "$map": [
+        [
+          1,
+          []
+        ],
+        [
+          2,
+          [
+            {
+              "key": "priority",
+              "values": [
+                "high"
+              ],
+              "at": {
+                "line": 20,
+                "column": 9,
+                "length": 14
+              }
+            },
+            {
+              "key": "ticket",
+              "values": [
+                "T-1"
+              ],
+              "at": {
+                "line": 20,
+                "column": 24,
+                "length": 11
+              }
+            },
+            {
+              "key": "due",
+              "values": [
+                "2026-10-01"
+              ],
+              "at": {
+                "line": 20,
+                "column": 36,
+                "length": 15
+              }
+            }
+          ]
+        ],
+        [
+          3,
+          [
+            {
+              "key": "priority",
+              "values": [
+                "hgih"
+              ],
+              "at": {
+                "line": 22,
+                "column": 9,
+                "length": 14
+              }
+            },
+            {
+              "key": "ticket",
+              "values": [
+                "T-1"
+              ],
+              "at": {
+                "line": 22,
+                "column": 24,
+                "length": 11
+              }
+            },
+            {
+              "key": "due",
+              "values": [
+                "2026/10/01"
+              ],
+              "at": {
+                "line": 22,
+                "column": 36,
+                "length": 15
+              }
+            }
+          ]
+        ]
+      ]
+    },
+    "tagKeys": [
+      {
+        "key": "priority",
+        "alternatives": [
+          {
+            "primitive": "enum",
+            "values": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      },
+      {
+        "key": "ticket",
+        "alternatives": [
+          {
+            "primitive": "string",
+            "patterns": [
+              "^T-\\d+$"
+            ]
+          }
+        ],
+        "multiple": false,
+        "unique": true,
+        "description": null
+      },
+      {
+        "key": "due",
+        "alternatives": [
+          {
+            "primitive": "date"
+          }
+        ],
+        "multiple": false,
+        "unique": false,
+        "description": null
+      }
+    ],
+    "taskCycle": [
+      " ",
+      "x"
+    ],
+    "taskDim": {
+      "states": [],
+      "details": "keep",
+      "tags": "keep"
+    },
+    "diagnostics": [
+      {
+        "severity": "error",
+        "code": "tag-type",
+        "message": "「誤った行」の #priority:hgih: high / medium / low のどれかで書きます",
+        "at": {
+          "line": 22,
+          "column": 9,
+          "length": 14
+        },
+        "hint": "もしかして「high」"
+      },
+      {
+        "severity": "error",
+        "code": "tag-type",
+        "message": "「誤った行」の #due:2026/10/01: YYYY-MM-DD の日付で書きます",
+        "at": {
+          "line": 22,
+          "column": 36,
+          "length": 15
+        },
+        "hint": null
+      },
+      {
+        "severity": "error",
+        "code": "tag-unique",
+        "message": "「正しい行」の #ticket:T-1 は、ほかのノードにも書かれています (22 行目)",
+        "at": {
+          "line": 20,
+          "column": 24,
+          "length": 11
+        },
+        "hint": "unique のキーなので、値を変えるか片方を消します"
+      },
+      {
+        "severity": "error",
+        "code": "tag-unique",
+        "message": "「誤った行」の #ticket:T-1 は、ほかのノードにも書かれています (20 行目)",
+        "at": {
+          "line": 22,
+          "column": 24,
+          "length": 11
+        },
+        "hint": "unique のキーなので、値を変えるか片方を消します"
+      }
+    ],
+    "hooks": {
+      "hooks": [],
+      "options": {}
+    }
+  },
+  "layout": {
+    "folded": [],
+    "graph": {
+      "rootId": 1,
+      "nodes": [
+        {
+          "id": 1,
+          "label": "型つきのタグ",
+          "width": 64,
+          "height": 20,
+          "groups": [],
+          "depth": 1,
+          "treeParent": null,
+          "folded": false
+        },
+        {
+          "id": 2,
+          "label": "正しい行",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        },
+        {
+          "id": 3,
+          "label": "誤った行",
+          "width": 48,
+          "height": 20,
+          "groups": [],
+          "depth": 2,
+          "treeParent": 1,
+          "folded": false
+        }
+      ],
+      "edges": [
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        }
+      ],
+      "layoutParent": {
+        "$map": [
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            1
+          ]
+        ]
+      }
+    },
+    "frames": [],
+    "rects": {
+      "$map": [
+        [
+          1,
+          {
+            "x": 0,
+            "y": -10,
+            "width": 80,
+            "height": 20
+          }
+        ],
+        [
+          2,
+          {
+            "x": 160,
+            "y": -23.375,
+            "width": 64,
+            "height": 20
+          }
+        ],
+        [
+          3,
+          {
+            "x": 160,
+            "y": 3.375,
+            "width": 64,
+            "height": 20
+          }
+        ]
+      ]
+    },
+    "gaps": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ]
+      ]
+    },
+    "edges": [
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 2,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          80,
+          11.25
+        ],
+        "target": [
+          160,
+          -2.5
+        ],
+        "isLayoutLink": true
+      },
+      {
+        "edge": {
+          "kind": "tree",
+          "source": 1,
+          "target": 3,
+          "memberRelationIndexes": [],
+          "proxied": false,
+          "excludedFromLayout": false
+        },
+        "source": [
+          80,
+          11.25
+        ],
+        "target": [
+          160,
+          24.25
+        ],
+        "isLayoutLink": true
+      }
+    ],
+    "bounds": {
+      "x": 0,
+      "y": -23.375,
+      "width": 224,
+      "height": 46.75
+    },
+    "plannedX": {
+      "$map": [
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          160
+        ],
+        [
+          3,
+          160
+        ]
+      ]
+    },
+    "nodeSize": {
+      "$map": [
+        [
+          1,
+          [
+            20,
+            160
+          ]
+        ],
+        [
+          2,
+          [
+            20,
+            144
+          ]
+        ],
+        [
+          3,
+          [
+            20,
+            144
+          ]
+        ]
+      ]
+    },
+    "passes": 1
+  },
+  "layoutFolded": null
+}
