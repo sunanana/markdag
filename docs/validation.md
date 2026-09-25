@@ -80,9 +80,10 @@ error ref-ambiguous 6:11 「Test --> Release」: 「Test」に一致するノー
 | Code | Severity | Layer | Meaning |
 | --- | --- | --- | --- |
 | `yaml-syntax` | error | YAML | The frontmatter is not valid YAML, or its collections nest deeper than 100 levels (入れ子が深すぎます). All of it is ignored. Only the first syntax error is reported |
-| `option-unknown` | warning | Shape and type | Unknown key under `markdag` or `markmap`, or a top-level key that looks like a typo of a known key |
-| `option-misplaced` | warning | Shape and type | A key written at the wrong level: `relations`, `groups` or `branches` outside `markdag` (the top-level `relations` and `groups` are the form used up to 0.2.0), or `fork` directly under `markdag`. It is ignored |
-| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` or `markmap`. Also a `markdag.branches` item that is not a single node or repeats a node, a `markdag.rules.taskToggle.readonlyGroups` name that is on no node, and a `markdag.tasks.cycle` with fewer than two marks |
+| `option-unknown` | warning | Shape and type | Unknown key under `markdag`, or a top-level key that looks like a typo of a known key |
+| `option-misplaced` | warning | Shape and type | A key written at the wrong level: `relations`, `groups`, `branches` or `initialExpandLevel` outside `markdag` (the top-level `relations` and `groups` are the form used up to 0.2.0), or `fork` directly under `markdag`. It is ignored |
+| `option-invalid` | warning | Shape and type | Wrong type or value under `markdag` (for example `initialExpandLevel: "2"`, which is not an integer). Also a `markdag.branches` item that is not a single node or repeats a node, a `markdag.rules.taskToggle.readonlyGroups` name that is on no node, and a `markdag.tasks.cycle` with fewer than two marks |
+| `option-removed` | warning | Shape and type | The top-level `markmap` key, which is no longer read. Everything under it is ignored. The hint says to move `initialExpandLevel` to `markdag.initialExpandLevel` and to delete the other markmap options, which were removed |
 | `relation-unknown-key` | warning | Shape and type | A key under `markdag.relations` other than `fork`, `join`, `chain`, `depends` |
 | `relation-not-string` | error | Shape and type | A relation expression that YAML did not read as a string (usually `: ` inside it) |
 | `relation-syntax` | error | Shape and type | No ` --> ` with spaces around it, an empty term, `(X)` combined with `/*`, or a term that opens a `"` and does not close it |

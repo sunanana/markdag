@@ -1,4 +1,4 @@
-// 原文: src/parse/document.ts (2026-09-24) と sample/markmap/packages/markmap-lib/src/plugins/frontmatter/index.ts (frontmatter の切り出しと markmap のオプションの正規化)
+// 原文: src/parse/document.ts (2026-09-24) と sample/markmap/packages/markmap-lib/src/plugins/frontmatter/index.ts (frontmatter の切り出し。markmap のオプションの正規化は A-221 で外した)
 // markdag の前処理と組み立て。原文の行を書き換える前処理 (大文字の [X]、行末の %グループ #タグ $id) を行ってから
 // 本文を AST にし、アウトラインの木を先行順にたどって OutlineNode の列にする。タスクの状態、記号の絵、詳細 (引用ブロック)、
 // 参照用の 1 行目の文字とマイルストーンもここで決める。行数と桁は前処理で変えないので、行番号は原文のものとして使える。
@@ -282,7 +282,7 @@ pub(super) struct FrontmatterInfo {
 
 /// 原文: markmap-lib の frontmatter プラグインの beforeParse (名前のない関数)
 /// `---` で始まる文書の、最初の `\n---` の行までを YAML として読む。読めなければ None で、本文から切り取らない
-/// (frontmatter の文字が本文に残る)。読めたら markmap の欄を normalizeMarkmapJsonOptions で直す
+/// (frontmatter の文字が本文に残る)。最上位の markmap は読まないので、読めた値をそのまま返す (A-221)
 pub(super) fn read_frontmatter(content: &str) -> Option<FrontmatterInfo> {
     if !FRONTMATTER_OPEN.is_match(content) {
         return None;
@@ -291,68 +291,12 @@ pub(super) fn read_frontmatter(content: &str) -> Option<FrontmatterInfo> {
     // 規則 2.2: `content.slice(4, match.index)` は a > b なら空 (`---\n---\n` では閉じが 3 から始まる)
     let raw = js_trim_end(js_slice(content, 4, close.start()));
     // 規則 2.5: yaml の parse が throw する入力は、markmap が catch して frontmatter なしにする
-    let mut value = yaml_parse(&LINE_BREAK.replace_all(raw, "\n")).ok()?;
-    // `if (frontmatter?.markmap)`: 写像のときだけ欄を書き換える (文字列や数の markmap は欄の読み書きが何も変えない)
-    if let JsValue::Object(map) = &mut value
-        && let Some(JsValue::Object(markmap)) = map.get_mut("markmap")
-    {
-        normalize_markmap_json_options(markmap);
-    }
+    let value = yaml_parse(&LINE_BREAK.replace_all(raw, "\n")).ok()?;
     Some(FrontmatterInfo {
         value,
         lines: js_slice(content, 0, close.start()).split('\n').count() + 1,
         offset: close.end(),
     })
-}
-
-/// 原文: markmap-lib の normalizeMarkmapJsonOptions
-/// 値のある (null でも undefined でもない) 欄だけを直す。直せない値は欄を残して undefined にする (model 層が「値なし」の警告にする)
-fn normalize_markmap_json_options(options: &mut IndexMap<String, JsValue>) {
-    for key in ["color", "extraJs", "extraCss"] {
-        if let Some(value) = options.get_mut(key)
-            && !matches!(value, JsValue::Null | JsValue::Undefined)
-        {
-            *value = normalize_string_array(value);
-        }
-    }
-    for key in ["duration", "maxWidth", "initialExpandLevel"] {
-        if let Some(value) = options.get_mut(key)
-            && !matches!(value, JsValue::Null | JsValue::Undefined)
-        {
-            *value = normalize_number(value);
-        }
-    }
-}
-
-/// 原文: markmap-lib の normalizeStringArray
-fn normalize_string_array(value: &JsValue) -> JsValue {
-    let result: Vec<JsValue> = match value {
-        JsValue::String(text) => vec![JsValue::String(text.clone())],
-        // `item && typeof item === 'string'`: 空でない文字列だけ
-        JsValue::Array(items) => items
-            .iter()
-            .filter(|item| matches!(item, JsValue::String(text) if !text.is_empty()))
-            .cloned()
-            .collect(),
-        _ => Vec::new(),
-    };
-    // `result?.length ? result : undefined`
-    if result.is_empty() {
-        JsValue::Undefined
-    } else {
-        JsValue::Array(result)
-    }
-}
-
-/// 原文: markmap-lib の normalizeNumber
-fn normalize_number(value: &JsValue) -> JsValue {
-    // 規則 2.1: `+value` は js_to_number
-    let number = js_to_number(value);
-    if number.is_nan() {
-        JsValue::Undefined
-    } else {
-        JsValue::Number(number)
-    }
 }
 
 /// parseDocument の probe の結果のうち、前半が決めるもの (名前のない値の組。規則 4 章)
@@ -3502,7 +3446,7 @@ mod tests {
             (
                 "---\nmarkmap:\n  color: red\n  extraJs: [\"\", 1, \"a.js\"]\n  extraCss: []\n  duration: \"500\"\n  maxWidth: abc\n  initialExpandLevel: [3]\n  other: 1\n---\n",
                 Some((
-                    "{\"markmap\":{\"color\":[\"red\"],\"extraJs\":[\"a.js\"],\"extraCss\":\"<undefined>\",\"duration\":500,\"maxWidth\":\"<undefined>\",\"initialExpandLevel\":3,\"other\":1}}",
+                    "{\"markmap\":{\"color\":\"red\",\"extraJs\":[\"\",1,\"a.js\"],\"extraCss\":[],\"duration\":\"500\",\"maxWidth\":\"abc\",\"initialExpandLevel\":[3],\"other\":1}}",
                     10,
                     "",
                 )),
@@ -3510,7 +3454,7 @@ mod tests {
             (
                 "---\nmarkmap:\n  color: null\n  duration: true\n  maxWidth: {}\n  initialExpandLevel: [true]\n---\n",
                 Some((
-                    "{\"markmap\":{\"color\":null,\"duration\":1,\"maxWidth\":\"<undefined>\",\"initialExpandLevel\":\"<undefined>\"}}",
+                    "{\"markmap\":{\"color\":null,\"duration\":true,\"maxWidth\":{},\"initialExpandLevel\":[true]}}",
                     7,
                     "",
                 )),
@@ -3601,8 +3545,8 @@ mod tests {
     }
 
     #[test]
-    fn annotations_frontmatter_markmap_options_keep_undefined_keys() {
-        // normalizeMarkmapJsonOptions は直せない値の欄を消さず undefined にする (model 層が「値なし」の警告にする)
+    fn annotations_frontmatter_markmap_values_are_kept_as_written() {
+        // 最上位の markmap は読まないので、値を直さず書いたままにする (A-221。model 層が option-removed の警告にする)
         let info =
             read_frontmatter("---\nmarkmap:\n  color: 5\n  duration: abc\n  maxWidth: null\n---\n")
                 .expect("読める");
@@ -3612,8 +3556,11 @@ mod tests {
         let Some(JsValue::Object(markmap)) = map.get("markmap") else {
             panic!("markmap は写像")
         };
-        assert_eq!(markmap.get("color"), Some(&JsValue::Undefined));
-        assert_eq!(markmap.get("duration"), Some(&JsValue::Undefined));
+        assert_eq!(markmap.get("color"), Some(&JsValue::Number(5.0)));
+        assert_eq!(
+            markmap.get("duration"),
+            Some(&JsValue::String("abc".to_string()))
+        );
         assert_eq!(markmap.get("maxWidth"), Some(&JsValue::Null));
     }
 
@@ -3659,12 +3606,12 @@ mod tests {
             ),
             (
                 "---\nmarkmap:\n  color: red\n  extraJs: [\"\", 1, \"a.js\"]\n  extraCss: []\n  duration: \"500\"\n  maxWidth: abc\n  initialExpandLevel: [3]\n  other: 1\n---\n",
-                "{\"markmap\":{\"color\":[\"red\"],\"extraJs\":[\"a.js\"],\"extraCss\":\"<undefined>\",\"duration\":500,\"maxWidth\":\"<undefined>\",\"initialExpandLevel\":3,\"other\":1}}",
+                "{\"markmap\":{\"color\":\"red\",\"extraJs\":[\"\",1,\"a.js\"],\"extraCss\":[],\"duration\":\"500\",\"maxWidth\":\"abc\",\"initialExpandLevel\":[3],\"other\":1}}",
                 false,
             ),
             (
                 "---\nmarkmap:\n  color: null\n  duration: true\n  maxWidth: {}\n  initialExpandLevel: [true]\n---\n",
-                "{\"markmap\":{\"color\":null,\"duration\":1,\"maxWidth\":\"<undefined>\",\"initialExpandLevel\":\"<undefined>\"}}",
+                "{\"markmap\":{\"color\":null,\"duration\":true,\"maxWidth\":{},\"initialExpandLevel\":[true]}}",
                 false,
             ),
             ("---\nmarkmap: 5\n---\n", "{\"markmap\":5}", false),

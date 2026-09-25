@@ -106,7 +106,9 @@ Rules:
 
 The shape of the frontmatter is defined by one JSON Schema, `src/model/frontmatter.schema.json` (`dist/frontmatter.schema.json` after a build). Read it for the full list of keys, types and allowed values.
 
-Everything markdag reads is under the `markdag` key. `title` and `markmap` are markmap's keys and stay at the top level. `relations` or `groups` written at the top level (the form used up to 0.2.0) are reported as `option-misplaced` and ignored.
+Everything markdag reads is under the `markdag` key. Only `title` stays at the top level (it is the text of the root node). `relations` or `groups` written at the top level (the form used up to 0.2.0) are reported as `option-misplaced` and ignored.
+
+The top-level `markmap` key is not read. A document that still has it gets an `option-removed` warning, and everything under it is ignored. Move `markmap.initialExpandLevel` to `markdag.initialExpandLevel` (see Display options). The other markmap options (`colorFreezeLevel`, `color`, `maxWidth`, `duration` and the rest) were removed and have no replacement: delete them.
 
 ### relations
 
@@ -310,6 +312,7 @@ The other keys under `markdag`:
 | `branches` | List of nodes (one node each; no `/*`, `/**`, `(X)`) | none |
 | `edgeHighlight` | boolean | `true` |
 | `groupHighlight` | boolean | `true` |
+| `initialExpandLevel` | Integer. Nodes with children at this depth or deeper start closed (the root is depth 1, so `3` shows three levels). `-1` opens everything | `-1` |
 | `tasks.cycle` | List of marks (`' '`, `'/'`, `'x'`, `'-'`) in the order a click moves through them (see `tasks` above) | `[' ', 'x']` |
 | `tasks.dim` | List of marks to fade, or `states` with `details` and `tags` (see `tasks` above) | none |
 
@@ -325,11 +328,8 @@ The other keys under `markdag`:
 
 - `branches` names the nodes where a color starts. Colors are assigned in the order written. Descendants take the color of the nearest branch start above them. A relation line takes the color of the branch of its source node.
 - When `branches` is present, a node under no branch start is drawn in gray, and so are the lines that start from it.
-- Without `branches`, colors follow markmap (`markmap.colorFreezeLevel`).
-
-### markmap
-
-`markmap.initialExpandLevel` and `markmap.colorFreezeLevel` take effect. Other markmap options pass validation but have no effect in the current prototype.
+- Without `branches`, each node takes the next color of the palette in document order. A tree line takes the color of its child node, a relation line the color of its source node.
+- `initialExpandLevel` sets only the first view: a reader can still open and close branches. Like every option, it works only in a document that has the `markdag` key.
 
 ## 5. YAML pitfalls
 
@@ -382,7 +382,7 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 
 - Use `chain` for the backbone of the process, `join` where several results meet at a milestone, `fork` where one decision starts several things at once, and `depends` for the remaining cross dependencies. `depends` lines are the ones that cross other lines most, so keep them few.
 - Set `tags.display` to `hover` or `click` in a document with many tags: the tags then move into the details popover, the nodes stay narrow, and the layout stays close to the one without tags.
-- In a large document set `markmap.initialExpandLevel` (3 works well). Closed nodes merge the lines of their descendants into one line with a count badge, so the first view stays readable. [examples/large-project.md](examples/large-project.md) uses this.
+- In a large document set `markdag.initialExpandLevel` (3 works well). Closed nodes merge the lines of their descendants into one line with a count badge, so the first view stays readable. [examples/large-project.md](examples/large-project.md) uses this.
 - Choose 6 to 10 branch starts. The palette has 10 colors and repeats after that. Using the top-level phases as branch starts makes the color of a line tell which phase it comes from.
 - Put `boundary: true` only on the large groups. `examples/large-project.md` defines 33 groups and draws a frame for 9 of them.
 - Give a group a `color` when it should read as a unit. Without a color it is only a text label beside each node.

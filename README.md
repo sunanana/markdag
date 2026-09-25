@@ -64,6 +64,8 @@ This is not a fork.
 
 The DAG construction, layout, rendering, and frontmatter validation are our own implementation. The Markdown-to-tree rules follow markmap (markmap-lib and markmap-html-parser) and are ported to Rust; markmap is not a dependency.
 
+markmap's frontmatter options (the top-level `markmap` key) are not read. A document that still has them gets an `option-removed` warning; the initial fold depth is written as `markdag.initialExpandLevel`.
+
 What was copied, and the list of dependencies, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License

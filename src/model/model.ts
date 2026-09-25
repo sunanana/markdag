@@ -67,7 +67,7 @@ export interface GraphModel {
     // グループの枠をクリックして、そのグループのノードと線だけを残す操作を使えるか (frontmatter の markdag.groupHighlight)
     groupHighlight: boolean;
     // 色を分ける単位にする枝の起点 (frontmatter の markdag.branches)。書かれた順で、色もこの順に割り当てる。
-    // 空なら、色は markmap と同じ colorFreezeLevel で決める
+    // 空なら、色はノードごとに出てきた順で決める
     branches: number[];
     relations: LayoutInputRelation[];
     suppressRootLine: number[];

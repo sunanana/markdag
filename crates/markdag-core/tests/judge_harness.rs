@@ -24,7 +24,8 @@ fn pseudo_size(node: &OutlineNode) -> (f64, f64) {
     (width, height)
 }
 
-/// harness の `Number(frontmatter.markmap?.initialExpandLevel ?? -1)`
+/// harness の `Number(frontmatter.markmap?.initialExpandLevel ?? -1)`。
+/// 期待値を作った旧実装の harness の読み方で、配置の入力を期待値とそろえるために残す (製品は A-221 で markmap を読まなくなった)
 pub fn expand_level_of(frontmatter: &JsValue) -> f64 {
     let level = match frontmatter {
         JsValue::Object(entries) => match entries.get("markmap") {

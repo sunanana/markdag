@@ -1,11 +1,11 @@
 {
     "type": "object",
-    "description": "markdag の frontmatter のスキーマ。JSON Schema 2020-12 の部分集合で、使うキーワードは type, enum, const, pattern, minLength, items, properties, additionalProperties, uniqueItems, oneOf, $ref, description に限る (実行時はこのスキーマを直接読んで検証するため)。x- で始まるキーワードは日本語の診断を組み立てるための注釈で、検証には影響しない。x-hint は直し方の手がかり (Diagnostic.hint)、x-code は診断のコード (既定は additionalProperties の違反が option-unknown、それ以外が option-invalid)、x-severity は重大度 (既定は warning)。最上位は additionalProperties を閉じない。markmap が title など任意のキーを許すため",
+    "description": "markdag の frontmatter のスキーマ。JSON Schema 2020-12 の部分集合で、使うキーワードは type, enum, const, pattern, minLength, items, properties, additionalProperties, uniqueItems, oneOf, $ref, description に限る (実行時はこのスキーマを直接読んで検証するため)。x- で始まるキーワードは日本語の診断を組み立てるための注釈で、検証には影響しない。x-hint は直し方の手がかり (Diagnostic.hint)、x-code は診断のコード (既定は additionalProperties の違反が option-unknown、それ以外が option-invalid)、x-severity は重大度 (既定は warning)。最上位は additionalProperties を閉じない。markdag を読まない文書 (markmap と同じ表示) の title など、ほかの道具のキーを許すため。最上位の markmap は読まず、スキーマにも持たない (残っていれば option-removed の警告にする)",
     "properties": {
         "markdag": {
             "type": ["object", "null"],
             "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、タグ (tags)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、グループやタグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます",
+            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます",
             "properties": {
                 "relations": {
                     "type": "object",
@@ -266,148 +266,15 @@
                 },
                 "branches": {
                     "type": "array",
-                    "description": "色を分ける単位にする枝の起点。書かれた順に色を割り当てる。指定がなければ、色は markmap と同じ colorFreezeLevel で決まる",
+                    "description": "色を分ける単位にする枝の起点。書かれた順に色を割り当てる。指定がなければ、ノードごとに出てきた順で色を割り当てる",
                     "x-hint": "branches: の下に、起点にするノードを「- 名前」の形で 1 行ずつ並べます",
                     "items": { "$ref": "#/$defs/nodeRef" },
                     "$ref": "#/$defs/noDuplicates"
-                }
-            },
-            "additionalProperties": false
-        },
-        "markmap": {
-            "type": "object",
-            "description": "markmap のオプション (markmap-view の IMarkmapJSONOptions の形)。markdag が効かせるのは initialExpandLevel と colorFreezeLevel で、ほかは形を検べるだけで値を使わない",
-            "x-hint": "markmap: の下に、markmap のオプションを字下げして書きます",
-            "properties": {
-                "autoFit": {
-                    "type": "boolean",
-                    "description": "描き直すたびに、図の全体が表示領域に収まる大きさに合わせる (既定は false)",
-                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
-                },
-                "color": {
-                    "description": "枝の色。1 色なら全ノードが同じ色、複数なら枝ごとに順に割り当てる",
-                    "x-hint": "色を 1 つ書くか、「- \"#2980b9\"」の形で 1 行ずつ並べます",
-                    "oneOf": [
-                        { "$ref": "#/$defs/cssColor" },
-                        {
-                            "type": "array",
-                            "description": "枝に順に割り当てる色",
-                            "x-hint": "color: の下に、色を「- \"#2980b9\"」の形で 1 行ずつ並べます",
-                            "items": { "$ref": "#/$defs/cssColor" }
-                        }
-                    ]
-                },
-                "colorFreezeLevel": {
-                    "type": "integer",
-                    "description": "この深さより下のノードを、その深さの祖先と同じ色にする。0 なら固定しない (既定は 0)",
-                    "x-hint": "色を固定する深さを整数で書きます (0 なら固定しません)"
-                },
-                "duration": {
-                    "type": "number",
-                    "description": "開閉のアニメーションの長さ (ミリ秒。既定は 500)",
-                    "x-hint": "ミリ秒を数値で書きます (引用符で囲むと文字列になります)"
-                },
-                "extraCss": {
-                    "description": "図と一緒に読み込む CSS の URL",
-                    "x-hint": "URL を 1 つ書くか、「- https://…」の形で 1 行ずつ並べます",
-                    "oneOf": [
-                        { "$ref": "#/$defs/assetUrl" },
-                        {
-                            "type": "array",
-                            "description": "読み込む CSS の URL",
-                            "x-hint": "extraCss: の下に、URL を「- https://…」の形で 1 行ずつ並べます",
-                            "items": { "$ref": "#/$defs/assetUrl" }
-                        }
-                    ]
-                },
-                "extraJs": {
-                    "description": "図と一緒に読み込む JavaScript の URL",
-                    "x-hint": "URL を 1 つ書くか、「- https://…」の形で 1 行ずつ並べます",
-                    "oneOf": [
-                        { "$ref": "#/$defs/assetUrl" },
-                        {
-                            "type": "array",
-                            "description": "読み込む JavaScript の URL",
-                            "x-hint": "extraJs: の下に、URL を「- https://…」の形で 1 行ずつ並べます",
-                            "items": { "$ref": "#/$defs/assetUrl" }
-                        }
-                    ]
-                },
-                "fitRatio": {
-                    "type": "number",
-                    "description": "表示領域に収めるときの倍率。1 より小さいほど周りに余白が残る (既定は 0.95)",
-                    "x-hint": "倍率を数値で書きます (既定は 0.95)"
                 },
                 "initialExpandLevel": {
                     "type": "integer",
-                    "description": "最初に開いておく深さ。-1 ならすべて開く (既定は -1)",
+                    "description": "最初に開いておく深さ。この深さ以上の、子を持つノードを閉じて表示する。-1 ならすべて開く (既定は -1)",
                     "x-hint": "深さを整数で書きます (すべて開くなら -1)"
-                },
-                "maxInitialScale": {
-                    "type": "number",
-                    "description": "最初に表示領域へ収めるときの、拡大の上限 (既定は 2)",
-                    "x-hint": "倍率を数値で書きます (既定は 2)"
-                },
-                "maxWidth": {
-                    "type": "number",
-                    "description": "ノードの幅の上限 (px)。0 なら折り返さない (既定は 0)",
-                    "x-hint": "幅を数値で書きます (折り返さないなら 0)"
-                },
-                "nodeMinHeight": {
-                    "type": "number",
-                    "description": "ノードの高さの下限 (px。既定は 16)",
-                    "x-hint": "高さを数値で書きます (既定は 16)"
-                },
-                "paddingX": {
-                    "type": "number",
-                    "description": "ノードの左右の余白 (px。既定は 8)",
-                    "x-hint": "余白を数値で書きます (既定は 8)"
-                },
-                "pan": {
-                    "type": "boolean",
-                    "description": "ドラッグで表示位置を動かせるようにする (既定は true)",
-                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
-                },
-                "spacingHorizontal": {
-                    "type": "number",
-                    "description": "親と子の間の横の間隔 (px。既定は 80)",
-                    "x-hint": "間隔を数値で書きます (既定は 80)"
-                },
-                "spacingVertical": {
-                    "type": "number",
-                    "description": "隣り合うノードの縦の間隔 (px。既定は 5)",
-                    "x-hint": "間隔を数値で書きます (既定は 5)"
-                },
-                "zoom": {
-                    "type": "boolean",
-                    "description": "ホイールで拡大縮小できるようにする (既定は true)",
-                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
-                },
-                "lineWidth": {
-                    "description": "枝の線の太さ (px)",
-                    "x-hint": "太さを数値で書くか、「- 1」の形で 3 つ並べます",
-                    "oneOf": [
-                        {
-                            "type": "number",
-                            "description": "どの深さでも同じ太さにする",
-                            "x-hint": "太さを数値で書きます"
-                        },
-                        {
-                            "type": "array",
-                            "description": "深さで細くする指定。[基準の太さ, 深さ 0 で足す分, 1 段ごとに割る数] の 3 つ (既定は 1, 3, 2)",
-                            "x-hint": "lineWidth: の下に、基準の太さ、深さ 0 で足す分、1 段ごとに割る数を「- 1」の形で 3 つ並べます",
-                            "items": {
-                                "type": "number",
-                                "description": "lineWidthFactory に渡す値",
-                                "x-hint": "数値で書きます"
-                            }
-                        }
-                    ]
-                },
-                "htmlParser": {
-                    "type": "object",
-                    "description": "本文の HTML を切り出す規則 (markmap の設定)。形を検べるだけで、markdag は使わない",
-                    "x-hint": "selector と selectorRules を書きます"
                 }
             },
             "additionalProperties": false
@@ -650,18 +517,6 @@
             "description": "メンバーにするノードを指す文字列。本文のノードの 1 行目か、行末に付けた $id",
             "x-code": "group-invalid",
             "x-hint": "ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"
-        },
-        "cssColor": {
-            "type": "string",
-            "minLength": 1,
-            "description": "CSS の色。#rrggbb のほか、色の名前や rgb() も書ける",
-            "x-hint": "「\"#2980b9\"」のように引用符で囲んで書きます (空白の直後の # から行末は YAML のコメントになります)"
-        },
-        "assetUrl": {
-            "type": "string",
-            "minLength": 1,
-            "description": "読み込むファイルの URL",
-            "x-hint": "URL を文字列で書きます"
         },
         "noDuplicates": {
             "description": "同じ値を 2 回書けない一覧",

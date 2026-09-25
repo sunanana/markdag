@@ -118,6 +118,29 @@ fn drop_later_yaml_errors(expected: Vec<Value>, actual: &[Value]) -> Vec<Value> 
         .collect()
 }
 
+// accepted.md #39 (A-221): 最上位の markmap を読まなくなった。コーパスは旧実装の書き方のままなので、
+// Rust だけが出す option-removed を落とし、期待値の「markdag が読むキー」の一覧から markmap を外して比べる
+fn without_removed_markmap(expected: Vec<Value>, actual: Vec<Value>) -> (Vec<Value>, Vec<Value>) {
+    let expected = expected
+        .into_iter()
+        .map(|mut item| {
+            if let Some(message) = item["message"].as_str() {
+                let message = message.replace(
+                    "markdag が読むキー (markdag, markmap, title)",
+                    "markdag が読むキー (markdag, title)",
+                );
+                item["message"] = Value::String(message);
+            }
+            item
+        })
+        .collect();
+    let actual = actual
+        .into_iter()
+        .filter(|item| item["code"] != "option-removed")
+        .collect();
+    (expected, actual)
+}
+
 struct DocumentResult {
     // code ごとの (比べた件数、一致した件数)
     per_code: BTreeMap<String, (usize, usize)>,
@@ -172,6 +195,7 @@ fn run_document(file: &Path) -> Result<DocumentResult, String> {
             wanted.push(item.clone());
         }
     }
+    let (wanted, actual) = without_removed_markmap(wanted, actual);
     let wanted: Vec<Value> = drop_later_yaml_errors(wanted, &actual)
         .iter()
         .map(normalized)
@@ -412,6 +436,8 @@ fn model_difference(file: &Path, known_pointers: &[&str]) -> Result<ModelCompari
         .as_array()
         .cloned()
         .ok_or("期待値の diagnostics が配列でない")?;
+    let (wanted_diagnostics, actual_diagnostics) =
+        without_removed_markmap(wanted_diagnostics, actual_diagnostics);
     wanted["diagnostics"] = Value::Array(
         drop_later_yaml_errors(wanted_diagnostics, &actual_diagnostics)
             .iter()

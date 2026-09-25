@@ -1397,7 +1397,7 @@ pub fn build_model(
         .unwrap_or(LegendPosition::TopRight);
 
     // branches: 色を分ける単位を、著者が起点のノードで指定する。起点の配下は起点の色になり、起点の中の起点はそこから別の色になる。
-    // 書かれていないノードには色を付けない (このキーのない文書は、今までどおり colorFreezeLevel で色が決まる)
+    // 書かれていないノードには色を付けない (このキーのない文書は、ノードごとに出てきた順で色が決まる)
     let mut branches: Vec<u32> = Vec::new();
     // 同じ表記の重なりはスキーマが拾うので、ここでは別の表記で同じノードを指した場合だけを警告にする
     let mut branch_of: IndexMap<u32, String> = IndexMap::new();

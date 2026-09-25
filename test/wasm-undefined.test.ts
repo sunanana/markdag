@@ -54,24 +54,22 @@ describe('境界を越える往復 (wasm)', () => {
         await initFromFile();
     });
 
-    it('JS から送った undefined の欄は Rust で Undefined になり、markmap-lib が消した値として警告する', () => {
-        const diagnostics = checkFrontmatter({ markmap: { initialExpandLevel: undefined } });
-        expect(diagnostics.map((item) => [item.code, item.message])).toEqual([['option-invalid', 'markmap.initialExpandLevel は整数で書きます']]);
+    it('JS から送った undefined の欄は Rust で Undefined になり、値を書き添えずに警告する', () => {
+        const diagnostics = checkFrontmatter({ markdag: { initialExpandLevel: undefined } });
+        expect(diagnostics.map((item) => [item.code, item.message])).toEqual([['option-invalid', 'markdag.initialExpandLevel は整数で書きます']]);
     });
 
     it('配列の undefined の要素は null と区別する (値を書き添えない)', () => {
-        expect(checkFrontmatter({ markmap: { color: ['#fff', undefined] } }).map((item) => item.message)).toEqual(['markmap.color[1] は文字列で書きます']);
-        expect(checkFrontmatter({ markmap: { color: ['#fff', null] } }).map((item) => item.message)).toEqual(['markmap.color[1] は文字列で書きます (null)']);
+        expect(checkFrontmatter({ markdag: { branches: ['a', undefined] } }).map((item) => item.message)).toEqual(['markdag.branches[1] は文字列で書きます']);
+        expect(checkFrontmatter({ markdag: { branches: ['a', null] } }).map((item) => item.message)).toEqual(['markdag.branches[1] は文字列で書きます (null)']);
     });
 
     it('parseDocument → buildModel の経路でも、1 回の経路 (renderDocument) と同じ診断になる', () => {
-        const source = '---\nmarkmap:\n  initialExpandLevel: abc\n  color: 3\n  duration: y\n---\n# a\n';
+        const source = '---\nmarkmap:\n  initialExpandLevel: abc\n  color: 3\n  duration: y\nmarkdag:\n  initialExpandLevel: abc\n---\n# a\n';
         const parsed = parseDocument(source);
-        const markmap = parsed.frontmatter.markmap as Record<string, unknown>;
-        expect(Object.keys(markmap)).toEqual(['initialExpandLevel', 'color', 'duration']);
-        expect(Object.values(markmap)).toEqual([undefined, undefined, undefined]);
+        expect(parsed.frontmatter.markmap).toEqual({ initialExpandLevel: 'abc', color: 3, duration: 'y' });
         const twoCalls = buildModel(parsed.nodes, parsed.frontmatter, source).diagnostics;
-        expect(twoCalls.filter((item) => item.code === 'option-invalid')).toHaveLength(3);
+        expect(twoCalls.map((item) => item.code)).toEqual(['option-removed', 'option-invalid']);
         expect(twoCalls).toEqual(renderDocument(source, {}).model.diagnostics);
     });
 
@@ -100,9 +98,9 @@ describe('境界を越える往復 (wasm)', () => {
     });
 
     it('単体 HTML に埋める JSON は JSON.stringify と同じで、undefined の欄を落とし印を書かない', () => {
-        const parsed = parseDocument('---\nmarkmap:\n  initialExpandLevel: abc\n---\n# a\n');
+        const parsed = { ...parseDocument('# a\n'), frontmatter: { markdag: { initialExpandLevel: undefined } } };
         const html = renderStandalonePage({ parsed }, { script: 'var markdag = {};', style: '' });
         expect(html).not.toContain('$undefined');
-        expect(html).toContain('"frontmatter":{"markmap":{}}');
+        expect(html).toContain('"frontmatter":{"markdag":{}}');
     });
 });

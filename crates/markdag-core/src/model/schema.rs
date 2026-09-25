@@ -150,7 +150,7 @@ fn as_text(value: &JsValue) -> String {
     }
 }
 
-/// 原文: asList。そこに書けるキーの一覧。markmap のように多いものは途中までにする
+/// 原文: asList。そこに書けるキーの一覧。markdag のように多いものは途中までにする
 // 規則 2.2 (A-032): 長さは UTF-16 の単位。`names.slice(0, index)` は take(index)
 fn as_list(names: &[String]) -> String {
     let kept: Vec<&str> = names
@@ -571,7 +571,7 @@ fn to_diagnostic(issue: &SchemaIssue, locator: &FrontmatterLocator) -> Diagnosti
             }
             .to_string()
         });
-    // markmap-lib が読めない値を undefined に直したものは、原文の値を書き添えられない
+    // undefined の値 (JS から渡された値) は、原文の値を書き添えられない
     let shown = if **value == JsValue::Undefined {
         String::new()
     } else {
@@ -607,8 +607,8 @@ pub(crate) fn schema_diagnostics(
         .iter()
         .map(|issue| to_diagnostic(issue, locator))
         .collect();
-    // 最上位は、markmap が任意のキー (title など) を許すので閉じられない。代わりに、下の階層に書くはずのキーと、
-    // スキーマが知っているキーの書き間違いらしい名前だけを、ここで拾う
+    // 最上位は、ほかの道具のキー (title など) を許すので閉じられない。代わりに、下の階層に書くはずのキーと、
+    // スキーマが知っているキーの書き間違いらしい名前と、読まなくなった markmap だけを、ここで拾う
     let root_properties = properties_of(Some(root));
     let root_names: Vec<String> = root_properties.keys().cloned().collect();
     // 規則 2.6 (A-022): ownersOf の既定の引数 into は、呼び出し側が空の値を作って渡す
@@ -619,6 +619,11 @@ pub(crate) fn schema_diagnostics(
     for key in js_object_keys(frontmatter) {
         // 規則 2.1 (A-027): `key in rootProperties` は自分の持つキーだけを見る (`__proto__` や `toString` を飛ばさない)
         if root_properties.contains_key(&key) {
+            continue;
+        }
+        // 最上位の markmap は読まない (A-221)。markdag の書き間違いとは扱わず、消すか移すかを知らせる
+        if key == "markmap" {
+            diagnostics.push(removed_markmap(frontmatter, locator));
             continue;
         }
         let parent = owner.get(&key);
@@ -677,6 +682,46 @@ pub(crate) fn schema_diagnostics(
     diagnostics
 }
 
+/// 最上位に残った markmap の診断 (A-221)。markmap のオプションは initialExpandLevel だけが markdag.initialExpandLevel に移り、
+/// ほかは削除したので、移すキーと消すキーを hint で分けて知らせる
+fn removed_markmap(frontmatter: &JsValue, locator: &FrontmatterLocator) -> Diagnostic {
+    let keys: Vec<String> = match frontmatter {
+        JsValue::Object(entries) => match entries.get("markmap") {
+            Some(JsValue::Object(markmap)) => markmap.keys().cloned().collect(),
+            _ => Vec::new(),
+        },
+        _ => Vec::new(),
+    };
+    let moved = keys.iter().any(|key| key == "initialExpandLevel");
+    let removed: Vec<String> = keys
+        .into_iter()
+        .filter(|key| key != "initialExpandLevel")
+        .collect();
+    let moving = "initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)";
+    let hint = match (moved, removed.is_empty()) {
+        (true, true) => format!("{moving}。markmap: の行は消します"),
+        (true, false) => format!(
+            "{moving}。ほかのキー ({}) は削除したオプションで書いても効かないので、markmap: の行ごと消します",
+            as_list(&removed)
+        ),
+        (false, false) => format!(
+            "markmap のキー ({}) は削除したオプションで、書いても効きません。markmap: の行ごと消します",
+            as_list(&removed)
+        ),
+        (false, true) => {
+            "markmap のオプションは削除したので、書いても効きません。markmap: の行を消します"
+                .to_string()
+        }
+    };
+    Diagnostic {
+        severity: Severity::Warning,
+        code: "option-removed".to_string(),
+        message: "frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します".to_string(),
+        at: locator.key(&[PathStep::Key("markmap".to_string())]),
+        hint: Some(hint),
+    }
+}
+
 /// 原文: checkFrontmatter。frontmatter の形と型だけを検べる入口。原文を渡すと、診断に frontmatter での位置が付く
 pub fn check_frontmatter(frontmatter: &JsValue, markdown: Option<&str>) -> Vec<Diagnostic> {
     schema_diagnostics(frontmatter, &FrontmatterLocator::new(markdown))
@@ -720,7 +765,7 @@ mod tests {
     #[test]
     fn schema_ts_says_nothing_for_valid_frontmatter() {
         assert_eq!(check_frontmatter(&js(EPIC_FRONTMATTER), None), Vec::new());
-        let small = r###"{"title":"小さな DAG","markmap":{"colorFreezeLevel":2,"color":["#2980b9"]},"markdag":{"relations":{"fork":["企画 --> 設計/*"],"depends":"画面設計 --> API設計"},"groups":{"design":{"label":"設計チーム","color":"#3B7DD8","boundary":true,"members":["画面設計"]}},"tags":{"display":"never"},"details":{"display":"always"},"legend":{"position":"bottom-left","display":false},"branches":["企画","実装"]}}"###;
+        let small = r###"{"title":"小さな DAG","markdag":{"relations":{"fork":["企画 --> 設計/*"],"depends":"画面設計 --> API設計"},"groups":{"design":{"label":"設計チーム","color":"#3B7DD8","boundary":true,"members":["画面設計"]}},"tags":{"display":"never"},"details":{"display":"always"},"legend":{"position":"bottom-left","display":false},"branches":["企画","実装"],"initialExpandLevel":2}}"###;
         assert_eq!(check_frontmatter(&js(small), None), Vec::new());
     }
 
@@ -1040,8 +1085,8 @@ mod tests {
                 &["option-unknown"],
             ),
             (
-                "markmap のオプションを最上位に置いた",
-                r#"{"colorFreezeLevel":2}"#,
+                "initialExpandLevel を最上位に置いた",
+                r#"{"initialExpandLevel":2}"#,
                 &["option-misplaced"],
             ),
             (
@@ -1070,39 +1115,39 @@ mod tests {
                 &["option-misplaced"],
             ),
             (
-                "markdag のキーを markmap の下に置いた",
+                "markdag のキーを markmap の下に置いた (最上位の markmap は読まない)",
                 r#"{"markmap":{"markdag":{"details":{"display":"always"}}}}"#,
-                &["option-unknown"],
+                &["option-removed"],
             ),
             (
-                "markmap の数値に文字列を書いた",
-                r#"{"markmap":{"nodeMinHeight":"20"}}"#,
+                "最初に開く深さに数字の文字列を書いた",
+                r#"{"markdag":{"initialExpandLevel":"2"}}"#,
                 &["option-invalid"],
             ),
             (
-                "markmap の真偽値に文字列を書いた",
-                r#"{"markmap":{"autoFit":"no"}}"#,
+                "真偽値に文字列を書いた",
+                r#"{"markdag":{"edgeHighlight":"no"}}"#,
                 &["option-invalid"],
             ),
             (
-                "markmap の深さに数でない文字列を書いた",
-                r#"{"markmap":{"colorFreezeLevel":"abc"}}"#,
+                "最初に開く深さに数でない文字列を書いた",
+                r#"{"markdag":{"initialExpandLevel":"abc"}}"#,
                 &["option-invalid"],
             ),
             (
-                "markmap の知らないキー",
+                "markmap の知らないキー (最上位の markmap は読まない)",
                 r#"{"markmap":{"colorFreeze":2}}"#,
-                &["option-unknown"],
+                &["option-removed"],
             ),
             (
-                "title など markmap 側のキーは、最上位にあってもよい",
+                "title など markdag の外のキーは、最上位にあってもよい",
                 r#"{"title":"x","author":"y"}"#,
                 &[],
             ),
             (
-                "markmap.htmlParser は markmap-lib が読むので通す",
+                "markmap.htmlParser も読まない",
                 r#"{"markmap":{"htmlParser":{"selector":"h1,h2"}}}"#,
-                &[],
+                &["option-removed"],
             ),
             (
                 "frontmatter がキーと値の組でない",
@@ -1128,19 +1173,24 @@ mod tests {
         for (label, json, expected) in cases {
             assert_eq!(codes(json), expected.to_vec(), "{label}");
         }
-        // markmap-lib が読めずに消した値 (undefined) は JSON で書けないので組み立てる
-        let undefined_in = |key: &str| {
+        // JS から渡された undefined の値は JSON で書けないので組み立てる。markmap の下は値によらず読まない
+        let undefined_in = |parent: &str, key: &str| {
             JsValue::Object(IndexMap::from([(
-                "markmap".to_string(),
+                parent.to_string(),
                 JsValue::Object(IndexMap::from([(key.to_string(), JsValue::Undefined)])),
             )]))
         };
-        for key in ["initialExpandLevel", "color"] {
-            let got: Vec<String> = check_frontmatter(&undefined_in(key), None)
+        for (parent, key, expected) in [
+            ("markdag", "initialExpandLevel", "option-invalid"),
+            ("markdag", "branches", "option-invalid"),
+            ("markmap", "initialExpandLevel", "option-removed"),
+            ("markmap", "color", "option-removed"),
+        ] {
+            let got: Vec<String> = check_frontmatter(&undefined_in(parent, key), None)
                 .into_iter()
                 .map(|item| item.code)
                 .collect();
-            assert_eq!(got, vec!["option-invalid"], "{key}");
+            assert_eq!(got, vec![expected], "{parent}.{key}");
         }
     }
 
@@ -1215,28 +1265,28 @@ mod tests {
             r###"[{"severity":"warning","code":"option-invalid","message":"markdag.tags.lint は文字列で書きます (3)","at":null,"hint":"warning か error と書きます"}]"###,
         ),
         (
-            "type_number",
-            r###"{"markmap":{"nodeMinHeight":"20"}}"###,
+            "type_integer_string",
+            r###"{"markdag":{"initialExpandLevel":"20"}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markmap.nodeMinHeight は数値で書きます (\"20\")","at":null,"hint":"高さを数値で書きます (既定は 16)"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.initialExpandLevel は整数で書きます (\"20\")","at":null,"hint":"深さを整数で書きます (すべて開くなら -1)"}]"###,
         ),
         (
-            "type_number_infinity",
-            r###"{"markmap":{"nodeMinHeight":{"$number":"Infinity"}}}"###,
+            "type_integer_infinity",
+            r###"{"markdag":{"initialExpandLevel":{"$number":"Infinity"}}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markmap.nodeMinHeight は数値で書きます (null)","at":null,"hint":"高さを数値で書きます (既定は 16)"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.initialExpandLevel は整数で書きます (null)","at":null,"hint":"深さを整数で書きます (すべて開くなら -1)"}]"###,
         ),
         (
             "type_integer",
-            r###"{"markmap":{"colorFreezeLevel":1.5}}"###,
+            r###"{"markdag":{"initialExpandLevel":1.5}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markmap.colorFreezeLevel は整数で書きます (1.5)","at":null,"hint":"色を固定する深さを整数で書きます (0 なら固定しません)"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.initialExpandLevel は整数で書きます (1.5)","at":null,"hint":"深さを整数で書きます (すべて開くなら -1)"}]"###,
         ),
         (
             "type_boolean",
-            r###"{"markmap":{"autoFit":"no"}}"###,
+            r###"{"markdag":{"edgeHighlight":"no"}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markmap.autoFit は真偽値で書きます (\"no\")","at":null,"hint":"true か false と書きます。yes は YAML では文字列になります"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.edgeHighlight は真偽値で書きます (\"no\")","at":null,"hint":"使わないなら false と書きます。yes は YAML では文字列になります"}]"###,
         ),
         (
             "type_array",
@@ -1248,7 +1298,7 @@ mod tests {
             "type_object_markdag_array",
             r###"{"markdag":["A"]}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markdag はキーと値の組で書きます ([\"A\"])","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag はキーと値の組で書きます ([\"A\"])","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"}]"###,
         ),
         (
             "type_object_groups_string",
@@ -1281,16 +1331,42 @@ mod tests {
             r###"[{"severity":"warning","code":"option-unknown","message":"markdag.tags のキー「zzzzzzzz」は使えません (display, lint, unknownKey, keys)","at":null,"hint":"tags: の下に display, lint, unknownKey, keys を字下げして書きます"}]"###,
         ),
         (
-            "unknown_markmap_aslist",
-            r###"{"markmap":{"colorFreeze":2}}"###,
+            "unknown_markdag_aslist",
+            r###"{"markdag":{"zzzzzzzz":2}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-unknown","message":"markmap のキー「colorFreeze」は使えません (autoFit, color, colorFreezeLevel, duration ほか)","at":null,"hint":"markmap: の下に、markmap のオプションを字下げして書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-unknown","message":"markdag のキー「zzzzzzzz」は使えません (relations, groups, types, tags, rules, hooks ほか)","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"}]"###,
+        ),
+        (
+            "removed_markmap_moves_initial_expand_level",
+            r###"{"markmap":{"initialExpandLevel":2,"colorFreezeLevel":2,"color":"red"},"markdag":null}"###,
+            Some(
+                "---\nmarkmap:\n    initialExpandLevel: 2\n    colorFreezeLevel: 2\n    color: red\nmarkdag:\n---\n\n# root",
+            ),
+            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":{"line":2,"column":1,"length":7},"hint":"initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。ほかのキー (colorFreezeLevel, color) は削除したオプションで書いても効かないので、markmap: の行ごと消します"}]"###,
+        ),
+        (
+            "removed_markmap_only_initial_expand_level",
+            r###"{"markmap":{"initialExpandLevel":2}}"###,
+            None,
+            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。markmap: の行は消します"}]"###,
+        ),
+        (
+            "removed_markmap_without_initial_expand_level",
+            r###"{"title":"T","markmap":{"colorFreezeLevel":2,"maxWidth":300}}"###,
+            None,
+            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"markmap のキー (colorFreezeLevel, maxWidth) は削除したオプションで、書いても効きません。markmap: の行ごと消します"}]"###,
+        ),
+        (
+            "removed_markmap_not_a_mapping",
+            r###"{"markmap":null}"###,
+            None,
+            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"markmap のオプションは削除したので、書いても効きません。markmap: の行を消します"}]"###,
         ),
         (
             "unknown_root_near",
             r###"{"relation":{"fork":["A --> B"]},"Markdag":1}"###,
             None,
-            r###"[{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「relation」は、markdag が読むキー (markdag, markmap, title) のどれでもありません","at":null,"hint":"もしかして「relations」(markdag の下に書きます)"},{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「Markdag」は、markdag が読むキー (markdag, markmap, title) のどれでもありません","at":null,"hint":"もしかして「markdag」"}]"###,
+            r###"[{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「relation」は、markdag が読むキー (markdag, title) のどれでもありません","at":null,"hint":"もしかして「relations」(markdag の下に書きます)"},{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「Markdag」は、markdag が読むキー (markdag, title) のどれでもありません","at":null,"hint":"もしかして「markdag」"}]"###,
         ),
         (
             "to_string_under_tags",
@@ -1408,9 +1484,9 @@ mod tests {
         ),
         (
             "placement_root_misplaced",
-            r###"{"fork":"A --> B","colorFreezeLevel":2,"relations":{}}"###,
+            r###"{"fork":"A --> B","initialExpandLevel":2,"relations":{}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-misplaced","message":"「fork」は frontmatter の markdag.relations の下に書いてください。この位置では無視します","at":null,"hint":"markdag: の下に relations: を作り、その下に字下げして fork: を書きます"},{"severity":"warning","code":"option-misplaced","message":"「colorFreezeLevel」は frontmatter の markmap の下に書いてください。この位置では無視します","at":null,"hint":"markmap: の行を作り、その下に字下げして colorFreezeLevel: を書きます"},{"severity":"warning","code":"option-misplaced","message":"「relations」は frontmatter の markdag の下に書いてください。この位置では無視します","at":null,"hint":"markdag: の行を作り、その下に字下げして relations: を書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-misplaced","message":"「fork」は frontmatter の markdag.relations の下に書いてください。この位置では無視します","at":null,"hint":"markdag: の下に relations: を作り、その下に字下げして fork: を書きます"},{"severity":"warning","code":"option-misplaced","message":"「initialExpandLevel」は frontmatter の markdag の下に書いてください。この位置では無視します","at":null,"hint":"markdag: の行を作り、その下に字下げして initialExpandLevel: を書きます"},{"severity":"warning","code":"option-misplaced","message":"「relations」は frontmatter の markdag の下に書いてください。この位置では無視します","at":null,"hint":"markdag: の行を作り、その下に字下げして relations: を書きます"}]"###,
         ),
         (
             "relation_keys",
@@ -1444,13 +1520,13 @@ mod tests {
             Some(
                 "---\nrelation: 1\nmarkdag:\n    tags:\n        displa: true\n    fork:\n        - A --> B\n---\n\n# root",
             ),
-            r###"[{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「relation」は、markdag が読むキー (markdag, markmap, title) のどれでもありません","at":{"line":2,"column":1,"length":8},"hint":"もしかして「relations」(markdag の下に書きます)"},{"severity":"warning","code":"option-unknown","message":"markdag.tags のキー「displa」は使えません (display, lint, unknownKey, keys)","at":{"line":5,"column":9,"length":6},"hint":"もしかして「display」"},{"severity":"warning","code":"option-misplaced","message":"markdag のキー「fork」は、markdag.relations の下に書いてください。この位置では無視します","at":{"line":6,"column":5,"length":4},"hint":"relations: の行を作り、その下に字下げして fork: を書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「relation」は、markdag が読むキー (markdag, title) のどれでもありません","at":{"line":2,"column":1,"length":8},"hint":"もしかして「relations」(markdag の下に書きます)"},{"severity":"warning","code":"option-unknown","message":"markdag.tags のキー「displa」は使えません (display, lint, unknownKey, keys)","at":{"line":5,"column":9,"length":6},"hint":"もしかして「display」"},{"severity":"warning","code":"option-misplaced","message":"markdag のキー「fork」は、markdag.relations の下に書いてください。この位置では無視します","at":{"line":6,"column":5,"length":4},"hint":"relations: の行を作り、その下に字下げして fork: を書きます"}]"###,
         ),
         (
             "at_sorted_missing_last",
-            r###"{"markdag":{"tags":{"display":"yes"},"branches":"A"},"colorFreezeLevel":2}"###,
-            Some("---\ncolorFreezeLevel: 2\nmarkdag:\n    branches: A\n---\n\n# root"),
-            r###"[{"severity":"warning","code":"option-misplaced","message":"「colorFreezeLevel」は frontmatter の markmap の下に書いてください。この位置では無視します","at":{"line":2,"column":1,"length":16},"hint":"markmap: の行を作り、その下に字下げして colorFreezeLevel: を書きます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches は一覧で書きます (\"A\")","at":{"line":4,"column":15,"length":1},"hint":"branches: の下に、起点にするノードを「- 名前」の形で 1 行ずつ並べます"},{"severity":"warning","code":"option-invalid","message":"markdag.tags.display に指定できるのは always, hover, click, never です (\"yes\")","at":null,"hint":"always, hover, click, never のどれかを書きます"}]"###,
+            r###"{"markdag":{"tags":{"display":"yes"},"branches":"A"},"initialExpandLevel":2}"###,
+            Some("---\ninitialExpandLevel: 2\nmarkdag:\n    branches: A\n---\n\n# root"),
+            r###"[{"severity":"warning","code":"option-misplaced","message":"「initialExpandLevel」は frontmatter の markdag の下に書いてください。この位置では無視します","at":{"line":2,"column":1,"length":18},"hint":"markdag: の行を作り、その下に字下げして initialExpandLevel: を書きます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches は一覧で書きます (\"A\")","at":{"line":4,"column":15,"length":1},"hint":"branches: の下に、起点にするノードを「- 名前」の形で 1 行ずつ並べます"},{"severity":"warning","code":"option-invalid","message":"markdag.tags.display に指定できるのは always, hover, click, never です (\"yes\")","at":null,"hint":"always, hover, click, never のどれかを書きます"}]"###,
         ),
         (
             "at_multibyte_column",
@@ -1476,14 +1552,14 @@ mod tests {
     #[test]
     fn schema_node_undefined_value_has_no_shown_text() {
         let frontmatter = JsValue::Object(IndexMap::from([(
-            "markmap".to_string(),
+            "markdag".to_string(),
             JsValue::Object(IndexMap::from([
                 ("initialExpandLevel".to_string(), JsValue::Undefined),
-                ("color".to_string(), JsValue::Undefined),
+                ("branches".to_string(), JsValue::Undefined),
             ])),
         )]));
         let got = serde_json::to_value(check_frontmatter(&frontmatter, None)).expect("診断の JSON");
-        let expected: serde_json::Value = serde_json::from_str(r###"[{"severity":"warning","code":"option-invalid","message":"markmap.initialExpandLevel は整数で書きます","at":null,"hint":"深さを整数で書きます (すべて開くなら -1)"},{"severity":"warning","code":"option-invalid","message":"markmap.color には 文字列、一覧 のどれかを書きます","at":null,"hint":"色を 1 つ書くか、「- \"#2980b9\"」の形で 1 行ずつ並べます"}]"###).expect("期待値の JSON");
+        let expected: serde_json::Value = serde_json::from_str(r###"[{"severity":"warning","code":"option-invalid","message":"markdag.initialExpandLevel は整数で書きます","at":null,"hint":"深さを整数で書きます (すべて開くなら -1)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches は一覧で書きます","at":null,"hint":"branches: の下に、起点にするノードを「- 名前」の形で 1 行ずつ並べます"}]"###).expect("期待値の JSON");
         assert_eq!(got, expected);
     }
 
@@ -1500,7 +1576,7 @@ mod tests {
                 code: "option-unknown".to_string(),
                 message: "markdag のキー「__proto__」は使えません (relations, groups, types, tags, rules, hooks ほか)".to_string(),
                 at: Some(SourcePosition { line: 3, column: 5, length: 9 }),
-                hint: some("markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight を字下げして書きます"),
+                hint: some("markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"),
             }]
         );
         let got = check_frontmatter(&js(r#"{"markdag":{"tags":{"__proto__":1}}}"#), None);

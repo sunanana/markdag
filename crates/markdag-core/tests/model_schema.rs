@@ -57,7 +57,6 @@ fn model_schema_valid_frontmatter_has_no_diagnostics() {
     assert!(check(epic_frontmatter()).is_empty());
     let diagnostics = check(json!({
         "title": "小さな DAG",
-        "markmap": { "colorFreezeLevel": 2, "color": ["#2980b9"] },
         "markdag": {
             "relations": { "fork": ["企画 --> 設計/*"], "depends": "画面設計 --> API設計" },
             "groups": { "design": { "label": "設計チーム", "color": "#3B7DD8", "boundary": true, "members": ["画面設計"] } },
@@ -65,6 +64,7 @@ fn model_schema_valid_frontmatter_has_no_diagnostics() {
             "details": { "display": "always" },
             "legend": { "position": "bottom-left", "display": false },
             "branches": ["企画", "実装"],
+            "initialExpandLevel": 2,
         },
     }));
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -275,8 +275,9 @@ fn model_schema_position_is_looked_up_from_source() {
 
 // 原文の cases の表。ラベル、frontmatter、期待するコードの並び
 fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
-    let undefined_in_markmap =
-        |key: &str| object(vec![("markmap", object(vec![(key, JsValue::Undefined)]))]);
+    let undefined_in = |parent: &'static str, key: &str| {
+        object(vec![(parent, object(vec![(key, JsValue::Undefined)]))])
+    };
     vec![
         (
             "グループの色が引用符なしで、# 以降がコメントになった",
@@ -379,8 +380,8 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
             vec!["option-unknown"],
         ),
         (
-            "markmap のオプションを最上位に置いた",
-            js(json!({ "colorFreezeLevel": 2 })),
+            "initialExpandLevel を最上位に置いた",
+            js(json!({ "initialExpandLevel": 2 })),
             vec!["option-misplaced"],
         ),
         (
@@ -409,51 +410,50 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
             vec!["option-misplaced"],
         ),
         (
-            "markdag のキーを markmap の下に置いた",
+            "markdag のキーを markmap の下に置いた (最上位の markmap は読まない)",
             js(json!({ "markmap": { "markdag": { "details": { "display": "always" } } } })),
-            vec!["option-unknown"],
+            vec!["option-removed"],
         ),
         (
-            "markmap の数値に文字列を書いた",
-            js(json!({ "markmap": { "nodeMinHeight": "20" } })),
+            "最初に開く深さに数字の文字列を書いた",
+            js(json!({ "markdag": { "initialExpandLevel": "2" } })),
             vec!["option-invalid"],
         ),
         (
-            "markmap の真偽値に文字列を書いた (逆の意味になる)",
-            js(json!({ "markmap": { "autoFit": "no" } })),
+            "真偽値に文字列を書いた (逆の意味になる)",
+            js(json!({ "markdag": { "edgeHighlight": "no" } })),
             vec!["option-invalid"],
         ),
         (
-            "markmap の深さに数でない文字列を書いた",
-            js(json!({ "markmap": { "colorFreezeLevel": "abc" } })),
+            "最初に開く深さに数でない文字列を書いた",
+            js(json!({ "markdag": { "initialExpandLevel": "abc" } })),
             vec!["option-invalid"],
         ),
         (
-            "markmap の知らないキー",
+            "markmap の知らないキー (最上位の markmap は読まない)",
             js(json!({ "markmap": { "colorFreeze": 2 } })),
-            vec!["option-unknown"],
+            vec!["option-removed"],
         ),
-        // markmap-lib は読めない値を undefined に直してしまうので、原文の値は診断に書き添えられない
+        // JS から渡された undefined の値は、原文の値を診断に書き添えられない
         (
-            "markmap-lib が読めずに消した値",
-            undefined_in_markmap("initialExpandLevel"),
+            "最初に開く深さが undefined",
+            undefined_in("markdag", "initialExpandLevel"),
             vec!["option-invalid"],
         ),
         (
-            "markmap の色が文字列でも一覧でもない",
-            undefined_in_markmap("color"),
-            vec!["option-invalid"],
+            "markmap の下の undefined も読まない",
+            undefined_in("markmap", "color"),
+            vec!["option-removed"],
         ),
         (
-            "title など markmap 側のキーは、最上位にあってもよい",
+            "title など markdag の外のキーは、最上位にあってもよい",
             js(json!({ "title": "x", "author": "y" })),
             vec![],
         ),
-        // markmap-lib が読んで使うキーと、CSS の色として読める書き方は、弾かない
         (
-            "markmap.htmlParser は markmap-lib が読むので通す",
+            "markmap.htmlParser も読まない",
             js(json!({ "markmap": { "htmlParser": { "selector": "h1,h2" } } })),
-            vec![],
+            vec!["option-removed"],
         ),
         (
             "frontmatter がキーと値の組でない",
@@ -636,4 +636,87 @@ fn code_messages(diagnostics: &[Diagnostic]) -> Vec<(&str, &str)> {
         .iter()
         .map(|item| (item.code.as_str(), item.message.as_str()))
         .collect()
+}
+
+// ---- 最初に開いておく深さ (markdag.initialExpandLevel) と、読まなくなった最上位の markmap (A-221) ----
+
+fn diagnose(markdown: &str) -> Vec<Diagnostic> {
+    markdag_core::native::diagnose(markdown, Default::default())
+}
+
+#[test]
+fn model_initial_expand_level_is_read_under_markdag() {
+    for level in [-1, 0, 2] {
+        assert!(check(json!({ "markdag": { "initialExpandLevel": level } })).is_empty());
+    }
+    let parsed = markdag_core::parse::parse_document(
+        "---\nmarkdag:\n    initialExpandLevel: 2\n---\n\n# root\n\n## a\n\n- b\n",
+    );
+    assert!(parsed.extracted);
+    assert_eq!(
+        parsed.frontmatter,
+        js(json!({ "markdag": { "initialExpandLevel": 2 } }))
+    );
+    let diagnostics = diagnose("---\nmarkdag:\n    initialExpandLevel: \"2\"\n---\n\n# root\n");
+    assert_eq!(
+        diagnostics,
+        [Diagnostic {
+            severity: Severity::Warning,
+            code: "option-invalid".to_string(),
+            message: "markdag.initialExpandLevel は整数で書きます (\"2\")".to_string(),
+            at: Some(position(3, 25, 3)),
+            hint: some("深さを整数で書きます (すべて開くなら -1)"),
+        }]
+    );
+    for wrong in [json!(1.5), json!(true), json!([2]), json!(null)] {
+        assert_eq!(
+            check_codes(json!({ "markdag": { "initialExpandLevel": wrong } })),
+            ["option-invalid"],
+            "{wrong}"
+        );
+    }
+}
+
+#[test]
+fn model_leftover_markmap_is_warned_and_ignored() {
+    let removed = "frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します";
+    let with_level = diagnose(
+        "---\nmarkmap:\n    initialExpandLevel: 3\nmarkdag:\n    branches: [a]\n---\n\n# root\n\n## a\n",
+    );
+    assert_eq!(
+        with_level,
+        [Diagnostic {
+            severity: Severity::Warning,
+            code: "option-removed".to_string(),
+            message: removed.to_string(),
+            at: Some(position(2, 1, 7)),
+            hint: some(
+                "initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。markmap: の行は消します"
+            ),
+        }]
+    );
+    let without_level = diagnose(
+        "---\ntitle: T\nmarkmap:\n    colorFreezeLevel: 2\n    maxWidth: 300\n---\n\n# root\n",
+    );
+    let codes: Vec<(&str, Option<&str>)> = without_level
+        .iter()
+        .map(|item| (item.code.as_str(), item.hint.as_deref()))
+        .collect();
+    assert_eq!(
+        codes,
+        [
+            (
+                "option-removed",
+                Some(
+                    "markmap のキー (colorFreezeLevel, maxWidth) は削除したオプションで、書いても効きません。markmap: の行ごと消します"
+                )
+            ),
+            ("not-extracted", None),
+        ]
+    );
+    // 値は読まないので、markmap の下の書き損じは型の診断にならない
+    assert_eq!(
+        check_codes(json!({ "markmap": { "initialExpandLevel": "abc", "autoFit": "no" } })),
+        ["option-removed"]
+    );
 }

@@ -1,9 +1,7 @@
 ---
 title: 新機能エピック
-markmap:
-    colorFreezeLevel: 2
-    initialExpandLevel: 3
 markdag:
+    initialExpandLevel: 3
     relations:
         join:
             - 仕様策定/* --> 開発完了

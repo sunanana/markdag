@@ -273,7 +273,7 @@ Methods of `MarkdagView` (also reachable as `diagram.view`):
 | `revealNode(id)` | Open the ancestors of the node. Does not move the transform |
 | `getFolded()` | Ids of the folded nodes, ascending |
 | `setFolded(ids)` | Replace the fold state. Ids that are not in the document, and ids of nodes without children, are dropped |
-| `expandAll()` / `resetFold()` | Open every node / go back to the document's initial fold state |
+| `expandAll()` / `resetFold()` | Open every node / go back to the document's initial fold state (`markdag.initialExpandLevel`) |
 | `contentBounds()` | The rectangle the content occupies, in diagram coordinates: the same range `fit()` uses, including group frames and their labels. `null` when nothing is drawn. During an animation it answers with the final layout |
 | `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`) |
 | `destroy()` | Remove the diagram and its listeners |

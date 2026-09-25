@@ -476,6 +476,31 @@ test.describe('図の操作', () => {
         expect(result.callsAfterSame).toBe(result.calls);
     });
 
+    test('最初に閉じる深さは markdag.initialExpandLevel が決め、最上位の markmap は読まずに警告する', async ({ page }) => {
+        await open(page);
+        const result = await page.evaluate((markdown) => {
+            const target = window as unknown as TestWindow;
+            const container = document.getElementById('a');
+            if (!container) throw new Error('container is missing');
+            const strokes = () =>
+                Object.fromEntries([...container.querySelectorAll<SVGLineElement>('.mdag-underline')].map((line) => [line.dataset.id, line.style.stroke]));
+            const diagram = target.harness.markdag.render(container, markdown.replace('markdag:\n', 'markdag:\n    initialExpandLevel: 2\n'), { animate: false });
+            const underMarkdag = { folded: diagram.view.getFolded(), codes: diagram.diagnostics.map((item) => item.code) };
+            diagram.update(markdown);
+            const plain = strokes();
+            const leftoverDiagnostics = diagram.update(markdown.replace('---\nmarkdag:\n', '---\nmarkmap:\n    initialExpandLevel: 2\n    colorFreezeLevel: 2\nmarkdag:\n'));
+            const leftover = { folded: diagram.view.getFolded(), codes: leftoverDiagnostics.map((item) => item.code), strokes: strokes() };
+            diagram.destroy();
+            return { underMarkdag, plain, leftover };
+        }, DOC);
+        expect(result.underMarkdag).toEqual({ folded: [2, 5, 6], codes: [] });
+        expect(result.leftover.folded).toEqual([]);
+        expect(result.leftover.codes).toEqual(['option-removed']);
+        // 枝の起点がない文書は、ノードごとに色が分かれる (colorFreezeLevel で祖先の色にそろえない)
+        expect(result.leftover.strokes).toEqual(result.plain);
+        expect(new Set(['2', '3', '4'].map((id) => result.plain[id])).size).toBe(3);
+    });
+
     test('閉じた枝の中のノードを、表示位置を動かさずに見えるようにできる', async ({ page }) => {
         await renderFirst(page);
         const result = await page.evaluate(() => {

@@ -86,6 +86,14 @@ export interface ViewHooks {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const { paddingX } = MARKMAP_DEFAULTS;
+
+// 最初に開いておく深さ (frontmatter の markdag.initialExpandLevel)。整数でない値はスキーマが警告にしているので、指定なしと同じくすべて開く
+function initialExpandLevelOf(frontmatter: Record<string, unknown>): number {
+    const options = frontmatter.markdag;
+    const level = typeof options === 'object' && options !== null ? (options as Record<string, unknown>).initialExpandLevel : undefined;
+    return typeof level === 'number' && Number.isInteger(level) ? level : -1;
+}
+
 const BRANCH_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
 // 枝の指定がある文書で、どの枝にも入らないノードの色。線の色は出発ノードの色なので、その線もこの色になる
 const NO_BRANCH_COLOR = 'var(--markdag-edge-tree)';
@@ -351,9 +359,8 @@ export class MarkdagView {
         this.childrenOf = new Map(parsed.nodes.map((node) => [node.id, []]));
         for (const node of parsed.nodes) if (node.parent !== null) this.childrenOf.get(node.parent)?.push(node.id);
 
-        const markmapOptions = (parsed.frontmatter.markmap ?? {}) as Record<string, unknown>;
-        this.assignColors(Number(markmapOptions.colorFreezeLevel ?? 0));
-        this.initialFolded = this.computeInitialFold(Number(markmapOptions.initialExpandLevel ?? -1));
+        this.assignColors();
+        this.initialFolded = this.computeInitialFold(initialExpandLevelOf(parsed.frontmatter));
         const sameInitial =
             previousInitial.size === this.initialFolded.size && [...previousInitial].every((id) => this.initialFolded.has(id));
         this.folded = new Set(sameShape && sameInitial && !fit ? previousFolded : this.initialFolded);
@@ -572,10 +579,8 @@ export class MarkdagView {
     }
 
     // 文書が枝の起点を指定していれば、起点ごとに色を割り当てて配下に引き継ぐ (起点の中の起点は、そこから別の色になる)。
-    // 指定がなければ markmap と同じく、枝の経路を colorFreezeLevel の深さで切った文字列ごとに、出てきた順で色を割り当てる
-    private assignColors(freezeLevel: number): void {
-        const paths = new Map<number, number[]>();
-        const assigned = new Map<string, string>();
+    // 指定がなければ、ノードごとに出てきた順で色を割り当てる
+    private assignColors(): void {
         this.colorOf.clear();
         const branches = this.model?.branches ?? [];
         if (branches.length > 0) {
@@ -587,13 +592,7 @@ export class MarkdagView {
             }
             return;
         }
-        for (const node of this.nodes) {
-            const path = [...(node.parent === null ? [] : (paths.get(node.parent) ?? [])), node.id];
-            paths.set(node.id, path);
-            const key = (freezeLevel > 0 ? path.slice(0, freezeLevel) : path).join('.');
-            if (!assigned.has(key)) assigned.set(key, BRANCH_COLORS[assigned.size % BRANCH_COLORS.length] ?? '#888');
-            this.colorOf.set(node.id, assigned.get(key) ?? '#888');
-        }
+        this.nodes.forEach((node, index) => this.colorOf.set(node.id, BRANCH_COLORS[index % BRANCH_COLORS.length] ?? '#888'));
     }
 
     private computeInitialFold(expandLevel: number): Set<number> {

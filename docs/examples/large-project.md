@@ -1,8 +1,7 @@
 ---
 title: 新サービス立ち上げ
-markmap:
-    initialExpandLevel: 3
 markdag:
+    initialExpandLevel: 3
     relations:
         # 工程の背骨。チームからチームへ引き継ぐ順
         chain:
