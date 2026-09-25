@@ -112,21 +112,23 @@ pub fn resolve_hooks(raw: &JsValue, provided: Option<&HookSpec>) -> ResolveHooks
     };
     let declared_ref = field(raw, "$ref");
     let single = matches!(declared_ref, Some(JsValue::String(_)));
-    let refs: Vec<String> = match declared_ref {
-        Some(JsValue::String(text)) => vec![text.clone()],
+    // (配列での元の添字, ref)。文字列でない項目は飛ばすが、診断の道すじには元の添字を使う
+    // (旧実装は飛ばしたあとの添字を使い、`$ref: [1, './a.js']` で './a.js' の診断が `$ref[0]` を指した。docs/ignore/bugs/TODO.md の d)
+    let refs: Vec<(usize, String)> = match declared_ref {
+        Some(JsValue::String(text)) => vec![(0, text.clone())],
         Some(JsValue::Array(items)) => items
             .iter()
-            .filter_map(|item| match item {
-                JsValue::String(text) => Some(text.clone()),
+            .enumerate()
+            .filter_map(|(index, item)| match item {
+                JsValue::String(text) => Some((index, text.clone())),
                 _ => None,
             })
             .collect(),
         _ => Vec::new(),
     };
     let mut hooks: Vec<DeclaredHook> = Vec::new();
-    // 規則 2.3: 添字は filter のあとの位置
-    // BUG(port): `$ref: [1, './a.js']` で './a.js' の診断が `$ref[0]` (YAML の 1 の項目) を指す。原文 hooks.ts:306-309 のまま
-    for (index, ref_text) in refs.iter().enumerate() {
+    for (index, ref_text) in &refs {
+        let index = *index;
         let mut path: SourcePath = vec![
             PathStep::Key("markdag".to_string()),
             PathStep::Key("hooks".to_string()),
@@ -682,9 +684,29 @@ mod tests {
         );
     }
 
-    // node の c6: 文字列でない項目を飛ばしたあとの添字 (BUG(port) をそのまま写す)
     #[test]
-    fn hooks_decl_index_after_filter_matches_node() {
+    fn hooks_decl_module_issues_point_at_original_index() {
+        // 読めたモジュールの export の診断も、配列での元の添字を指す (TODO の d)
+        let provided = spec(vec![("./m.js", module(&[("onLayot", true)]))]);
+        let raw = obj(vec![(
+            "$ref",
+            arr(vec![JsValue::Bool(true), JsValue::Null, s("./m.js")]),
+        )]);
+        let result = resolve_hooks(&raw, Some(&provided));
+        assert_eq!(result.hooks, vec![declared("./m.js", &[])]);
+        assert_eq!(
+            result
+                .issues
+                .iter()
+                .map(|issue| issue.path.clone())
+                .collect::<Vec<_>>(),
+            vec![ref_path(Some(2))]
+        );
+    }
+
+    // node の c6: 文字列でない項目は飛ばし、道すじは配列での元の添字 (旧実装は飛ばしたあとの添字 0 と 1。TODO の d)
+    #[test]
+    fn hooks_decl_index_is_original_array_index() {
         let provided = HookSpec::new();
         let raw = obj(vec![(
             "$ref",
@@ -704,14 +726,14 @@ mod tests {
                     "hooks-unresolved",
                     &unresolved_message("./a.js"),
                     HINT_MISSING,
-                    ref_path(Some(0))
+                    ref_path(Some(1))
                 ),
                 issue(
                     Severity::Warning,
                     "hooks-unresolved",
                     &unresolved_message("./b.js"),
                     HINT_MISSING,
-                    ref_path(Some(1))
+                    ref_path(Some(3))
                 ),
             ]
         );

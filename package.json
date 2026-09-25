@@ -1,6 +1,6 @@
 {
     "name": "markdag",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "description": "Turn Markdown into a DAG diagram",
     "license": "MIT",
     "repository": {
@@ -49,6 +49,7 @@
     "scripts": {
         "build": "vite-node scripts/build.ts && tsc -p tsconfig.build.json",
         "build:wasm": "vite-node scripts/build-wasm.ts",
+        "build:cli": "npm run build && cargo build -p markdag-cli --release",
         "prepack": "npm run build",
         "check": "vite-node scripts/check.ts",
         "test": "vitest --run",

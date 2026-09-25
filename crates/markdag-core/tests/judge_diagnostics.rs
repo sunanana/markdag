@@ -311,24 +311,70 @@ fn judge_diagnostics_known_body_bugs() {
 // build_model の出力 (境界の形) を judge_shape で期待値の形に直し、期待値の model と欄ごとに比べる。
 // diagnostics の yaml-syntax は上と同じ取り決め (normalized、drop_later_yaml_errors) を両側に当てる。
 
-// 決定済みの差と本体の誤りで、model 全体が一致しない文書。文書名、差の場所 (model からの JSON Pointer)、理由。
+// 決定済みの差と本体の誤りで、model 全体が一致しない文書。文書名、差の場所 (model からの JSON Pointer) の一覧、理由。
 // 差の場所の値が両側で違うことを確かめてから、その値だけを期待値に置き換えて残りを比べる (他の欄の差は失敗にする)。
 // edge-numeric-group-keys (決定 8 の groups の並び) は、入力の frontmatter が期待値の JSON (旧実装が JS の順に並べ直したもの)
 // なのでここでは差が出ない。書かれた順の入力での並びは model 層の単体テストと、審判の model (examples/model_corpus の
-// parse → build_model の通し。accepted.md の 1 行目の差として出る) が確かめる
-const MODEL_KNOWN_DIFFERENCES: &[(&str, &str, &str)] = &[(
-    "edge-yaml-error",
-    "/diagnostics/0/at",
-    "KNOWN_BODY_BUGS と同じ yaml-syntax の位置の差",
-)];
+// parse → build_model の通し。accepted.md の 1 行目の差として出る) が確かめる。
+// 入力の parsed は期待値のもの (旧実装の refText) なので、名前を持たないノード (A-212 決定) の差はここには出ない
+const MODEL_KNOWN_DIFFERENCES: &[(&str, &[&str], &str)] = &[
+    (
+        "edge-yaml-error",
+        &["/diagnostics/0/at"],
+        "KNOWN_BODY_BUGS と同じ yaml-syntax の位置の差",
+    ),
+    (
+        "edge-crlf-diagnostic",
+        &["/diagnostics/1/hint"],
+        "ref-not-found の既定の hint を「先頭から書きます」から「そのまま書きます」にした (A-217。accepted.md 35)",
+    ),
+    (
+        "edge-empty-body",
+        &["/diagnostics/0/hint"],
+        "ref-not-found の既定の hint の文 (A-217。accepted.md 35)",
+    ),
+    (
+        "edge-relations-grammar",
+        &["/diagnostics/12/hint", "/diagnostics/19/hint"],
+        "ref-not-found の既定の hint の文 (A-217。accepted.md 35)",
+    ),
+    (
+        "edge-emoji-frontmatter-position",
+        &[
+            "/diagnostics/1",
+            "/diagnostics/2/hint",
+            "/diagnostics/3/hint",
+        ],
+        "前方一致の候補が 2 つの「Amb」は ref-ambiguous でなく候補つきの ref-not-found。ほかは既定の hint の文 (A-217。accepted.md 35)",
+    ),
+    (
+        "edge-refs",
+        &[
+            "/diagnostics/1",
+            "/diagnostics/5/hint",
+            "/diagnostics/6/hint",
+        ],
+        "前方一致の候補が 3 つの「Amb」は ref-ambiguous でなく候補つきの ref-not-found。ほかは既定の hint の文 (A-217。accepted.md 35)",
+    ),
+    (
+        "edge-setext-marks",
+        &["/diagnostics/0", "/relations", "/suppressRootLine"],
+        "前方一致でしか当たらない「設計」は線を引かず ref-prefix の warning (A-217。accepted.md 35)",
+    ),
+    (
+        "fx-epic",
+        &["/diagnostics/0", "/relations"],
+        "前方一致でしか当たらない「登録API」は線を引かず ref-prefix の warning (A-217。accepted.md 35)",
+    ),
+];
 
-// 既知の差の場所を除いた比べの結果。known_differs は既知の差の場所の値が両側で違ったか
+// 既知の差の場所を除いた比べの結果。known_differs は既知の差の場所の値がすべて両側で違ったか
 struct ModelComparison {
     known_differs: bool,
     difference: Option<String>,
 }
 
-fn model_difference(file: &Path, known_pointer: Option<&str>) -> Result<ModelComparison, String> {
+fn model_difference(file: &Path, known_pointers: &[&str]) -> Result<ModelComparison, String> {
     let name = file
         .file_stem()
         .map(|stem| stem.to_string_lossy().to_string())
@@ -373,8 +419,8 @@ fn model_difference(file: &Path, known_pointer: Option<&str>) -> Result<ModelCom
             .collect(),
     );
     actual["diagnostics"] = Value::Array(actual_diagnostics.iter().map(normalized).collect());
-    let mut known_differs = false;
-    if let Some(pointer) = known_pointer {
+    let mut known_differs = true;
+    for pointer in known_pointers {
         let wanted_value = wanted
             .pointer(pointer)
             .cloned()
@@ -382,7 +428,7 @@ fn model_difference(file: &Path, known_pointer: Option<&str>) -> Result<ModelCom
         let actual_value = actual
             .pointer_mut(pointer)
             .ok_or(format!("出力に既知の差の場所 {pointer} がない"))?;
-        known_differs = *actual_value != wanted_value;
+        known_differs &= *actual_value != wanted_value;
         *actual_value = wanted_value;
     }
     Ok(ModelComparison {
@@ -403,11 +449,14 @@ fn judge_model_matches_expected() {
             .file_stem()
             .map(|stem| stem.to_string_lossy().to_string())
             .unwrap_or_default();
-        let known_pointer = MODEL_KNOWN_DIFFERENCES
+        let known_pointers = MODEL_KNOWN_DIFFERENCES
             .iter()
             .find(|(known, _, _)| *known == name)
-            .map(|(_, pointer, _)| *pointer);
-        match (model_difference(file, known_pointer), known_pointer) {
+            .map(|(_, pointers, _)| *pointers);
+        match (
+            model_difference(file, known_pointers.unwrap_or_default()),
+            known_pointers,
+        ) {
             (
                 Ok(ModelComparison {
                     difference: Some(difference),
@@ -420,13 +469,15 @@ fn judge_model_matches_expected() {
                     known_differs: false,
                     ..
                 }),
-                Some(pointer),
+                Some(pointers),
             ) => failures.push(format!(
-                "{name}: 既知の差 (/model{pointer}) が一致した。MODEL_KNOWN_DIFFERENCES から外す"
+                "{name}: 既知の差 ({}) のどれかが一致した。MODEL_KNOWN_DIFFERENCES を直す",
+                pointers.join("、")
             )),
-            (Ok(_), Some(pointer)) => {
-                known.push(format!("{name}: /model{pointer} (既知の差の他は一致)"))
-            }
+            (Ok(_), Some(pointers)) => known.push(format!(
+                "{name}: {} (既知の差の他は一致)",
+                pointers.join("、")
+            )),
             (Ok(_), None) => matched += 1,
             (Err(error), _) => failures.push(format!("{name}: 入力を作れない: {error}")),
         }

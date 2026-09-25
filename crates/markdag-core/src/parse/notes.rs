@@ -1,6 +1,6 @@
 // 本文の診断。解析の結果 (ParsedDocument) は診断を持たないので、model 層が原文を受けたときに、解析と同じ読み方で本文を読み直して出す。
-// 出すのは、図に出ない書き方のうち書き手が気づきにくいもの: 上限より深い入れ子 (A-105) と、見出しやリストと同じ並びに置いた
-// 生の HTML の見出し (A-112)。どちらも当たりうる文書だけを読み直すよう、先に原文の文字で絞る (多くの文書は comrak を 2 度走らせない)。
+// 出すのは、図に出ない書き方のうち書き手が気づきにくいもの: 上限より深い入れ子 (A-105)、見出しやリストと同じ並びに置いた
+// 生の HTML の見出し (A-112)、ノードの 1 行目に書いたブロックの書き始め (文字として表示する。A-219)。どちらも当たりうる文書だけを読み直すよう、先に原文の文字で絞る (多くの文書は comrak を 2 度走らせない)。
 use std::sync::LazyLock;
 
 use comrak::Arena;
@@ -10,9 +10,11 @@ use regex::Regex;
 use super::document::{
     normalize_task_marks, probe_frontmatter, read_frontmatter, strip_annotations,
 };
-use super::outline::{normalize_source, parse_body, too_deep_nodes};
+use super::outline::{
+    FIRST_LINE_BLOCK_CANDIDATE, normalize_source, parse_outline_body, too_deep_nodes,
+};
 use crate::limits::{MAX_NESTING, too_deep_message};
-use crate::model::util::js_slice;
+use crate::model::util::{js_slice, to_u32};
 use crate::types::{Diagnostic, Severity, SourcePosition};
 
 // 原文に HTML の見出しの開きのタグ (`<h1>`〜`<h6>`、属性つきと `<h2/>` を含む) がありうるか。CommonMark の HTML ブロックの
@@ -129,13 +131,17 @@ fn may_be_too_deep(markdown: &str) -> bool {
 /// 原文から本文の診断を作る。markdown は build_model が受けた原文 (parse_document に渡したものと同じ)
 pub fn body_diagnostics(markdown: &str) -> Vec<Diagnostic> {
     // 前処理は字を取るだけなので、原文で当たらなければ前処理のあとも当たらない。先に原文で安く絞る
-    if !may_be_too_deep(markdown) && !HTML_HEADING.is_match(markdown) {
+    if !may_be_too_deep(markdown)
+        && !HTML_HEADING.is_match(markdown)
+        && !FIRST_LINE_BLOCK_CANDIDATE.is_match(markdown)
+    {
         return Vec::new();
     }
     // parse_document と同じ前処理 (記号の大文字、markdag の文書なら注釈の取り除き) と本文の切り出し
     // (frontmatter が YAML として読めなければ本文に残る)。注釈の字 (`#k:***` など) を入れ子に数えない
     let source = normalize_task_marks(markdown);
-    let text = if probe_frontmatter(&source).extracted {
+    let extracted = probe_frontmatter(&source).extracted;
+    let text = if extracted {
         strip_annotations(&source).text
     } else {
         source
@@ -148,15 +154,33 @@ pub fn body_diagnostics(markdown: &str) -> Vec<Diagnostic> {
     let body = normalize_source(body);
     let deep = may_be_too_deep(&body);
     let heading = HTML_HEADING.is_match(&body);
-    if !deep && !heading {
+    // ノードの 1 行目の規則 (A-219) は markdag の記法を読む文書だけに当てる
+    let first_lines = extracted && FIRST_LINE_BLOCK_CANDIDATE.is_match(&body);
+    if !deep && !heading && !first_lines {
         return Vec::new();
     }
-    let lines: Vec<&str> = body.split('\n').collect();
+    // 解析と同じく、1 行目のブロックの書き始めを文字にしてから読む (入れ子の深さも書き換えたあとの木で数える)
     let arena = Arena::new();
-    let document = parse_body(&arena, &body);
+    let (document, body, blocks) = parse_outline_body(&arena, &body, extracted);
+    let lines: Vec<&str> = body.split('\n').collect();
     let mut diagnostics = Vec::new();
     if heading {
         diagnostics.extend(html_headings(document, &lines, frontmatter_lines));
+    }
+    for block in blocks {
+        diagnostics.push(Diagnostic {
+            severity: Severity::Warning,
+            code: "block-on-first-line".to_string(),
+            message: "ノードの 1 行目にブロック (表、コード、HTML、引用など) の書き始めがあります。1 行目は書いたままの文字として表示します".to_string(),
+            at: Some(SourcePosition {
+                line: to_u32(block.line + frontmatter_lines),
+                column: to_u32(block.column),
+                length: to_u32(block.length),
+            }),
+            hint: Some(
+                "ブロックは 2 行目以降に書きます。1 行目にラベルを書くか、空にします".to_string(),
+            ),
+        });
     }
     if deep && let Some(first) = too_deep_nodes(document).first() {
         let start = first.data().sourcepos.start;
@@ -315,6 +339,7 @@ fn position(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parse::outline::parse_body;
 
     fn codes(markdown: &str) -> Vec<(String, Option<SourcePosition>)> {
         body_diagnostics(markdown)
@@ -376,6 +401,50 @@ mod tests {
             codes("# R\n\n<div><!-- <h1> --><script>\"<h2>\"</script>\n<h3 id=a>x</h3>\n</div>\n"),
             vec![("html-heading-ignored".to_string(), at(4, 1, 9))]
         );
+    }
+
+    #[test]
+    fn notes_block_on_first_line_is_reported() {
+        // ノードの 1 行目のブロックの書き始め (表、コード、HTML のブロック、引用など) は warning。位置は 1 行目の書き始めから行末まで (A-219)
+        let markdown = concat!(
+            "---\nmarkdag: {}\n---\n# R\n\n",
+            "- | x | y | $t\n  |---|---|\n  | 1 | 2 |\n",
+            "- ```js\n  code\n  ```\n",
+            "- <div>\n  </div>\n",
+            "- > q\n",
+            "  1. # 見出し\n",
+        );
+        let found = body_diagnostics(markdown);
+        assert!(found.iter().all(|item| item.severity == Severity::Warning
+            && item.hint.as_deref()
+                == Some("ブロックは 2 行目以降に書きます。1 行目にラベルを書くか、空にします")));
+        assert_eq!(
+            found
+                .into_iter()
+                .map(|item| (item.code, item.at))
+                .collect::<Vec<_>>(),
+            [
+                ("block-on-first-line".to_string(), at(6, 3, 9)),
+                ("block-on-first-line".to_string(), at(9, 3, 5)),
+                ("block-on-first-line".to_string(), at(12, 3, 5)),
+                ("block-on-first-line".to_string(), at(14, 3, 3)),
+                ("block-on-first-line".to_string(), at(15, 6, 5)),
+            ]
+        );
+    }
+
+    #[test]
+    fn notes_block_on_first_line_skips_labels_and_plain_documents() {
+        // ラベルの行の下のブロック、1 行目が空の項目、タスク、行末の magic comment、markdag の記法を読まない文書は当たらない
+        for markdown in [
+            "---\nmarkdag: {}\n---\n# R\n- 集計表\n  | a |\n  |---|\n",
+            "---\nmarkdag: {}\n---\n# R\n-\n  | a |\n  |---|\n",
+            "---\nmarkdag: {}\n---\n# R\n- [ ] | a |\n- <!-- markmap: fold -->\n- a | b\n",
+            "---\nmarkdag: {}\n---\n# R\n- a\n  > 詳細\n",
+            "# R\n- | a |\n  |---|\n",
+        ] {
+            assert_eq!(codes(markdown), Vec::new(), "{markdown:?}");
+        }
     }
 
     #[test]

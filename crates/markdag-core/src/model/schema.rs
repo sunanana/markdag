@@ -1326,7 +1326,7 @@ mod tests {
             "unique_objects_key_order",
             r###"{"markdag":{"branches":[{"a":1,"1":2},{"1":2,"a":1}]}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は前にも書かれています ({\"1\":2,\"a\":1})","at":null,"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[0] は文字列で書きます ({\"1\":2,\"a\":1})","at":null,"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は文字列で書きます ({\"1\":2,\"a\":1})","at":null,"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は前にも書かれています ({\"1\":2,\"a\":1})","at":null,"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[0] は文字列で書きます ({\"1\":2,\"a\":1})","at":null,"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は文字列で書きます ({\"1\":2,\"a\":1})","at":null,"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"}]"###,
         ),
         (
             "unique_strings",
@@ -1338,7 +1338,7 @@ mod tests {
             "unique_null_items",
             r###"{"markdag":{"branches":[null,null]}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は前にも書かれています (null)","at":null,"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[0] は文字列で書きます (null)","at":null,"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は文字列で書きます (null)","at":null,"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は前にも書かれています (null)","at":null,"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[0] は文字列で書きます (null)","at":null,"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[1] は文字列で書きます (null)","at":null,"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"}]"###,
         ),
         (
             "min_length",
@@ -1422,7 +1422,7 @@ mod tests {
             "groups_many",
             r###"{"markdag":{"groups":{"a":{"colour":"#fff","member":["A"],"<<":{"color":"#fff"},"boundary":"yes","members":[3]}}}}"###,
             None,
-            r###"[{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「colour」は使えません (label, color, boundary, members)","at":null,"hint":"もしかして「color」"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「member」は使えません (label, color, boundary, members)","at":null,"hint":"もしかして「members」"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「<<」は使えません (label, color, boundary, members)","at":null,"hint":"グループの名前の下に label, color, boundary, members を字下げして書きます"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a.boundary は真偽値で書きます (\"yes\")","at":null,"hint":"true か false と書きます。yes は YAML では文字列になります"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a.members[0] は文字列で書きます (3)","at":null,"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"}]"###,
+            r###"[{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「colour」は使えません (label, color, boundary, members)","at":null,"hint":"もしかして「color」"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「member」は使えません (label, color, boundary, members)","at":null,"hint":"もしかして「members」"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a のキー「<<」は使えません (label, color, boundary, members)","at":null,"hint":"グループの名前の下に label, color, boundary, members を字下げして書きます"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a.boundary は真偽値で書きます (\"yes\")","at":null,"hint":"true か false と書きます。yes は YAML では文字列になります"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.a.members[0] は文字列で書きます (3)","at":null,"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"}]"###,
         ),
         (
             "tag_types",

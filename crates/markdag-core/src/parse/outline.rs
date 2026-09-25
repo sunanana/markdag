@@ -5,11 +5,14 @@
 // 表とコードブロックと画像だけの段落は Block のノード。親の children の level は最初に来た子で決まり、より小さい level が来たら作り直し、
 // より大きい level は捨てる (addChild)。そのあと markmap-lib の cleanNode で空の包みを畳み、ルートの内容が空なら frontmatter の title で補う。
 // ノードの内容の HTML は HTML の層が markdown-it と同じ形で書き、行の範囲 (data-lines) もその層のトークンの map から取る。
+use std::sync::LazyLock;
+
 use comrak::arena_tree::NodeEdge;
 use comrak::nodes::{AstNode, ListType, NodeValue};
 use comrak::{Arena, parse_document};
+use regex::Regex;
 
-use super::html::Tokens;
+use super::html::{Tokens, magic_comment};
 use super::inline_marks::comrak_options;
 use crate::limits::MAX_NESTING;
 use crate::model::util::{JsValue, js_to_string, to_u32};
@@ -48,6 +51,9 @@ pub(super) struct OutlineTree {
     /// 内容を、項目の直下の Markdown の引用ブロック (詳細の候補。AST の BlockQuote) の前後で分けたもの。
     /// 項目 (li) で引用ブロックがあるときだけ持ち、それ以外は空。つなげると trimEnd の前の内容になる
     pub(super) parts: Vec<ContentPart>,
+    /// 名前 (refText) を持てるか。名前は 1 行目の文字で、1 行目が空の項目と、見出しの直下の表とコードのノード
+    /// (ラベルの行を持てない) は持たない (A-219)
+    pub(super) named: bool,
 }
 
 /// 項目の内容の断片。詳細の切り分け (解析の層の splitDetails) が、書き出した HTML の文字を探さずに引用ブロックの要素を扱うためのもの
@@ -73,15 +79,17 @@ pub(super) struct Outline {
 
 /// markmap-lib の Transformer.transform のうち、本文 (frontmatter を切り取ったもの) から木を作る部分。
 /// frontmatter_lines は data-lines に足す行数 (frontmatterInfo.lines)、frontmatter は読めた値 (読めなければ None。title の補いに使う)。
+/// first_line_rule は、ノードの 1 行目を文字とインラインだけで読む規則 (A-219) を当てるか (markdag の記法を読む文書だけ)。
 /// 原文: Transformer.transform (markdown-it の render、buildTree、cleanNode、root.content の補い)
 pub(super) fn build_outline<'a>(
     arena: &'a Arena<'a>,
     body: &str,
     frontmatter_lines: usize,
     frontmatter: Option<&JsValue>,
+    first_line_rule: bool,
 ) -> Outline {
     let body = normalize_source(body);
-    let document = parse_body(arena, &body);
+    let (document, body, _) = parse_outline_body(arena, &body, first_line_rule);
     // 上限より深い入れ子は、HTML の層とアウトラインの再帰がスタックを溢れさせるので木から外す (A-105)。
     // 外したことの診断は、model 層が原文から同じ判定で出す (parse の結果は診断を持たない)
     for node in too_deep_nodes(document) {
@@ -99,8 +107,10 @@ pub(super) fn build_outline<'a>(
             list_index: None,
             comments: Vec::new(),
             parts: Vec::new(),
+            named: true,
         }],
         heading_stack: Vec::new(),
+        first_line_rule,
     };
     builder.check_nodes(document.children().collect(), None);
     let mut root = clean_node(builder.convert_node(0));
@@ -230,6 +240,7 @@ struct HtmlNode {
     list_index: Option<usize>,
     comments: Vec<String>,
     parts: Vec<ContentPart>,
+    named: bool,
 }
 
 // addChild の引数 (原文の props)
@@ -242,6 +253,7 @@ struct ChildProps {
     lines: Option<(usize, usize)>,
     list_index: Option<usize>,
     parts: Vec<ContentPart>,
+    named: bool,
 }
 
 // parseHtml の中の状態 (rootNode は nodes の 0 番、headingStack)。
@@ -251,6 +263,8 @@ struct Builder<'t, 'a, 's> {
     nodes: Vec<HtmlNode>,
     /// 見出しのノードの添字と level
     heading_stack: Vec<(usize, u8)>,
+    /// ノードの 1 行目の規則 (A-219) を当てるか。当てない文書 (markmap と同じ読み方) では、項目は 1 行目が空でも名前を持てる
+    first_line_rule: bool,
 }
 
 impl<'a> Builder<'_, 'a, '_> {
@@ -267,6 +281,7 @@ impl<'a> Builder<'_, 'a, '_> {
             list_index: props.list_index,
             comments: props.comments,
             parts: props.parts,
+            named: props.named,
         });
         // TODO(port): Rust 側の不到達 (parent は nodes の添字なので get_mut は必ず Some)
         if let Some(parent) = self.nodes.get_mut(parent)
@@ -316,6 +331,7 @@ impl<'a> Builder<'_, 'a, '_> {
                         lines: self.tokens.map_of_node(child),
                         list_index: None,
                         parts: Vec::new(),
+                        named: true,
                     };
                     self.add_child(parent, props);
                 }
@@ -341,6 +357,7 @@ impl<'a> Builder<'_, 'a, '_> {
                         lines: self.tokens.map_of_node(child),
                         list_index: None,
                         parts: Vec::new(),
+                        named: true,
                     };
                     let id = self.add_child(parent, props);
                     self.heading_stack.push((id, level));
@@ -358,6 +375,7 @@ impl<'a> Builder<'_, 'a, '_> {
                         lines: self.tokens.map_of_node(child),
                         list_index: None,
                         parts: Vec::new(),
+                        named: true,
                     };
                     let id = self.add_child(parent, props);
                     for item in child.children() {
@@ -386,6 +404,7 @@ impl<'a> Builder<'_, 'a, '_> {
                         lines: self.tokens.map_of_node(child),
                         list_index: None,
                         parts: Vec::new(),
+                        named: false,
                     };
                     self.add_child(parent, props);
                 }
@@ -471,6 +490,7 @@ impl<'a> Builder<'_, 'a, '_> {
             lines: self.tokens.map_of_node(item),
             list_index,
             parts,
+            named: !self.first_line_rule || item_first_line_filled(item),
         };
         let id = self.add_child(list, props);
         self.check_nodes(nested, Some(id));
@@ -525,6 +545,7 @@ impl<'a> Builder<'_, 'a, '_> {
                 lines: None,
                 fold: 0,
                 parts: Vec::new(),
+                named: true,
             };
         };
         let children = node
@@ -555,6 +576,256 @@ impl<'a> Builder<'_, 'a, '_> {
             }),
             fold,
             parts: node.parts.clone(),
+            named: node.named,
+        }
+    }
+}
+
+/// 項目が名前を持てるか (A-219)。名前は 1 行目の文字なので、1 行目 (記号の行) が空の項目だけが持たない
+fn item_first_line_filled<'a>(item: &'a AstNode<'a>) -> bool {
+    item.first_child()
+        .is_some_and(|first| first.data().sourcepos.start.line == item.data().sourcepos.start.line)
+}
+
+/// 項目の 1 行目に書かれたブロックの書き始め (A-219)。行は本文の 1 始まり、桁と長さは文字で数える (位置の診断に使う)
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct FirstLineBlock {
+    pub(super) line: usize,
+    pub(super) column: usize,
+    pub(super) length: usize,
+    // 書き換える位置 (本文の行の中のバイト) と書き換え方
+    byte: usize,
+    kind: FirstLineKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum FirstLineKind {
+    // 表の見出しの行。次の区切りの行を文字にする
+    Table,
+    // 字下げのコード。前の空白を 1 つに詰めてから書き始めを文字にする
+    IndentedCode,
+    // それ以外のブロック。書き始めの記号を文字にする
+    Other,
+}
+
+// 項目の 1 行目がブロックの書き始めでありうるか (読み直す前の安い絞り込み)。記号のあとが、ブロックを始めうる字、
+// 表の区切りの | を含む文字、字下げのコードになる 5 桁以上の空白かタブのどれか
+pub(super) static FIRST_LINE_BLOCK_CANDIDATE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?m)^[ \t]*(?:[-*+]|[0-9]{1,9}[.)])(?:\t| {5,}|[ \t]+(?:[`~<>#*+_=0-9-]|[^\n]*\|))",
+    )
+    .expect("固定の正規表現")
+});
+
+/// 本文 (normalize_source を当てたもの) を読む。ノードの項目の 1 行目がブロックの書き始めなら、その行を文字として読むよう
+/// 書き換えて読み直す (A-219。2 行目以降はそれだけでブロックになるかで決まる)。読んだあと、ノードの 1 行目の生の HTML を文字にする。
+/// 戻り値は AST、読んだ本文 (書き換えたもの)、書き換えた項目の 1 行目 (block-on-first-line の診断に使う)。
+/// rule が偽 (markdag の記法を読まない文書) なら、markmap と同じく読んだまま返す
+pub(super) fn parse_outline_body<'a>(
+    arena: &'a Arena<'a>,
+    body: &str,
+    rule: bool,
+) -> (&'a AstNode<'a>, String, Vec<FirstLineBlock>) {
+    let mut text = body.to_string();
+    let mut document = parse_body(arena, &text);
+    let mut found: Vec<FirstLineBlock> = Vec::new();
+    if !rule {
+        return (document, text, found);
+    }
+    if FIRST_LINE_BLOCK_CANDIDATE.is_match(&text) {
+        // 書き換えで前のブロックが閉じると、後ろの行が新しい項目の 1 行目になりうるので、なくなるまで繰り返す。
+        // 1 回ごとに書き換えていない行が 1 つ以上減るので、行の数より多くは回らない
+        for _ in 0..=text.matches('\n').count() {
+            let blocks = first_line_blocks(document, &text);
+            if blocks.is_empty() {
+                break;
+            }
+            text = rewrite_first_lines(&text, &blocks);
+            document = parse_body(arena, &text);
+            found.extend(blocks);
+        }
+    }
+    literal_first_lines(document);
+    (document, text, found)
+}
+
+// ノードになる項目 (文書の直下から、リストと項目だけを通ってたどれる項目) を文書の順に返す。引用などの中の項目はノードでない。
+// 深い入れ子でも再帰しないよう、木を反復でたどる
+fn node_items<'a>(document: &'a AstNode<'a>) -> Vec<&'a AstNode<'a>> {
+    let mut items = Vec::new();
+    let mut inside: Vec<bool> = Vec::new();
+    for edge in document.traverse() {
+        match edge {
+            NodeEdge::Start(node) => {
+                let value = &node.data().value;
+                let reachable = match value {
+                    NodeValue::Document => true,
+                    NodeValue::List(_) | NodeValue::Item(_) => {
+                        inside.last().copied().unwrap_or(false)
+                    }
+                    _ => false,
+                };
+                if reachable && matches!(value, NodeValue::Item(_)) {
+                    items.push(node);
+                }
+                inside.push(reachable);
+            }
+            NodeEdge::End(_) => {
+                inside.pop();
+            }
+        }
+    }
+    items
+}
+
+// ノードの項目のうち、1 行目がブロック (表、コード、HTML のブロック、引用、ATX の見出し、区切り線、入れ子のリスト) で始まるもの。
+// 下線の見出し (`- a` の次の行が `---`) は 1 行目が文字なので含めない。magic comment だけの HTML のブロックは印なので含めない
+fn first_line_blocks<'a>(document: &'a AstNode<'a>, text: &str) -> Vec<FirstLineBlock> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut blocks = Vec::new();
+    for item in node_items(document) {
+        let Some(first) = item.first_child() else {
+            continue;
+        };
+        let start = first.data().sourcepos.start;
+        if start.line != item.data().sourcepos.start.line {
+            continue;
+        }
+        let kind = match &first.data().value {
+            NodeValue::Table(_) => FirstLineKind::Table,
+            NodeValue::CodeBlock(code) if !code.fenced => FirstLineKind::IndentedCode,
+            NodeValue::HtmlBlock(html) if magic_comment(&html.literal).is_some() => continue,
+            NodeValue::Heading(heading) if heading.setext => continue,
+            NodeValue::CodeBlock(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::BlockQuote
+            | NodeValue::Heading(_)
+            | NodeValue::ThematicBreak
+            | NodeValue::List(_) => FirstLineKind::Other,
+            _ => continue,
+        };
+        let line = lines
+            .get(start.line.saturating_sub(1))
+            .copied()
+            .unwrap_or("");
+        let byte = start.column.saturating_sub(1).min(line.len());
+        // TODO(port): Rust 側の不到達 (comrak の桁は文字の境界)。境界でなければ行の頭から数える
+        let (before, rest) = (
+            line.get(..byte).unwrap_or(""),
+            line.get(byte..).unwrap_or(line),
+        );
+        blocks.push(FirstLineBlock {
+            line: start.line,
+            column: before.chars().count() + 1,
+            length: rest.trim_end_matches([' ', '\t']).chars().count(),
+            byte,
+            kind,
+        });
+    }
+    blocks
+}
+
+// 書き換えた本文。行の数は変えない (data-lines と行番号はそのまま)。桁は書き換えた行だけで変わる
+fn rewrite_first_lines(text: &str, blocks: &[FirstLineBlock]) -> String {
+    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    for block in blocks {
+        let index = block.line.saturating_sub(1);
+        match block.kind {
+            // 見出しの行のすぐ下の区切りの行を文字にすると、表にならない (区切りの行はそれだけでは表にならない)
+            FirstLineKind::Table => {
+                if let Some(next) = lines.get_mut(index + 1) {
+                    let row = next.trim_start_matches([' ', '\t']);
+                    let indent = next.strip_suffix(row).unwrap_or_default();
+                    *next = format!("{indent}\\{row}");
+                }
+            }
+            FirstLineKind::IndentedCode | FirstLineKind::Other => {
+                if let Some(line) = lines.get_mut(index)
+                    && let (Some(head), Some(rest)) =
+                        (line.get(..block.byte), line.get(block.byte..))
+                {
+                    let head = if block.kind == FirstLineKind::IndentedCode {
+                        format!("{} ", head.trim_end_matches([' ', '\t']))
+                    } else {
+                        head.to_string()
+                    };
+                    *line = format!("{head}{}", escape_block_start(rest));
+                }
+                // TODO(port): Rust 側の不到達 (block.byte は comrak の桁で、行の中の字の境界)。境界でなければ書き換えない
+            }
+        }
+    }
+    lines.join("\n")
+}
+
+// 行の頭のブロックの書き始めの記号を、バックスラッシュのエスケープで文字にする。
+// フェンスと区切り線は同じ記号がほかで強調や打ち消しの対にならないよう、並んだ記号をすべてエスケープする
+fn escape_block_start(rest: &str) -> String {
+    let Some(first) = rest.chars().next() else {
+        return String::new();
+    };
+    let escape = |marks: &str, mark: char| marks.replace(mark, &format!("\\{mark}"));
+    if matches!(first, '`' | '~') {
+        let tail = rest.trim_start_matches(first);
+        let run = rest.strip_suffix(tail).unwrap_or_default();
+        if run.len() >= 3 {
+            return format!("{}{tail}", escape(run, first));
+        }
+    }
+    if matches!(first, '-' | '*' | '_')
+        && rest.chars().all(|c| c == first || c == ' ' || c == '\t')
+        && rest.matches(first).count() >= 3
+    {
+        return escape(rest, first);
+    }
+    if first.is_ascii_digit() {
+        let tail = rest.trim_start_matches(|c: char| c.is_ascii_digit());
+        let digits = rest.strip_suffix(tail).unwrap_or_default();
+        return match tail.chars().next() {
+            Some('.' | ')') => format!("{digits}\\{tail}"),
+            _ => rest.to_string(),
+        };
+    }
+    if matches!(first, '#' | '>' | '<' | '-' | '*' | '+' | '`' | '~' | '_') {
+        return format!("\\{rest}");
+    }
+    rest.to_string()
+}
+
+// ノードの 1 行目 (見出しと、項目の 1 行目の段落か見出し) の生の HTML を、書いたままの文字にする (A-219)。
+// 1 行目は最初の改行まで。markmap の magic comment (`<!-- markmap: fold -->`) は折りたたみの印なので残す
+fn literal_first_lines<'a>(document: &'a AstNode<'a>) {
+    let mut blocks: Vec<&'a AstNode<'a>> = document
+        .children()
+        .filter(|child| matches!(child.data().value, NodeValue::Heading(_)))
+        .collect();
+    for item in node_items(document) {
+        if let Some(first) = item.first_child()
+            && matches!(
+                first.data().value,
+                NodeValue::Paragraph | NodeValue::Heading(_)
+            )
+            && first.data().sourcepos.start.line == item.data().sourcepos.start.line
+        {
+            blocks.push(first);
+        }
+    }
+    for block in blocks {
+        let mut raw: Vec<&'a AstNode<'a>> = Vec::new();
+        for node in block.descendants().skip(1) {
+            match &node.data().value {
+                NodeValue::SoftBreak | NodeValue::LineBreak => break,
+                NodeValue::HtmlInline(literal) if magic_comment(literal).is_none() => {
+                    raw.push(node)
+                }
+                _ => {}
+            }
+        }
+        for node in raw {
+            let mut data = node.data_mut();
+            if let NodeValue::HtmlInline(literal) = &data.value {
+                data.value = NodeValue::Text(literal.clone().into());
+            }
         }
     }
 }
@@ -619,7 +890,7 @@ mod tests {
 
     fn outline_of(body: &str) -> Value {
         let arena = Arena::new();
-        shape(&build_outline(&arena, body, 0, None).root)
+        shape(&build_outline(&arena, body, 0, None, false).root)
     }
 
     // `---` で囲んだ `キー: 値` だけの frontmatter を切り取り、その行数と値を渡す (frontmatter の読み取りは document の仕事なので、試験では最小の形だけ)
@@ -634,7 +905,7 @@ mod tests {
         }
         let lines = yaml.lines().count() + 2;
         let arena = Arena::new();
-        shape(&build_outline(&arena, body, lines, Some(&JsValue::Object(map))).root)
+        shape(&build_outline(&arena, body, lines, Some(&JsValue::Object(map)), false).root)
     }
 
     fn parse(expected: &str) -> Value {
@@ -907,7 +1178,7 @@ mod tests {
     #[test]
     fn outline_features_report_math_and_code() {
         let arena = Arena::new();
-        let outline = build_outline(&arena, "# R\n\n- $x$\n", 0, None);
+        let outline = build_outline(&arena, "# R\n\n- $x$\n", 0, None, false);
         assert_eq!(
             outline.features,
             ParsedFeatures {
@@ -916,7 +1187,7 @@ mod tests {
             }
         );
         let arena = Arena::new();
-        let outline = build_outline(&arena, "# R\n\n```\nx\n```\n", 0, None);
+        let outline = build_outline(&arena, "# R\n\n```\nx\n```\n", 0, None, false);
         assert_eq!(
             outline.features,
             ParsedFeatures {
@@ -926,7 +1197,7 @@ mod tests {
         );
         // 字下げのコードは highlight を通らないので、コードの印は立たない (node の Transformer の features は {})
         let arena = Arena::new();
-        let outline = build_outline(&arena, "# R\n\n    x\n", 0, None);
+        let outline = build_outline(&arena, "# R\n\n    x\n", 0, None, false);
         assert_eq!(
             outline.features,
             ParsedFeatures {
@@ -1012,4 +1283,4 @@ mod tests {
     }
 }
 
-// PORT STATUS: confidence=medium todos=6
+// PORT STATUS: confidence=medium todos=8

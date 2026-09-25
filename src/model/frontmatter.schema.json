@@ -642,14 +642,14 @@
             "type": "string",
             "minLength": 1,
             "description": "ノードを指す文字列。本文のノードの 1 行目か、行末に付けた $id",
-            "x-hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+            "x-hint": "ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"
         },
         "groupMember": {
             "type": "string",
             "minLength": 1,
             "description": "メンバーにするノードを指す文字列。本文のノードの 1 行目か、行末に付けた $id",
             "x-code": "group-invalid",
-            "x-hint": "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"
+            "x-hint": "ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"
         },
         "cssColor": {
             "type": "string",

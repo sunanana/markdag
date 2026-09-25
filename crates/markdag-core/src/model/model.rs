@@ -18,6 +18,7 @@ use crate::model::locator::FrontmatterLocator;
 use crate::model::schema::schema_diagnostics;
 use crate::model::tags::{TagLintOptions, TypeSource, lint_tags, resolve_tag_keys};
 use crate::model::util::{JsValue, closest, js_number_to_string, js_trim, unique_in_order};
+use crate::parse::nameless_content;
 use crate::parse::task::{DEFAULT_TASK_CYCLE, is_task_mark, task_state_of};
 use crate::types::{
     Diagnostic, DimDisplayMode, DisplayMode, GraphModel, GroupDef, HookSpec, LayoutInputRelation,
@@ -95,6 +96,146 @@ fn split_path(ref_text: &str) -> Vec<String> {
     segments
 }
 
+// relations の式の中の区切り (`-->` と `&`) のうち、項の頭から数える区切り。前後の空白かタブも含めて探す
+static OPERATOR_AT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]+(?:-->|&)[ \t]+").expect("固定の正規表現"));
+
+/// relations の項と参照の区間を `"` で囲んだ書き方 (A-219) の、囲んだ部分のバイトの範囲 (両端の `"` を含む)。
+/// 項か区間の頭 (式の頭、`-->` と `&` のあと、`/` と `(` のあと。前の空白は飛ばす) の `"` から、`\` でエスケープしていない次の `"` まで。
+/// 頭でない `"` はふつうの字。閉じていなければ Err に開きの `"` の位置
+fn quoted_spans(text: &str) -> Result<Vec<(usize, usize)>, usize> {
+    let bytes = text.as_bytes();
+    let mut spans = Vec::new();
+    let mut at_start = true;
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        if at_start && byte == b'"' {
+            let mut end = index + 1;
+            loop {
+                match bytes.get(end) {
+                    None => return Err(index),
+                    Some(b'\\') => end += 2,
+                    Some(b'"') => break,
+                    Some(_) => end += 1,
+                }
+            }
+            spans.push((index, end + 1));
+            index = end + 1;
+            at_start = false;
+            continue;
+        }
+        if matches!(byte, b' ' | b'\t') {
+            // 空白とタブは ASCII なので、この位置は字の境界
+            if let Some(found) = text.get(index..).and_then(|rest| OPERATOR_AT.find(rest)) {
+                index += found.end();
+                at_start = true;
+            } else {
+                index += 1;
+            }
+            continue;
+        }
+        at_start = matches!(byte, b'/' | b'(');
+        index += 1;
+    }
+    Ok(spans)
+}
+
+// 囲んだ部分の中の字を区切りにならない字 (x) で埋めた写し。バイトの長さは同じなので、写しで探した区切りの位置を元の文字にそのまま使える
+fn mask_quoted(text: &str, spans: &[(usize, usize)]) -> String {
+    let mut bytes = text.as_bytes().to_vec();
+    for &(start, end) in spans {
+        for byte in bytes.iter_mut().take(end.saturating_sub(1)).skip(start + 1) {
+            *byte = b'x';
+        }
+    }
+    // 囲んだ部分は字ごと埋めるので、残るのは元の字の並び (UTF-8 として正しい)
+    String::from_utf8(bytes).unwrap_or_else(|_| text.to_string())
+}
+
+/// relations の式を区切り (`-->` か `&`) で分ける。`"` で囲んだ名前の中の区切りは区切りにしない (A-219)。
+/// 閉じていない `"` があれば Err に開きの位置
+fn split_outside_quotes<'t>(text: &'t str, separator: &Regex) -> Result<Vec<&'t str>, usize> {
+    let spans = quoted_spans(text)?;
+    if spans.is_empty() {
+        return Ok(separator.split(text).collect());
+    }
+    let masked = mask_quoted(text, &spans);
+    let mut parts = Vec::new();
+    let mut from = 0;
+    for found in separator.find_iter(&masked) {
+        parts.push(text.get(from..found.start()).unwrap_or_default());
+        from = found.end();
+    }
+    parts.push(text.get(from..).unwrap_or_default());
+    Ok(parts)
+}
+
+// `"` で囲んだ名前の中身。`\"` は `"`、`\\` は `\` にする
+fn unquote(inner: &str) -> String {
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\'
+            && let Some(next @ ('"' | '\\')) = chars.clone().next()
+        {
+            out.push(next);
+            chars.next();
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// 参照を「/」で区切った区間の、照合する名前。`"` で囲んだ区間は書いたままの名前 (「/」「$」「(」をエスケープとして読まない)、
+/// 囲まない区間は今までどおり「\/」「\(」「\$」の「\」を落とす。閉じていない `"` があれば Err に開きの位置
+fn path_segments(ref_text: &str) -> Result<Vec<String>, usize> {
+    let spans = quoted_spans(ref_text)?;
+    let unescaped =
+        |segment: &str| normalize_frontmatter_text(&SEGMENT_ESCAPE.replace_all(segment, "$1"));
+    if spans.is_empty() {
+        return Ok(split_path(ref_text)
+            .iter()
+            .map(|segment| unescaped(segment))
+            .collect());
+    }
+    let masked = mask_quoted(ref_text, &spans);
+    let mut bounds: Vec<(usize, usize)> = Vec::new();
+    let mut from = 0;
+    let mut previous = None;
+    for (index, c) in masked.char_indices() {
+        if c == '/' && previous != Some('\\') {
+            bounds.push((from, index));
+            from = index + 1;
+        }
+        previous = Some(c);
+    }
+    bounds.push((from, ref_text.len()));
+    Ok(bounds
+        .into_iter()
+        .map(|(start, end)| {
+            let segment = ref_text.get(start..end).unwrap_or_default();
+            let lead = segment.len() - segment.trim_start_matches([' ', '\t']).len();
+            let tail = segment.trim_end_matches([' ', '\t']).len();
+            let quoted = spans.contains(&(start + lead, start + tail));
+            match segment.get(lead + 1..tail.saturating_sub(1)) {
+                Some(inner) if quoted => normalize_frontmatter_text(&unquote(inner)),
+                _ => unescaped(segment),
+            }
+        })
+        .collect())
+}
+
+// 閉じていない `"` の誤り
+fn unclosed_quote(ref_text: &str) -> SelectorError {
+    SelectorError::new(
+        "relation-syntax",
+        format!("「{ref_text}」の \" が閉じていません"),
+        ref_text,
+        Some("名前を \" で囲むときは閉じの \" も書きます。名前の中の \" は \\\" と書きます"),
+    )
+}
+
 /// 参照の範囲 (原文: Selector['scope'])。境界にも文面にも出ない局所の union (規則 2.6、A-041)。
 /// self は SelfScope (A-030)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,14 +263,6 @@ struct Selector {
 struct RelationTerm {
     selectors: Vec<Selector>,
     ids: Vec<u32>,
-}
-
-/// 前方一致で解決した参照 (原文の名前のない型 `{ ref: string; text: string }`)。text は一致したノードの refText
-// 名前のない欄の型は「原文の変数名か欄名 + 意味」で名前を付ける (規則 4 章、A-100)
-#[derive(Debug, Clone, PartialEq)]
-struct PrefixMatch {
-    ref_text: String,
-    text: String,
 }
 
 /// 原文: SelectorError。参照の解決と式の読み取りの誤り。ref_text は原文の中でこの誤りが指す語、hint は直し方の手がかり
@@ -165,8 +298,6 @@ struct Resolver<'a> {
     // 規則 2.3 と台帳の Resolver.byId / children の行: IndexMap (byId の値は原文と同じくノードそのもの)
     by_id: IndexMap<u32, &'a OutlineNode>,
     children: IndexMap<u32, Vec<u32>>,
-    // 前方一致で解決した参照。書き間違いでも名前の一部が一致すれば通ってしまうので、呼び出し側が診断に出す
-    prefix_matched: Vec<PrefixMatch>,
 }
 
 impl<'a> Resolver<'a> {
@@ -190,13 +321,7 @@ impl<'a> Resolver<'a> {
             nodes,
             by_id,
             children,
-            prefix_matched: Vec::new(),
         }
-    }
-
-    /// 原文: takePrefixMatches。直前の解決で前方一致になった参照を取り出して、記録を空にする
-    fn take_prefix_matches(&mut self) -> Vec<PrefixMatch> {
-        std::mem::take(&mut self.prefix_matched)
     }
 
     /// 原文: childrenOf
@@ -273,7 +398,7 @@ impl<'a> Resolver<'a> {
         })
     }
 
-    /// 原文: resolveRef。完全一致を優先し、なければ前方一致。祖先のセグメントは、この順に並ぶ祖先がいるものだけを残す
+    /// 原文: resolveRef。完全一致だけで引く (A-217)。祖先のセグメントは、この順に並ぶ祖先がいるものだけを残す
     fn resolve_ref(&mut self, ref_text: &str) -> Result<u32, SelectorError> {
         let nodes = self.nodes;
         if let Some(ref_id) = ref_text
@@ -320,10 +445,7 @@ impl<'a> Resolver<'a> {
                 Some(&hint),
             ));
         }
-        let segments: Vec<String> = split_path(ref_text)
-            .iter()
-            .map(|segment| normalize_frontmatter_text(&SEGMENT_ESCAPE.replace_all(segment, "$1")))
-            .collect();
+        let segments = path_segments(ref_text).map_err(|_| unclosed_quote(ref_text))?;
         // segments[segments.length - 1] ?? '' と segments.slice(0, -1) (split_path は 1 つ以上を返すので '' には届かない)
         let (last, ancestor_segments): (&str, &[String]) = match segments.split_last() {
             Some((last, rest)) => (last.as_str(), rest),
@@ -337,59 +459,72 @@ impl<'a> Resolver<'a> {
                     text.starts_with(segment)
                 }
         };
-        // BUG(port): 祖先の区間が前方一致で通っても prefix_matched に記録しない (記録は最後の区間だけ)。
-        // 再現: 木 Root > 実装 > 画面 で `実/画` は ref-prefix を「画面」の 1 件だけ出し、「実」→「実装」は出さない (台帳の hasAncestors の行)
-        let has_ancestors = |node: &OutlineNode| -> bool {
+        // 祖先の区間を根の側から順に照合し、通れば区間ごとに一致した祖先を返す。strict はすべての区間を完全一致で照合する。
+        // strict でなければ旧実装の規則 (その区間に完全に一致するノードがどこかにあれば完全一致、なければ前方一致) で、前方一致の候補を探すのに使う
+        let ancestor_matches = |node: &OutlineNode, strict: bool| -> Option<Vec<&'a OutlineNode>> {
             let mut chain = self.ancestors(node.id);
+            let mut matched = Vec::new();
             for segment in ancestor_segments {
-                let exact = nodes.iter().any(|candidate| &candidate.ref_text == segment);
-                let Some(index) = chain
+                let exact = strict || nodes.iter().any(|candidate| &candidate.ref_text == segment);
+                let index = chain
                     .iter()
-                    .position(|ancestor| matches(&ancestor.ref_text, segment, exact))
-                else {
-                    return false;
-                };
+                    .position(|ancestor| matches(&ancestor.ref_text, segment, exact))?;
+                matched.push(chain[index]);
                 // chain.slice(index + 1)
                 chain = chain.into_iter().skip(index + 1).collect();
             }
-            true
+            Some(matched)
         };
-        for exact in [true, false] {
-            let found: Vec<&'a OutlineNode> = nodes
-                .iter()
-                .filter(|node| matches(&node.ref_text, last, exact) && has_ancestors(node))
-                .collect();
-            if let [only] = found.as_slice() {
-                if !exact {
-                    self.prefix_matched.push(PrefixMatch {
-                        ref_text: ref_text.to_string(),
-                        text: only.ref_text.clone(),
-                    });
-                }
-                return Ok(only.id);
-            }
-            if found.len() > 1 {
-                let names: Vec<&str> = found.iter().map(|node| node.ref_text.as_str()).collect();
-                return Err(SelectorError::new(
-                    "ref-ambiguous",
-                    format!(
-                        "「{ref_text}」に一致するノードが {} 個あります ({})",
-                        js_number_to_string(found.len() as f64),
-                        names.join("、")
-                    ),
-                    ref_text,
-                    Some(
-                        "親のノードを付けて「親/子」と書くか、指したいノードの行末に $id を付けると 1 つに絞れます",
-                    ),
-                ));
-            }
+        // 完全一致だけで引く (A-217。旧実装は完全一致がなければ前方一致で引き、ref-prefix の info で知らせた)
+        let found: Vec<&'a OutlineNode> = nodes
+            .iter()
+            .filter(|node| {
+                matches(&node.ref_text, last, true) && ancestor_matches(node, true).is_some()
+            })
+            .collect();
+        if let [only] = found.as_slice() {
+            return Ok(only.id);
         }
-        let candidates: Vec<&str> = nodes.iter().map(|node| node.ref_text.as_str()).collect();
-        let hint = match closest(last, &candidates) {
+        if found.len() > 1 {
+            let names: Vec<&str> = found.iter().map(|node| node.ref_text.as_str()).collect();
+            return Err(SelectorError::new(
+                "ref-ambiguous",
+                format!(
+                    "「{ref_text}」に一致するノードが {} 個あります ({})",
+                    js_number_to_string(found.len() as f64),
+                    names.join("、")
+                ),
+                ref_text,
+                Some(
+                    "親のノードを付けて「親/子」と書くか、指したいノードの行末に $id を付けると 1 つに絞れます",
+                ),
+            ));
+        }
+        // 前方一致の候補 (旧実装が前方一致で引いたノード) は引かずに、書き方の候補として示す。
+        // 候補の数によらず ref-prefix (呼び出し側が warning にする) で、候補をすべて hint に並べる (A-218 (1))
+        let suggestions = self.prefix_suggestions(last, &matches, &ancestor_matches);
+        if !suggestions.is_empty() {
+            let named: Vec<String> = suggestions
+                .iter()
+                .map(|suggestion| format!("「{suggestion}」"))
+                .collect();
+            return Err(SelectorError::new(
+                "ref-prefix",
+                format!("「{ref_text}」に完全に一致するノードがありません。前方一致では指しません"),
+                ref_text,
+                Some(&format!("もしかして{}", named.join("、"))),
+            ));
+        }
+        let hint = match nameless_hint(nodes, last) {
+            Some(hint) => hint,
             None => {
-                "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)".to_string()
+                let candidates: Vec<&str> =
+                    nodes.iter().map(|node| node.ref_text.as_str()).collect();
+                match closest(last, &candidates) {
+                    None => REF_TEXT_HINT.to_string(),
+                    Some(near) => format!("もしかして「{near}」"),
+                }
             }
-            Some(near) => format!("もしかして「{near}」"),
         };
         Err(SelectorError::new(
             "ref-not-found",
@@ -397,6 +532,45 @@ impl<'a> Resolver<'a> {
             ref_text,
             Some(&hint),
         ))
+    }
+
+    // 完全一致のない参照の、前方一致の候補を書き方 (「祖先/名前」) で返す。旧実装の順 (最後の区間が完全一致の候補を先に、
+    // なければ前方一致の候補) で、最初に見つかった組だけ。祖先の区間は一致した祖先の名前に置き換える
+    fn prefix_suggestions(
+        &self,
+        last: &str,
+        matches: &dyn Fn(&str, &str, bool) -> bool,
+        ancestor_matches: &dyn Fn(&OutlineNode, bool) -> Option<Vec<&'a OutlineNode>>,
+    ) -> Vec<String> {
+        // 空の区間はすべての名前の前方一致になるので候補にしない
+        if last.is_empty() {
+            return Vec::new();
+        }
+        for exact in [true, false] {
+            let mut suggestions: Vec<String> = Vec::new();
+            for node in self.nodes {
+                if !matches(&node.ref_text, last, exact) {
+                    continue;
+                }
+                let Some(ancestors) = ancestor_matches(node, false) else {
+                    continue;
+                };
+                let written: Vec<String> = ancestors
+                    .iter()
+                    .chain(std::iter::once(&node))
+                    .enumerate()
+                    .map(|(index, matched)| escape_segment(&matched.ref_text, index == 0))
+                    .collect();
+                let suggestion = written.join("/");
+                if !suggestions.contains(&suggestion) {
+                    suggestions.push(suggestion);
+                }
+            }
+            if !suggestions.is_empty() {
+                return suggestions;
+            }
+        }
+        Vec::new()
     }
 
     /// 原文: expand。参照を解決し、範囲に応じてノードの id の並びに広げる
@@ -468,6 +642,34 @@ fn check_shape(kind: RelationKind, terms: &[RelationTerm]) -> Option<&'static st
     None
 }
 
+/// 原文: formatDiagnostics (src/render.ts:61-68)。
+/// 診断を 1 件 1 行 (`severity code line:column message`) の文字にし、hint があれば次の行に 4 つの空白で下げて添える。
+/// 位置のないものは `line:column ` を省く。CLI の check が出す形 (docs/validation.md の「Reading the output」)
+// 写し先は Diagnostic の組み立てと同じ model.rs に置く (manifest に render.ts の行がないため。A-213)
+pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
+    diagnostics
+        .iter()
+        .map(|item| {
+            let place = item
+                .at
+                .as_ref()
+                .map_or_else(String::new, |at| format!("{}:{} ", at.line, at.column));
+            // 規則 2.1 の真偽: 原文の `item.hint ?` は空文字も偽
+            let hint = match item.hint.as_deref() {
+                Some(hint) if !hint.is_empty() => format!("\n    {hint}"),
+                _ => String::new(),
+            };
+            format!(
+                "{} {} {place}{}{hint}",
+                item.severity.as_str(),
+                item.code,
+                item.message
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// 原文: buildModel の report。診断を 1 件積む (at と hint は無ければ null)
 // 規則 2.6 (A-040) と台帳 52 行: diagnostics を捕まえる閉包は、&mut Vec<Diagnostic> を引数にした自由な関数にする
 fn report(
@@ -487,25 +689,38 @@ fn report(
     });
 }
 
-/// 原文: buildModel の reportPrefixMatches。
-/// 前方一致で解決した参照を知らせる。名前を書き誤っても、先頭が一致すればそのまま通ってしまうため
-// 規則 2.6 (A-040): diagnostics と resolver を捕まえる閉包は自由な関数にする
-fn report_prefix_matches(
-    diagnostics: &mut Vec<Diagnostic>,
-    resolver: &mut Resolver<'_>,
-    context: &str,
-    locate: &dyn Fn(Option<&str>) -> Option<SourcePosition>,
-) {
-    for PrefixMatch { ref_text, text } in resolver.take_prefix_matches() {
-        report(
-            diagnostics,
-            Severity::Info,
-            "ref-prefix",
-            format!("{context}: 「{ref_text}」は前方一致で「{text}」に解決しました"),
-            locate(Some(&ref_text)),
-            Some(format!("書き間違いなら「{text}」に直します")),
-        );
+// 参照が見つからないときの既定の hint。スキーマの x-hint (members と branches の項目) と同じ文
+const REF_TEXT_HINT: &str = "ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)";
+
+// 前方一致の候補の書き方: 名前の中の「/」は「\/」に、先頭の区間が「$」か「(」で始まるなら「\」を前に付ける (区間のエスケープの逆)。
+// 区切りとして読まれる「 --> 」「 & 」を含む名前と「"」で始まる名前は「"」で囲む (中の「"」と「\」はエスケープする。A-219)
+fn escape_segment(name: &str, first: bool) -> String {
+    if ARROW.is_match(name) || AMPERSAND.is_match(name) || name.starts_with('"') {
+        return format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""));
     }
+    let escaped = name.replace('/', "\\/");
+    if first && (escaped.starts_with('$') || escaped.starts_with('(')) {
+        format!("\\{escaped}")
+    } else {
+        escaped
+    }
+}
+
+// 名前を持たないノード (1 行目が空の項目と、見出しの直下の表とコード。A-219) の中身の文字で指そうとした参照への hint。
+// 内容の最初の行の文字が参照の最後の区間で始まるノードがあれば案内する
+fn nameless_hint(nodes: &[OutlineNode], last: &str) -> Option<String> {
+    if last.is_empty() {
+        return None;
+    }
+    nodes
+        .iter()
+        .filter(|node| node.ref_text.is_empty())
+        .any(|node| nameless_content(&node.html).starts_with(last))
+        .then(|| {
+            format!(
+                "「{last}」は名前を持たないノードの中の文字です。名前はノードの 1 行目の文字なので、1 行目が空の項目 (と見出しの直下の表やコード) は文字では指せません。1 行目にラベルを書くか (表やコードはラベルの項目の 2 行目以降に書きます)、1 行目の行末に $id を付けて $id で指します"
+            )
+        })
 }
 
 // 道すじのキーの 1 段を作る何度も出る同じ式を private の関数 1 つにまとめる (規則 2.6、A-072)
@@ -599,7 +814,12 @@ pub fn build_model(
             let JsValue::String(expression) = expression else {
                 continue;
             };
-            let parts: Vec<&str> = ARROW.split(expression).collect();
+            // `"` で囲んだ名前の中の `-->` と `&` は区切りにしない (A-219)。閉じていない `"` は、式として読める行だけ誤りにする
+            let split = split_outside_quotes(expression, &ARROW);
+            let parts: Vec<&str> = match &split {
+                Ok(parts) => parts.clone(),
+                Err(_) => ARROW.split(expression).collect(),
+            };
             if parts.len() < 2 {
                 continue;
             }
@@ -619,10 +839,14 @@ pub fn build_model(
             // 規則 2.5: try の本体は Result を返す閉包。catch は Err の腕、finally は match のあと
             let outcome = (|| -> Result<(), SelectorError> {
                 // 規則 2.3 (A-007): 項ごとに、その項の selectors をすべて読んでから、その項を展開する
+                if split.is_err() {
+                    return Err(unclosed_quote(js_trim(expression)));
+                }
                 let mut terms: Vec<RelationTerm> = Vec::new();
                 for part in &parts {
-                    let selectors = AMPERSAND
-                        .split(part)
+                    let selectors = split_outside_quotes(part, &AMPERSAND)
+                        .map_err(|_| unclosed_quote(js_trim(part)))?
+                        .into_iter()
                         .map(|raw| resolver.parse_selector(raw))
                         .collect::<Result<Vec<Selector>, SelectorError>>()?;
                     let mut expanded: Vec<u32> = Vec::new();
@@ -721,21 +945,21 @@ pub fn build_model(
             if let Err(error) = outcome {
                 // 規則 2.1: place(error.ref) の ref が空文字なら偽 (台帳 43 行)。原文と同じく判定は位置の特定の側 (value) が持つ
                 let at = place(Some(error.ref_text.as_str()));
+                // 前方一致の候補しかない参照 (A-217) は、線を引かずに warning で知らせる
+                let severity = if error.code == "ref-prefix" {
+                    Severity::Warning
+                } else {
+                    Severity::Error
+                };
                 report(
                     &mut diagnostics,
-                    Severity::Error,
+                    severity,
                     &error.code,
                     format!("「{expression}」: {}", error.message),
                     at,
                     error.hint,
                 );
             }
-            report_prefix_matches(
-                &mut diagnostics,
-                &mut resolver,
-                &format!("「{expression}」"),
-                &place,
-            );
         }
     }
 
@@ -831,12 +1055,6 @@ pub fn build_model(
                     error.hint,
                 );
             }
-            report_prefix_matches(
-                &mut diagnostics,
-                &mut resolver,
-                &format!("markdag.groups.{id}.members"),
-                &member_place,
-            );
         }
     }
     for node in nodes {
@@ -900,12 +1118,15 @@ pub fn build_model(
         _ => &empty,
     };
     let refs_listed = matches!(types_raw.get("$ref"), Some(JsValue::Array(_)));
-    let refs: Vec<&String> = match types_raw.get("$ref") {
-        Some(JsValue::String(one)) => vec![one],
+    // (配列での元の添字, ref)。文字列でない項目は飛ばすが、診断の道すじには元の添字を使う
+    // (旧実装は飛ばしたあとの添字を使い、`$ref: [1, './a.yaml']` で types-unresolved が `$ref[0]` を指した。docs/ignore/bugs/TODO.md の e)
+    let refs: Vec<(usize, &String)> = match types_raw.get("$ref") {
+        Some(JsValue::String(one)) => vec![(0, one)],
         Some(JsValue::Array(items)) => items
             .iter()
-            .filter_map(|item| match item {
-                JsValue::String(text) => Some(text),
+            .enumerate()
+            .filter_map(|(index, item)| match item {
+                JsValue::String(text) => Some((index, text)),
                 _ => None,
             })
             .collect(),
@@ -913,9 +1134,7 @@ pub fn build_model(
     };
     let mut sources: Vec<TypeSource> = Vec::new();
     let mut unresolved = false;
-    // 規則 2.3: 添字は filter のあとの位置 (台帳 50 行)
-    // BUG(port): `$ref: [1, './a.yaml']` で './a.yaml' の types-unresolved が `$ref[0]` (YAML の 1 の項目) を指す。原文 model.ts:813-824 のまま
-    for (index, ref_text) in refs.iter().enumerate() {
+    for &(index, ref_text) in &refs {
         // 規則 2.3 (A-011): キーがない、または値が Undefined は「渡していない」、Null は「読めなかった」。
         // 規則 2.1 の `obj[k]`: 自分の持つキーだけを見る (`toString` や `__proto__` で prototype の値を引かない。決定済みの差)
         let loaded = extra
@@ -1026,12 +1245,30 @@ pub fn build_model(
     // rules: コードを書かずに使える規則。組み込みのフックにして、宣言したフックより先に評価する (並べるのは JS の包み)
     let rules = rules_module(options.get("rules").unwrap_or(&JsValue::Undefined));
     let group_ids: Vec<&str> = groups.iter().map(|group| group.id.as_str()).collect();
-    // 規則 2.3: 添字は filter のあとの位置 (rulesModule が文字列だけを残した一覧。台帳 50 行)
-    // BUG(port): `readonlyGroups: [1, 'x']` で「x」の option-invalid が `readonlyGroups[0]` (YAML の 1 の項目) を指す。原文 model.ts:843-846 のまま
-    for (index, group_name) in rules
+    // rulesModule が文字列だけを残した一覧に、配列での元の添字を添える。診断の道すじには元の添字を使う
+    // (旧実装は飛ばしたあとの添字を使い、`readonlyGroups: [1, 'x']` で「x」の option-invalid が `readonlyGroups[0]` を指した。
+    // docs/ignore/bugs/TODO.md の f)
+    let readonly_indices: Vec<usize> = match options
+        .get("rules")
+        .and_then(|rules| match rules {
+            JsValue::Object(entries) => entries.get("taskToggle"),
+            _ => None,
+        })
+        .and_then(|toggle| match toggle {
+            JsValue::Object(entries) => entries.get("readonlyGroups"),
+            _ => None,
+        }) {
+        Some(JsValue::Array(items)) => items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| matches!(item, JsValue::String(_)))
+            .map(|(index, _)| index)
+            .collect(),
+        _ => Vec::new(),
+    };
+    for (&index, group_name) in readonly_indices
         .iter()
-        .flat_map(|rules| rules.readonly_groups.iter())
-        .enumerate()
+        .zip(rules.iter().flat_map(|rules| rules.readonly_groups.iter()))
     {
         if group_ids.contains(&group_name.as_str()) {
             continue;
@@ -1197,7 +1434,7 @@ pub fn build_model(
             let id = resolver.resolve_ref(&selector.ref_text)?;
             let written = branch_of.get(&id);
             // 同じ表記の 2 度書きはスキーマが拾うので、ここでは黙って読み飛ばす。
-            // 原文の try の中の continue: 本体の残りを飛ばし、finally (前方一致の報告) は通る (規則 2.5)
+            // 原文の try の中の continue: 本体の残りを飛ばす (規則 2.5)
             if written == Some(item) {
                 return Ok(());
             }
@@ -1226,12 +1463,6 @@ pub fn build_model(
                 error.hint,
             );
         }
-        report_prefix_matches(
-            &mut diagnostics,
-            &mut resolver,
-            "markdag.branches",
-            &branch_place,
-        );
     }
 
     // 本文の書き方のうち図に出ないもの (上限より深い入れ子、生の HTML の見出し)。原文があるときだけ読み直して知らせる (A-105、A-112)
@@ -1345,29 +1576,24 @@ mod tests {
         SelectorError::new(code, message.to_string(), ref_text, hint)
     }
 
-    fn prefix(ref_text: &str, text: &str) -> PrefixMatch {
-        PrefixMatch {
-            ref_text: ref_text.to_string(),
-            text: text.to_string(),
-        }
+    fn resolve(ref_text: &str) -> Result<u32, SelectorError> {
+        let nodes = tree();
+        Resolver::new(&nodes).resolve_ref(ref_text)
     }
 
-    // 解決の結果と、その直後に取り出した前方一致の記録
-    fn resolve(ref_text: &str) -> (Result<u32, SelectorError>, Vec<PrefixMatch>) {
+    fn expand(ref_text: &str, scope: SelectorScope) -> Result<Vec<u32>, SelectorError> {
         let nodes = tree();
-        let mut resolver = Resolver::new(&nodes);
-        let result = resolver.resolve_ref(ref_text);
-        (result, resolver.take_prefix_matches())
+        Resolver::new(&nodes).expand(&sel(ref_text, scope))
     }
 
-    fn expand(
-        ref_text: &str,
-        scope: SelectorScope,
-    ) -> (Result<Vec<u32>, SelectorError>, Vec<PrefixMatch>) {
-        let nodes = tree();
-        let mut resolver = Resolver::new(&nodes);
-        let result = resolver.expand(&sel(ref_text, scope));
-        (result, resolver.take_prefix_matches())
+    // 前方一致の候補が 1 つだけのときの誤り (A-217)
+    fn prefix_only(ref_text: &str, suggestion: &str) -> SelectorError {
+        err(
+            "ref-prefix",
+            &format!("「{ref_text}」に完全に一致するノードがありません。前方一致では指しません"),
+            ref_text,
+            Some(&format!("もしかして「{suggestion}」")),
+        )
     }
 
     fn parse(raw: &str) -> Result<Selector, SelectorError> {
@@ -1375,8 +1601,7 @@ mod tests {
         Resolver::new(&nodes).parse_selector(raw)
     }
 
-    const HINT_NOT_FOUND: &str =
-        "ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)";
+    const HINT_NOT_FOUND: &str = "ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)";
     const HINT_AMBIGUOUS: &str =
         "親のノードを付けて「親/子」と書くか、指したいノードの行末に $id を付けると 1 つに絞れます";
 
@@ -1509,9 +1734,9 @@ mod tests {
 
     #[test]
     fn resolve_ref_id_branch() {
-        assert_eq!(resolve("$design"), (Ok(2), vec![]));
+        assert_eq!(resolve("$design"), Ok(2));
         assert_eq!(
-            resolve("$desgn").0,
+            resolve("$desgn"),
             Err(err(
                 "ref-not-found",
                 "$desgn が見つかりません",
@@ -1520,7 +1745,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("$nothing").0,
+            resolve("$nothing"),
             Err(err(
                 "ref-not-found",
                 "$nothing が見つかりません",
@@ -1529,7 +1754,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("$dup").0,
+            resolve("$dup"),
             Err(err(
                 "ref-ambiguous",
                 "$dup が複数あります",
@@ -1539,7 +1764,7 @@ mod tests {
         );
         // $id の形でないものは経路として探す
         assert_eq!(
-            resolve("$1bad").0,
+            resolve("$1bad"),
             Err(err(
                 "ref-not-found",
                 "「$1bad」に一致するノードがありません",
@@ -1548,7 +1773,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("$design\n").0,
+            resolve("$design\n"),
             Err(err(
                 "ref-not-found",
                 "「$design\n」に一致するノードがありません",
@@ -1556,25 +1781,25 @@ mod tests {
                 Some(HINT_NOT_FOUND)
             ))
         );
-        assert_eq!(resolve("$100 plan"), (Ok(11), vec![]));
+        assert_eq!(resolve("$100 plan"), Ok(11));
     }
 
     #[test]
     fn resolve_ref_paths() {
-        assert_eq!(resolve("Root"), (Ok(1), vec![]));
-        assert_eq!(resolve("  Root  "), (Ok(1), vec![]));
-        assert_eq!(resolve("設計/画面"), (Ok(3), vec![]));
-        assert_eq!(resolve("実装/画面"), (Ok(6), vec![]));
-        assert_eq!(resolve("Root/実装/画面"), (Ok(6), vec![]));
-        assert_eq!(resolve("Root\t\t/  実装  /画面"), (Ok(6), vec![]));
-        assert_eq!(resolve("API"), (Ok(4), vec![]));
-        assert_eq!(resolve("設計/API"), (Ok(4), vec![]));
-        assert_eq!(resolve("実装/ｶﾞ"), (Ok(13), vec![]));
-        assert_eq!(resolve("API基盤/ｶﾞ"), (Ok(13), vec![]));
+        assert_eq!(resolve("Root"), Ok(1));
+        assert_eq!(resolve("  Root  "), Ok(1));
+        assert_eq!(resolve("設計/画面"), Ok(3));
+        assert_eq!(resolve("実装/画面"), Ok(6));
+        assert_eq!(resolve("Root/実装/画面"), Ok(6));
+        assert_eq!(resolve("Root\t\t/  実装  /画面"), Ok(6));
+        assert_eq!(resolve("API"), Ok(4));
+        assert_eq!(resolve("設計/API"), Ok(4));
+        assert_eq!(resolve("実装/ｶﾞ"), Ok(13));
+        assert_eq!(resolve("API基盤/ｶﾞ"), Ok(13));
         // NFC で合成済みの字と一致する
-        assert_eq!(resolve("Cafe\u{301}"), (Ok(15), vec![]));
+        assert_eq!(resolve("Cafe\u{301}"), Ok(15));
         assert_eq!(
-            resolve("設計/ｶﾞ").0,
+            resolve("設計/ｶﾞ"),
             Err(err(
                 "ref-not-found",
                 "「設計/ｶﾞ」に一致するノードがありません",
@@ -1584,7 +1809,7 @@ mod tests {
         );
         for bad in ["実装//画面", "/画面", "Root/実装/画面/", r"x\y", "A/B"] {
             assert_eq!(
-                resolve(bad).0,
+                resolve(bad),
                 Err(err(
                     "ref-not-found",
                     &format!("「{bad}」に一致するノードがありません"),
@@ -1598,27 +1823,53 @@ mod tests {
 
     #[test]
     fn resolve_ref_escaped_segments() {
-        assert_eq!(resolve(r"A\/B"), (Ok(9), vec![]));
-        assert_eq!(resolve(r"\(注)x"), (Ok(10), vec![]));
-        assert_eq!(resolve(r"\$100 plan"), (Ok(11), vec![]));
+        assert_eq!(resolve(r"A\/B"), Ok(9));
+        assert_eq!(resolve(r"\(注)x"), Ok(10));
+        assert_eq!(resolve(r"\$100 plan"), Ok(11));
     }
 
     #[test]
-    fn resolve_ref_prefix_matches_are_recorded() {
-        assert_eq!(resolve("R"), (Ok(1), vec![prefix("R", "Root")]));
-        assert_eq!(resolve("テス"), (Ok(8), vec![prefix("テス", "テスト")]));
+    fn resolve_ref_prefix_candidate_is_not_resolved() {
+        // 完全一致だけで引く。前方一致の候補が 1 つなら ref-prefix で候補を示し、ノードは返さない (A-217。旧実装は前方一致で引いた)
+        assert_eq!(resolve("R"), Err(prefix_only("R", "Root")));
+        assert_eq!(resolve("テス"), Err(prefix_only("テス", "テスト")));
         assert_eq!(
             resolve("実装/API"),
-            (Ok(7), vec![prefix("実装/API", "API基盤")])
+            Err(prefix_only("実装/API", "実装/API基盤"))
         );
-        // 祖先の区間の欠陥の再現: 「実」→「実装」の前方一致は記録しない
-        assert_eq!(resolve("実/画"), (Ok(6), vec![prefix("実/画", "画面")]));
+        // 祖先の区間の前方一致も候補の書き方で示す (旧実装は祖先の区間を前方一致で通した。TODO の c)
+        assert_eq!(resolve("実/画"), Err(prefix_only("実/画", "実装/画面")));
+    }
+
+    #[test]
+    fn resolve_ref_prefix_candidate_names_ancestors() {
+        // 祖先の区間だけが前方一致でも引かない。候補は一致した祖先の名前で書く
+        assert_eq!(resolve("実/画面"), Err(prefix_only("実/画面", "実装/画面")));
+        assert_eq!(resolve("実装/画"), Err(prefix_only("実装/画", "実装/画面")));
+        assert_eq!(
+            resolve("R/実/画"),
+            Err(prefix_only("R/実/画", "Root/実装/画面"))
+        );
+        // 候補がなければ ref-not-found
+        assert_eq!(
+            resolve("実/存在しない"),
+            Err(err(
+                "ref-not-found",
+                "「実/存在しない」に一致するノードがありません",
+                "実/存在しない",
+                Some(HINT_NOT_FOUND)
+            ))
+        );
+        // 候補の名前の「/」と、先頭の区間の「$」「(」はエスケープして書く
+        assert_eq!(resolve(r"A\/"), Err(prefix_only(r"A\/", r"A\/B")));
+        assert_eq!(resolve("$100"), Err(prefix_only("$100", r"\$100 plan")));
+        assert_eq!(resolve("(注"), Err(prefix_only("(注", r"\(注)x")));
     }
 
     #[test]
     fn resolve_ref_ambiguous_and_hints() {
         assert_eq!(
-            resolve("画面").0,
+            resolve("画面"),
             Err(err(
                 "ref-ambiguous",
                 "「画面」に一致するノードが 2 個あります (画面、画面)",
@@ -1627,7 +1878,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("Root/画面").0,
+            resolve("Root/画面"),
             Err(err(
                 "ref-ambiguous",
                 "「Root/画面」に一致するノードが 2 個あります (画面、画面)",
@@ -1635,27 +1886,28 @@ mod tests {
                 Some(HINT_AMBIGUOUS)
             ))
         );
+        // 前方一致の候補が 2 つ以上でも ref-prefix で、候補をすべて並べる (A-218 (1)。旧実装は前方一致の ref-ambiguous)
         assert_eq!(
-            resolve("AP").0,
+            resolve("AP"),
             Err(err(
-                "ref-ambiguous",
-                "「AP」に一致するノードが 2 個あります (API、API基盤)",
+                "ref-prefix",
+                "「AP」に完全に一致するノードがありません。前方一致では指しません",
                 "AP",
-                Some(HINT_AMBIGUOUS)
+                Some("もしかして「API」、「API基盤」")
             ))
         );
-        // 空の参照は前方一致で空でないすべてのノードに一致する
+        // 空の参照はどのノードにも一致せず、前方一致の候補にもしない (旧実装は空でないすべてのノードに前方一致した)
         assert_eq!(
-            resolve("").0,
+            resolve(""),
             Err(err(
-                "ref-ambiguous",
-                "「」に一致するノードが 14 個あります (Root、設計、画面、API、実装、画面、API基盤、テスト、A/B、(注)x、$100 plan、ｶﾞ、Ca\u{301}fe  au\tlait、Caf\u{e9})",
+                "ref-not-found",
+                "「」に一致するノードがありません",
                 "",
-                Some(HINT_AMBIGUOUS)
+                Some(HINT_NOT_FOUND)
             ))
         );
         assert_eq!(
-            resolve("Rot").0,
+            resolve("Rot"),
             Err(err(
                 "ref-not-found",
                 "「Rot」に一致するノードがありません",
@@ -1664,7 +1916,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("Cafe").0,
+            resolve("Cafe"),
             Err(err(
                 "ref-not-found",
                 "「Cafe」に一致するノードがありません",
@@ -1673,7 +1925,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            resolve("Café au lait").0,
+            resolve("Café au lait"),
             Err(err(
                 "ref-not-found",
                 "「Café au lait」に一致するノードがありません",
@@ -1683,7 +1935,7 @@ mod tests {
         );
         for far in ["zzzz", "テスtt"] {
             assert_eq!(
-                resolve(far).0,
+                resolve(far),
                 Err(err(
                     "ref-not-found",
                     &format!("「{far}」に一致するノードがありません"),
@@ -1697,20 +1949,17 @@ mod tests {
     #[test]
     fn expand_scopes() {
         use SelectorScope::*;
-        assert_eq!(expand("設計", SelfScope), (Ok(vec![2]), vec![]));
-        assert_eq!(expand("設計", Branch), (Ok(vec![2]), vec![]));
-        assert_eq!(expand("設計", All), (Ok(vec![2, 3, 4]), vec![]));
-        assert_eq!(expand("設計", Leaves), (Ok(vec![3, 4]), vec![]));
+        assert_eq!(expand("設計", SelfScope), Ok(vec![2]));
+        assert_eq!(expand("設計", Branch), Ok(vec![2]));
+        assert_eq!(expand("設計", All), Ok(vec![2, 3, 4]));
+        assert_eq!(expand("設計", Leaves), Ok(vec![3, 4]));
         assert_eq!(
             expand("Root", Leaves),
-            (Ok(vec![3, 4, 6, 13, 8, 9, 10, 11, 12, 14, 15]), vec![])
+            Ok(vec![3, 4, 6, 13, 8, 9, 10, 11, 12, 14, 15])
         );
         assert_eq!(
             expand("Root", All),
-            (
-                Ok(vec![1, 2, 3, 4, 5, 6, 7, 13, 8, 9, 10, 11, 12, 14, 15]),
-                vec![]
-            )
+            Ok(vec![1, 2, 3, 4, 5, 6, 7, 13, 8, 9, 10, 11, 12, 14, 15])
         );
     }
 
@@ -1720,31 +1969,17 @@ mod tests {
         let empty_hint = Some("このノード自身を指すなら、末尾の /* を外します");
         assert_eq!(
             expand("設計/画面", Leaves),
-            (
-                Err(err(
-                    "selector-empty",
-                    "「設計/画面/*」は、配下にノードがないので展開できません",
-                    "設計/画面",
-                    empty_hint
-                )),
-                vec![]
-            )
+            Err(err(
+                "selector-empty",
+                "「設計/画面/*」は、配下にノードがないので展開できません",
+                "設計/画面",
+                empty_hint
+            ))
         );
-        // 前方一致の記録は selector-empty の前に済んでいる (呼び出し側は finally で報告する)
+        // 前方一致の候補しかない参照は、selector-empty の前に ref-prefix で止まる (旧実装は前方一致で引いて selector-empty。A-217)
+        assert_eq!(expand("テ", Leaves), Err(prefix_only("テ", "テスト")));
         assert_eq!(
-            expand("テ", Leaves),
-            (
-                Err(err(
-                    "selector-empty",
-                    "「テ/*」は、配下にノードがないので展開できません",
-                    "テ",
-                    empty_hint
-                )),
-                vec![prefix("テ", "テスト")]
-            )
-        );
-        assert_eq!(
-            expand("画面", Leaves).0,
+            expand("画面", Leaves),
             Err(err(
                 "ref-ambiguous",
                 "「画面」に一致するノードが 2 個あります (画面、画面)",
@@ -1753,7 +1988,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            expand("Missing", All).0,
+            expand("Missing", All),
             Err(err(
                 "ref-not-found",
                 "「Missing」に一致するノードがありません",
@@ -1764,16 +1999,17 @@ mod tests {
     }
 
     #[test]
-    fn take_prefix_matches_empties_the_record() {
+    fn resolver_does_not_keep_prefix_resolutions() {
+        // 前方一致の候補は記録として残さず、呼ぶたびに同じ誤りを返す (旧実装の takePrefixMatches の記録は A-217 でなくした)
         let nodes = tree();
         let mut resolver = Resolver::new(&nodes);
-        assert_eq!(resolver.resolve_ref("R"), Ok(1));
-        assert_eq!(resolver.resolve_ref("テス"), Ok(8));
+        assert_eq!(resolver.resolve_ref("R"), Err(prefix_only("R", "Root")));
         assert_eq!(
-            resolver.take_prefix_matches(),
-            vec![prefix("R", "Root"), prefix("テス", "テスト")]
+            resolver.resolve_ref("テス"),
+            Err(prefix_only("テス", "テスト"))
         );
-        assert!(resolver.take_prefix_matches().is_empty());
+        assert_eq!(resolver.resolve_ref("R"), Err(prefix_only("R", "Root")));
+        assert_eq!(resolver.resolve_ref("Root"), Ok(1));
     }
 
     fn term(scopes: &[SelectorScope], ids: &[u32]) -> RelationTerm {
@@ -1898,7 +2134,9 @@ mod tests {
     // 期待値は、Rust の parse_document が出した nodes と frontmatter を node (vite-node) の src/model/model.ts の buildModel に
     // 渡して取った (2026-09-24)。types は `{ './null.yaml': null, './ok.yaml': { fromOk: { type: 'string' } } }`、
     // hookRefs は d4 だけ `{ './a.js': { beforeFold: 関数, x: 1 }, './b.js': null }` (他は undefined)。
-    // hooks は形が違う (設計文書 (b)) ので JSON から外して別に比べる
+    // hooks は形が違う (設計文書 (b)) ので JSON から外して別に比べる。
+    // ただし文字列でない項目を含む一覧の診断の位置は、旧実装 (飛ばしたあとの添字) から配列での元の添字に直した
+    // (d2 の readonlyGroups の「bb」「zz」、d3 の types.$ref の「./missing.yaml」「./null.yaml」。docs/ignore/bugs/TODO.md の e と f)
 
     const D1_SOURCE: &str = r##"---
 markdag:
@@ -1923,8 +2161,9 @@ markdag:
 ### API
 ## テスト
 "##;
-    // node の buildModel の出力 (hooks を除く): {"hooks": [], "options": {}}
-    const D1_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[],"relations":[{"kind":"chain","source":3,"target":7,"origin":"設計/画 --> テス"},{"kind":"join","source":2,"target":7,"origin":"(設計) & 実装 --> テスト"},{"kind":"join","source":4,"target":7,"origin":"(設計) & 実装 --> テスト"}],"suppressRootLine":[7],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"relation-unknown-key","message":"markdag.relations のキー「bogus」は使えません (fork, join, chain, depends)","at":{"line":14,"column":5,"length":5},"hint":"relations に書けるのは fork, join, chain, depends です"},{"severity":"error","code":"self-loop","message":"始点と終点が同じです: Root --> Root","at":{"line":5,"column":9,"length":13},"hint":null},{"severity":"warning","code":"duplicate-edge","message":"同じ線がすでにあります: Root --> 設計","at":{"line":6,"column":18,"length":2},"hint":"この向きの線はすでにあります。重なった指定を消せます"},{"severity":"error","code":"ref-ambiguous","message":"「画面 --> 設計」: 「画面」に一致するノードが 2 個あります (画面、画面)","at":{"line":7,"column":9,"length":2},"hint":"親のノードを付けて「親/子」と書くか、指したいノードの行末に $id を付けると 1 つに絞れます"},{"severity":"info","code":"ref-prefix","message":"「設計/画 --> テス」: 「設計/画」は前方一致で「画面」に解決しました","at":{"line":8,"column":9,"length":4},"hint":"書き間違いなら「画面」に直します"},{"severity":"info","code":"ref-prefix","message":"「設計/画 --> テス」: 「テス」は前方一致で「テスト」に解決しました","at":{"line":8,"column":18,"length":2},"hint":"書き間違いなら「テスト」に直します"},{"severity":"error","code":"ref-not-found","message":"「Missing --> (Root)/*」: 「Missing」に一致するノードがありません","at":{"line":9,"column":9,"length":7},"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"},{"severity":"error","code":"relation-syntax","message":"「Missing & (Root)/* --> 設計」: 括弧と /* は組み合わせられません: (Root)/*","at":{"line":10,"column":19,"length":8},"hint":"枝の枠でまとめるか配下に展開するかの、どちらかにします"},{"severity":"warning","code":"not-supported","message":"(X) の枝の枠は未対応です。X 自身から線を出します","at":{"line":11,"column":11,"length":17},"hint":null},{"severity":"error","code":"selector-empty","message":"「設計 --> 実装/API/*」: 「実装/API/*」は、配下にノードがないので展開できません","at":{"line":12,"column":18,"length":6},"hint":"このノード自身を指すなら、末尾の /* を外します"},{"severity":"error","code":"relation-syntax","message":"「 --> 設計」: 参照が空です: ","at":{"line":13,"column":14,"length":9},"hint":null}]}"##;
+    // node の buildModel の出力 (hooks を除く): {"hooks": [], "options": {}}。
+    // ただし前方一致の参照 (設計/画、テス) は A-217 で引かなくなったので、その 2 件の info を 1 件の ref-prefix の warning に、式の線をなしに直した
+    const D1_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[],"relations":[{"kind":"join","source":2,"target":7,"origin":"(設計) & 実装 --> テスト"},{"kind":"join","source":4,"target":7,"origin":"(設計) & 実装 --> テスト"}],"suppressRootLine":[7],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"relation-unknown-key","message":"markdag.relations のキー「bogus」は使えません (fork, join, chain, depends)","at":{"line":14,"column":5,"length":5},"hint":"relations に書けるのは fork, join, chain, depends です"},{"severity":"error","code":"self-loop","message":"始点と終点が同じです: Root --> Root","at":{"line":5,"column":9,"length":13},"hint":null},{"severity":"warning","code":"duplicate-edge","message":"同じ線がすでにあります: Root --> 設計","at":{"line":6,"column":18,"length":2},"hint":"この向きの線はすでにあります。重なった指定を消せます"},{"severity":"error","code":"ref-ambiguous","message":"「画面 --> 設計」: 「画面」に一致するノードが 2 個あります (画面、画面)","at":{"line":7,"column":9,"length":2},"hint":"親のノードを付けて「親/子」と書くか、指したいノードの行末に $id を付けると 1 つに絞れます"},{"severity":"warning","code":"ref-prefix","message":"「設計/画 --> テス」: 「設計/画」に完全に一致するノードがありません。前方一致では指しません","at":{"line":8,"column":9,"length":4},"hint":"もしかして「設計/画面」"},{"severity":"error","code":"ref-not-found","message":"「Missing --> (Root)/*」: 「Missing」に一致するノードがありません","at":{"line":9,"column":9,"length":7},"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"},{"severity":"error","code":"relation-syntax","message":"「Missing & (Root)/* --> 設計」: 括弧と /* は組み合わせられません: (Root)/*","at":{"line":10,"column":19,"length":8},"hint":"枝の枠でまとめるか配下に展開するかの、どちらかにします"},{"severity":"warning","code":"not-supported","message":"(X) の枝の枠は未対応です。X 自身から線を出します","at":{"line":11,"column":11,"length":17},"hint":null},{"severity":"error","code":"selector-empty","message":"「設計 --> 実装/API/*」: 「実装/API/*」は、配下にノードがないので展開できません","at":{"line":12,"column":18,"length":6},"hint":"このノード自身を指すなら、末尾の /* を外します"},{"severity":"error","code":"relation-syntax","message":"「 --> 設計」: 参照が空です: ","at":{"line":13,"column":14,"length":9},"hint":null}]}"##;
 
     const D2_SOURCE: &str = r##"---
 markdag:
@@ -1958,8 +2197,9 @@ markdag:
 ## テスト %c
 ### 項目 %b
 "##;
-    // node の buildModel の出力 (hooks を除く): {"hooks": [{"ref": "markdag.rules", "exports": ["beforeTaskToggle"]}], "options": {}}
-    const D2_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[2,4,6],"relations":[],"suppressRootLine":[],"groups":[{"id":"b","label":"B群","color":"#f00","boundary":true,"defined":true},{"id":"g2","label":"g2","color":null,"boundary":false,"defined":true},{"id":"a","label":"a","color":null,"boundary":false,"defined":true},{"id":"c","label":"c","color":null,"boundary":false,"defined":false}],"groupsOf":[[1,[]],[2,["b","c"]],[3,["b","a","c"]],[4,["b"]],[5,["b"]],[6,["g2","c"]],[7,["b","g2","c"]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"group-invalid","message":"markdag.groups.b.members[3] は文字列で書きます (7)","at":{"line":8,"column":30,"length":1},"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[3] は前にも書かれています (\"実装\")","at":{"line":17,"column":7,"length":2},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups[0] は文字列で書きます (1)","at":{"line":23,"column":24,"length":1},"hint":"本文の %名前 や markdag.groups のキーと同じ名前を、% なしで書きます"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.b.members「(実装)」: members に (X) は書けません","at":{"line":8,"column":21,"length":4},"hint":"括弧を外して書きます"},{"severity":"info","code":"ref-prefix","message":"markdag.groups.b.members: 「実」は前方一致で「実装」に解決しました","at":{"line":8,"column":27,"length":1},"hint":"書き間違いなら「実装」に直します"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups: グループ「bb」は、この文書のどのノードにも付いていません","at":{"line":23,"column":24,"length":1},"hint":"もしかして「b」"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups: グループ「zz」は、この文書のどのノードにも付いていません","at":{"line":23,"column":27,"length":2},"hint":"本文で %名前 を付けるか、markdag.groups に定義します"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「実装」は「$impl」と同じノードで、すでに枝の起点になっています","at":{"line":16,"column":7,"length":2},"hint":"この行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「実装」は「$impl」と同じノードで、すでに枝の起点になっています","at":{"line":17,"column":7,"length":2},"hint":"この行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「設計/*」は 1 ノードの指定ではありません。枝の起点は 1 ノードで指定します ((X), /*, /** は使えません)","at":{"line":18,"column":7,"length":4},"hint":"配下をまとめて 1 色にするなら「設計」だけを書きます (配下は起点の色を引き継ぎます)"},{"severity":"info","code":"ref-prefix","message":"markdag.branches: 「テ」は前方一致で「テスト」に解決しました","at":{"line":19,"column":7,"length":1},"hint":"書き間違いなら「テスト」に直します"},{"severity":"warning","code":"ref-not-found","message":"markdag.branches: 「Missing」に一致するノードがありません","at":{"line":20,"column":7,"length":7},"hint":"ノードの 1 行目の文字を、先頭から書きます (装飾とタグは除いた文字)"}]}"##;
+    // node の buildModel の出力 (hooks を除く): {"hooks": [{"ref": "markdag.rules", "exports": ["beforeTaskToggle"]}], "options": {}}。
+    // ただし前方一致の members の「実」と branches の「テ」は A-217 で引かなくなったので、ref-prefix の warning にし、所属と枝の起点から外した
+    const D2_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[2,4],"relations":[],"suppressRootLine":[],"groups":[{"id":"b","label":"B群","color":"#f00","boundary":true,"defined":true},{"id":"g2","label":"g2","color":null,"boundary":false,"defined":true},{"id":"a","label":"a","color":null,"boundary":false,"defined":true},{"id":"c","label":"c","color":null,"boundary":false,"defined":false}],"groupsOf":[[1,[]],[2,["b","c"]],[3,["b","a","c"]],[4,[]],[5,[]],[6,["g2","c"]],[7,["b","g2","c"]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]],[5,[]],[6,[]],[7,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"group-invalid","message":"markdag.groups.b.members[3] は文字列で書きます (7)","at":{"line":8,"column":30,"length":1},"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[3] は前にも書かれています (\"実装\")","at":{"line":17,"column":7,"length":2},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups[0] は文字列で書きます (1)","at":{"line":23,"column":24,"length":1},"hint":"本文の %名前 や markdag.groups のキーと同じ名前を、% なしで書きます"},{"severity":"warning","code":"group-invalid","message":"markdag.groups.b.members「(実装)」: members に (X) は書けません","at":{"line":8,"column":21,"length":4},"hint":"括弧を外して書きます"},{"severity":"warning","code":"ref-prefix","message":"markdag.groups.b.members「実」: 「実」に完全に一致するノードがありません。前方一致では指しません","at":{"line":8,"column":27,"length":1},"hint":"もしかして「実装」"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups: グループ「bb」は、この文書のどのノードにも付いていません","at":{"line":23,"column":27,"length":2},"hint":"もしかして「b」"},{"severity":"warning","code":"option-invalid","message":"markdag.rules.taskToggle.readonlyGroups: グループ「zz」は、この文書のどのノードにも付いていません","at":{"line":23,"column":31,"length":2},"hint":"本文で %名前 を付けるか、markdag.groups に定義します"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「実装」は「$impl」と同じノードで、すでに枝の起点になっています","at":{"line":16,"column":7,"length":2},"hint":"この行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「実装」は「$impl」と同じノードで、すでに枝の起点になっています","at":{"line":17,"column":7,"length":2},"hint":"この行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches: 「設計/*」は 1 ノードの指定ではありません。枝の起点は 1 ノードで指定します ((X), /*, /** は使えません)","at":{"line":18,"column":7,"length":4},"hint":"配下をまとめて 1 色にするなら「設計」だけを書きます (配下は起点の色を引き継ぎます)"},{"severity":"warning","code":"ref-prefix","message":"markdag.branches: 「テ」に完全に一致するノードがありません。前方一致では指しません","at":{"line":19,"column":7,"length":1},"hint":"もしかして「テスト」"},{"severity":"warning","code":"ref-not-found","message":"markdag.branches: 「Missing」に一致するノードがありません","at":{"line":20,"column":7,"length":7},"hint":"ノードの 1 行目の文字をそのまま書きます (装飾とタグは除いた文字)"}]}"##;
 
     const D3_SOURCE: &str = r##"---
 markdag:
@@ -1989,7 +2229,7 @@ markdag:
 - [x] done
 "##;
     // node の buildModel の出力 (hooks を除く): {"hooks": [], "options": {}}
-    const D3_MODEL: &str = r##"{"detailsMode":"click","legend":["branches"],"legendPosition":"bottom-left","edgeHighlight":true,"groupHighlight":false,"branches":[],"relations":[],"suppressRootLine":[],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]]],"tagDisplay":"hover","tagsOf":[[1,[]],[2,[{"key":"size","values":["L"],"at":{"line":25,"column":6,"length":7}},{"key":"owner","values":["me"],"at":{"line":25,"column":14,"length":9}},{"key":"who","values":["x"],"at":{"line":25,"column":24,"length":6}}]],[3,[]]],"tagKeys":[{"key":"size","alternatives":[{"primitive":"string"}],"multiple":false,"unique":false,"description":null},{"key":"owner","alternatives":[],"multiple":false,"unique":false,"description":null}],"taskCycle":[" ","x"],"taskDim":{"states":["done","canceled"],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"type-invalid","message":"markdag.types.$ref[0] は文字列で書きます (1)","at":{"line":4,"column":12,"length":1},"hint":"「./types.yaml」のように、文書からの相対パスを文字列で書きます"},{"severity":"warning","code":"type-invalid","message":"markdag.tags.keys.size はキーと値の組で書きます (\"size\")","at":{"line":11,"column":13,"length":4},"hint":"タグのキーの下に type と制約、multiple, unique, description を字下げして書きます"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.dim[2] は前にも書かれています (\"x\")","at":{"line":15,"column":21,"length":3},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.dim[3] に指定できるのは  , /, x, - です (\"q\")","at":{"line":15,"column":26,"length":3},"hint":"もしかして「 」"},{"severity":"warning","code":"option-invalid","message":"markdag.legend.display[1] に指定できるのは groups, branches です (\"nope\")","at":{"line":19,"column":25,"length":4},"hint":"凡例に出せるのは groups と branches です"},{"severity":"warning","code":"option-invalid","message":"markdag.edgeHighlight は真偽値で書きます (\"false\")","at":{"line":21,"column":18,"length":7},"hint":"使わないなら false と書きます。yes は YAML では文字列になります"},{"severity":"warning","code":"types-unresolved","message":"markdag.types.$ref「./missing.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)","at":{"line":4,"column":12,"length":1},"hint":"呼び出し側が読んで buildModel の types に渡します (npm run check は文書の場所からの相対で読みます)"},{"severity":"warning","code":"types-unresolved","message":"markdag.types.$ref「./null.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)","at":{"line":4,"column":15,"length":14},"hint":"ファイルが YAML のキーと値の組として読めるか確かめます"},{"severity":"error","code":"tag-unknown-key","message":"「A」の #who:x は、markdag.tags.keys に定義のないキーです","at":{"line":25,"column":24,"length":6},"hint":"keys に定義するか、unknownKey を allow にします"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.cycle: クリックで進む順は、記号を 2 つ以上並べます","at":{"line":14,"column":5,"length":12},"hint":"未完了と完了の行き来なら書かずに済みます。作業中を挟むなら [' ', '/', 'x'] と書きます"}]}"##;
+    const D3_MODEL: &str = r##"{"detailsMode":"click","legend":["branches"],"legendPosition":"bottom-left","edgeHighlight":true,"groupHighlight":false,"branches":[],"relations":[],"suppressRootLine":[],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]]],"tagDisplay":"hover","tagsOf":[[1,[]],[2,[{"key":"size","values":["L"],"at":{"line":25,"column":6,"length":7}},{"key":"owner","values":["me"],"at":{"line":25,"column":14,"length":9}},{"key":"who","values":["x"],"at":{"line":25,"column":24,"length":6}}]],[3,[]]],"tagKeys":[{"key":"size","alternatives":[{"primitive":"string"}],"multiple":false,"unique":false,"description":null},{"key":"owner","alternatives":[],"multiple":false,"unique":false,"description":null}],"taskCycle":[" ","x"],"taskDim":{"states":["done","canceled"],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"type-invalid","message":"markdag.types.$ref[0] は文字列で書きます (1)","at":{"line":4,"column":12,"length":1},"hint":"「./types.yaml」のように、文書からの相対パスを文字列で書きます"},{"severity":"warning","code":"type-invalid","message":"markdag.tags.keys.size はキーと値の組で書きます (\"size\")","at":{"line":11,"column":13,"length":4},"hint":"タグのキーの下に type と制約、multiple, unique, description を字下げして書きます"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.dim[2] は前にも書かれています (\"x\")","at":{"line":15,"column":21,"length":3},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.dim[3] に指定できるのは  , /, x, - です (\"q\")","at":{"line":15,"column":26,"length":3},"hint":"もしかして「 」"},{"severity":"warning","code":"option-invalid","message":"markdag.legend.display[1] に指定できるのは groups, branches です (\"nope\")","at":{"line":19,"column":25,"length":4},"hint":"凡例に出せるのは groups と branches です"},{"severity":"warning","code":"option-invalid","message":"markdag.edgeHighlight は真偽値で書きます (\"false\")","at":{"line":21,"column":18,"length":7},"hint":"使わないなら false と書きます。yes は YAML では文字列になります"},{"severity":"warning","code":"types-unresolved","message":"markdag.types.$ref「./missing.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)","at":{"line":4,"column":15,"length":14},"hint":"呼び出し側が読んで buildModel の types に渡します (npm run check は文書の場所からの相対で読みます)"},{"severity":"warning","code":"types-unresolved","message":"markdag.types.$ref「./null.yaml」を読めなかったので、その中の型は使えません (その型を使うキーは検査しません)","at":{"line":4,"column":31,"length":11},"hint":"ファイルが YAML のキーと値の組として読めるか確かめます"},{"severity":"error","code":"tag-unknown-key","message":"「A」の #who:x は、markdag.tags.keys に定義のないキーです","at":{"line":25,"column":24,"length":6},"hint":"keys に定義するか、unknownKey を allow にします"},{"severity":"warning","code":"option-invalid","message":"markdag.tasks.cycle: クリックで進む順は、記号を 2 つ以上並べます","at":{"line":14,"column":5,"length":12},"hint":"未完了と完了の行き来なら書かずに済みます。作業中を挟むなら [' ', '/', 'x'] と書きます"}]}"##;
 
     const D4_SOURCE: &str = r##"---
 markdag:
@@ -2061,7 +2301,7 @@ markdag:
 
     #[test]
     fn build_model_relations_cycles_and_selector_errors() {
-        // self-loop、duplicate-edge、ref-ambiguous、ref-prefix (2 件は finally の順)、項をまたがない ref-not-found と
+        // self-loop、duplicate-edge、ref-ambiguous、ref-prefix (前方一致の候補しかない参照は線を引かず warning)、項をまたがない ref-not-found と
         // 同じ項の中の relation-syntax (規則 2.3 の段ごとの collect)、not-supported は 1 度だけ、selector-empty、
         // 空の参照の relation-syntax (ref は空文字なので place は式の全体を指す)、知らない種類の bogus は読まない
         let model = assert_model(D1_SOURCE, None, D1_MODEL);
@@ -2077,9 +2317,9 @@ markdag:
 
     #[test]
     fn build_model_groups_branches_and_rules() {
-        // members の (X) は group-invalid、前方一致の members、定義のないグループの順と継承、branches の重複 (別の表記で
+        // members の (X) は group-invalid、前方一致の候補しかない members と branches は ref-prefix、定義のないグループの順と継承、branches の重複 (別の表記で
         // 同じノードを指す $impl と 実装 は警告。2 つ目の 実装 も 1 つ目が警告で登録されないので同じ警告)、
-        // scope が self でない指定、rules の readonlyGroups の closest と filter 後の添字。
+        // scope が self でない指定、rules の readonlyGroups の closest と配列での元の添字 (旧実装は filter 後の添字)。
         // 同じ表記の 2 度目が成功する経路 (try の中の continue) は build_model_branches_same_spelling_skips_to_finally
         let model = assert_model(D2_SOURCE, None, D2_MODEL);
         assert_eq!(
@@ -2106,14 +2346,204 @@ markdag:
 ## 実装
 ## テスト
 "##;
-    // node の buildModel の出力 (hooks を除く): {"hooks": [], "options": {}}。nodes は D5_SOURCE の見出しと同じ 4 件を手で組んで渡した
-    const D5_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[3,4],"relations":[],"suppressRootLine":[],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]],[4,[]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"option-invalid","message":"markdag.branches[2] は前にも書かれています (\"実装\")","at":{"line":6,"column":7,"length":2},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[3] は前にも書かれています (\"テ\")","at":{"line":7,"column":7,"length":1},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"info","code":"ref-prefix","message":"markdag.branches: 「テ」は前方一致で「テスト」に解決しました","at":{"line":5,"column":7,"length":1},"hint":"書き間違いなら「テスト」に直します"},{"severity":"info","code":"ref-prefix","message":"markdag.branches: 「テ」は前方一致で「テスト」に解決しました","at":{"line":7,"column":7,"length":1},"hint":"書き間違いなら「テスト」に直します"}]}"##;
+    // node の buildModel の出力 (hooks を除く): {"hooks": [], "options": {}}。nodes は D5_SOURCE の見出しと同じ 4 件を手で組んで渡した。
+    // ただし前方一致の「テ」は A-217 で引かなくなったので、2 件の info を ref-prefix の warning に、branches を [3] に直した
+    const D5_MODEL: &str = r##"{"detailsMode":null,"legend":["groups","branches"],"legendPosition":"top-right","edgeHighlight":true,"groupHighlight":true,"branches":[3],"relations":[],"suppressRootLine":[],"groups":[],"groupsOf":[[1,[]],[2,[]],[3,[]],[4,[]]],"tagDisplay":"always","tagsOf":[[1,[]],[2,[]],[3,[]],[4,[]]],"tagKeys":[],"taskCycle":[" ","x"],"taskDim":{"states":[],"details":"keep","tags":"keep"},"diagnostics":[{"severity":"warning","code":"option-invalid","message":"markdag.branches[2] は前にも書かれています (\"実装\")","at":{"line":6,"column":7,"length":2},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"option-invalid","message":"markdag.branches[3] は前にも書かれています (\"テ\")","at":{"line":7,"column":7,"length":1},"hint":"同じ行が 2 回あります。重なった行は消せます"},{"severity":"warning","code":"ref-prefix","message":"markdag.branches: 「テ」に完全に一致するノードがありません。前方一致では指しません","at":{"line":5,"column":7,"length":1},"hint":"もしかして「テスト」"},{"severity":"warning","code":"ref-prefix","message":"markdag.branches: 「テ」に完全に一致するノードがありません。前方一致では指しません","at":{"line":7,"column":7,"length":1},"hint":"もしかして「テスト」"}]}"##;
 
     #[test]
     fn build_model_branches_same_spelling_skips_to_finally() {
-        // 同じ表記の 2 度目は解決に成功し、try の中の continue で登録を飛ばす (branches は [3, 4] のまま、model 層の警告なし。
-        // 重複の警告はスキーマの 2 件だけ)。finally は通るので、2 度目の テ の前方一致の info も 2 件目として出る
+        // 同じ表記の 2 度目は解決に成功し、try の中の continue で登録を飛ばす (実装 の 2 度目は model 層の警告なし。
+        // 重複の警告はスキーマの 2 件だけ)。前方一致の候補しかない テ は 2 度とも ref-prefix の warning で、枝の起点にならない (A-217)
         assert_model(D5_SOURCE, None, D5_MODEL);
+    }
+
+    // 名前を持たないノードの中身の文字で指したときの ref-not-found の hint (A-219)
+    fn nameless_hint_of(text: &str) -> String {
+        format!(
+            "「{text}」は名前を持たないノードの中の文字です。名前はノードの 1 行目の文字なので、1 行目が空の項目 (と見出しの直下の表やコード) は文字では指せません。1 行目にラベルを書くか (表やコードはラベルの項目の 2 行目以降に書きます)、1 行目の行末に $id を付けて $id で指します"
+        )
+    }
+
+    #[test]
+    fn build_model_nameless_nodes_are_found_only_by_label_or_id() {
+        let source = concat!(
+            "---\nmarkdag:\n  relations:\n    chain:\n",
+            "      - 集計表 --> x\n",
+            "      - $note --> $imp\n",
+            "      - a b --> x\n",
+            "      - code --> x\n",
+            "      - inner --> x\n",
+            "      - '\"<b>重要</b> 作業\" --> x'\n",
+            "      - 集計表 a --> x\n",
+            "  groups:\n    g:\n      members: [R/**]\n",
+            "---\n# R\n\n",
+            "- 集計表\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n",
+            "-\n  | a b | c |\n  |---|---|\n  | 1 | 2 |\n",
+            "- $note\n  <div>inner</div>\n",
+            "- <b>重要</b> 作業 $imp\n",
+            "- x\n",
+            "-\n  ```\n  code\n  ```\n",
+        );
+        let model = built(source, None);
+        let relations: Vec<(u32, u32)> = model
+            .relations
+            .iter()
+            .map(|relation| (relation.source, relation.target))
+            .collect();
+        // ラベルの行、$id、1 行目の生の HTML を書いたままの名前 (「/」を含むので " で囲む) で指せる。名前を持たないノードも R/** には入る
+        assert_eq!(relations, [(2, 6), (4, 5), (5, 6)]);
+        assert!(
+            model
+                .groups_of
+                .values()
+                .skip(1)
+                .all(|groups| groups == &["g".to_string()])
+        );
+        let found: Vec<(String, Option<String>)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.code.clone(), item.hint.clone()))
+            .collect();
+        let not_found = |hint: String| ("ref-not-found".to_string(), Some(hint));
+        assert_eq!(
+            found,
+            [
+                not_found(nameless_hint_of("a b")),
+                not_found(nameless_hint_of("code")),
+                not_found(nameless_hint_of("inner")),
+                // ラベルとブロックの文字は連結しないので「集計表 a」はどのノードでもない
+                not_found(HINT_NOT_FOUND.to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn quoted_terms_split_and_unescape() {
+        // 項の頭の " から閉じの " までが 1 つの名前。頭でない " はふつうの字
+        assert_eq!(
+            split_outside_quotes(r#""a --> b" --> c & "d & e""#, &ARROW),
+            Ok(vec![r#""a --> b""#, r#"c & "d & e""#])
+        );
+        assert_eq!(
+            split_outside_quotes(r#"c & "d & e""#, &AMPERSAND),
+            Ok(vec!["c", r#""d & e""#])
+        );
+        assert_eq!(
+            split_outside_quotes(r#"say "hi" --> x"#, &ARROW),
+            Ok(vec![r#"say "hi""#, "x"])
+        );
+        assert_eq!(split_outside_quotes(r#""open --> x"#, &ARROW), Err(0));
+        // 区間ごとに囲める。囲んだ区間の「/」「\」は書いたまま (\" と \\ だけを戻す)
+        assert_eq!(
+            path_segments(r#"P/"a/b \"c\" \\ $d""#),
+            Ok(vec!["P".to_string(), r#"a/b "c" \ $d"#.to_string()])
+        );
+        assert_eq!(
+            path_segments(r"CI\/CD/x"),
+            Ok(vec!["CI/CD".to_string(), "x".to_string()])
+        );
+    }
+
+    #[test]
+    fn build_model_quoted_terms_are_one_name() {
+        // " で囲んだ項は 1 つの名前。中の -->、&、/、$ は区切りや id として読まない。中の " は \" (A-219)
+        let source = concat!(
+            "---\nmarkdag:\n  relations:\n    chain:\n",
+            "      - '\"A --> B\" --> \"R & D\"'\n",
+            "      - '\"say \\\"hi\\\"\" --> x'\n",
+            "      - '\"CI/CD\" & \"$100 budget\" --> x'\n",
+            "      - '\"名前 <!-- メモ -->\" --> P/\"子 & 孫\"'\n",
+            "      - '\"A --> B\"/* --> x'\n",
+            "      - '\"閉じない --> x'\n",
+            "  groups:\n    g:\n      members: ['\"R & D\"', '\"CI/CD\"']\n",
+            "  branches: ['\"A --> B\"']\n",
+            "---\n# R\n\n",
+            "- A --> B\n  - leaf\n",
+            "- R & D\n",
+            "- say \"hi\"\n",
+            "- CI/CD\n",
+            "- \\$100 budget\n",
+            "- 名前 <!-- メモ -->\n",
+            "- P\n  - 子 & 孫\n",
+            "- x\n",
+        );
+        let model = built(source, None);
+        let relations: Vec<(u32, u32)> = model
+            .relations
+            .iter()
+            .map(|relation| (relation.source, relation.target))
+            .collect();
+        assert_eq!(
+            relations,
+            [(2, 4), (5, 11), (6, 11), (7, 11), (8, 10), (3, 11)]
+        );
+        assert_eq!(model.groups_of.get(&4), Some(&vec!["g".to_string()]));
+        assert_eq!(model.groups_of.get(&6), Some(&vec!["g".to_string()]));
+        assert_eq!(model.branches, [2]);
+        let found: Vec<(&str, &str)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.code.as_str(), item.message.as_str()))
+            .collect();
+        let chain_shape = "chain は、すべての項が 1 ノードの形を想定しています";
+        assert_eq!(
+            found,
+            [
+                (
+                    "shape-mismatch",
+                    &format!("「\"CI/CD\" & \"$100 budget\" --> x」: {chain_shape}") as &str
+                ),
+                (
+                    "shape-mismatch",
+                    &format!("「\"A --> B\"/* --> x」: {chain_shape}") as &str
+                ),
+                (
+                    "relation-syntax",
+                    "「\"閉じない --> x」: 「\"閉じない --> x」の \" が閉じていません"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn build_model_prefix_candidates_are_warnings_whatever_their_count() {
+        // 前方一致の候補は数によらず ref-prefix の warning で、候補をすべて示す。線、所属、枝の起点は足さない (A-218 (1))
+        let source = concat!(
+            "---\nmarkdag:\n  relations:\n    chain:\n      - Rel --> x\n",
+            "  groups:\n    g:\n      members: [Rel]\n",
+            "  branches: [Rel]\n",
+            "---\n# R\n\n- Release\n- Relax\n- A --> B\n- x\n",
+        );
+        let model = built(source, None);
+        assert!(model.relations.is_empty());
+        assert!(model.branches.is_empty());
+        assert!(model.groups_of.values().all(Vec::is_empty));
+        let found: Vec<(Severity, &str, Option<&str>)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.severity, item.code.as_str(), item.hint.as_deref()))
+            .collect();
+        let both = Some("もしかして「Release」、「Relax」");
+        assert_eq!(
+            found,
+            [
+                (Severity::Warning, "ref-prefix", both),
+                (Severity::Warning, "ref-prefix", both),
+                (Severity::Warning, "ref-prefix", both),
+            ]
+        );
+        // 候補の名前が区切りを含むなら " で囲んで示す
+        let quoted = built(
+            "---\nmarkdag:\n  relations:\n    chain:\n      - A --> x\n---\n# R\n\n- A --> B\n- x\n",
+            None,
+        );
+        assert_eq!(
+            quoted
+                .diagnostics
+                .first()
+                .and_then(|item| item.hint.as_deref()),
+            Some("もしかして「\"A --> B\"」")
+        );
     }
 
     const NUMERIC_GROUPS_SOURCE: &str =
@@ -2187,10 +2617,53 @@ markdag:
 
     #[test]
     fn build_model_types_tags_tasks_and_legend() {
-        // $ref の filter 後の添字 (filter 後の添字の欠陥の再現: ./missing.yaml の types-unresolved が $ref[0] の 1 を指す)、
+        // $ref の配列での元の添字 (./missing.yaml の types-unresolved は $ref[1]。旧実装は filter 後の添字で $ref[0] の 1 を指した)、
         // Null と渡していないものの hint の違い、tags の lint と unknownKey、tasks.cycle の長さ、dim の配列の形、
         // legend の一覧と位置、`edgeHighlight: "false"` は真のまま
         assert_model(D3_SOURCE, None, D3_MODEL);
+    }
+
+    // 診断の at だけを (code, 行, 桁, 長さ) で並べる
+    fn positions(model: &GraphModel, code: &str) -> Vec<(u32, u32, u32)> {
+        model
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == code)
+            .filter_map(|diagnostic| diagnostic.at.as_ref())
+            .map(|at| (at.line, at.column, at.length))
+            .collect()
+    }
+
+    #[test]
+    fn build_model_types_ref_points_at_original_index() {
+        // 文字列でない項目を飛ばしても、types-unresolved は配列での元の添字の項目を指す (TODO の e)
+        let source = "---\nmarkdag:\n  types:\n    $ref: [1, ./a.yaml, null, ./b.yaml]\n---\n# R\n";
+        let model = built(source, None);
+        assert_eq!(
+            positions(&model, "types-unresolved"),
+            vec![(4, 15, 8), (4, 31, 8)]
+        );
+        // ブロックの一覧でも同じ
+        let source = "---\nmarkdag:\n  types:\n    $ref:\n      - 1\n      - ./a.yaml\n---\n# R\n";
+        assert_eq!(
+            positions(&built(source, None), "types-unresolved"),
+            vec![(6, 9, 8)]
+        );
+    }
+
+    #[test]
+    fn build_model_readonly_groups_point_at_original_index() {
+        // 文字列でない項目を飛ばしても、readonlyGroups の option-invalid は配列での元の添字の項目を指す (TODO の f)
+        let source = "---\nmarkdag:\n  rules:\n    taskToggle:\n      readonlyGroups: [1, x, true, y]\n---\n# R\n\n- a %g\n";
+        let model = built(source, None);
+        let unknown: Vec<(u32, u32, u32)> = model
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.message.contains("どのノードにも付いていません"))
+            .filter_map(|diagnostic| diagnostic.at.as_ref())
+            .map(|at| (at.line, at.column, at.length))
+            .collect();
+        assert_eq!(unknown, vec![(5, 27, 1), (5, 36, 1)]);
     }
 
     #[test]
@@ -2300,6 +2773,56 @@ markdag:
     #[test]
     fn selector_error_display_is_message() {
         assert_eq!(err("ref-not-found", "文面", "x", None).to_string(), "文面");
+    }
+
+    // 期待値は旧実装の formatDiagnostics (dist/markdag.js) に同じ診断を渡した出力を写したもの
+    #[test]
+    fn format_diagnostics_matches_the_js_output() {
+        let diagnostic =
+            |severity, code: &str, message: &str, at: Option<(u32, u32)>, hint: Option<&str>| {
+                Diagnostic {
+                    severity,
+                    code: code.to_string(),
+                    message: message.to_string(),
+                    at: at.map(|(line, column)| SourcePosition {
+                        line,
+                        column,
+                        length: 4,
+                    }),
+                    hint: hint.map(str::to_string),
+                }
+            };
+        let items = vec![
+            diagnostic(
+                Severity::Warning,
+                "option-unknown",
+                "markdag のキー「detail」は使えません",
+                Some((10, 5)),
+                Some("もしかして「details」"),
+            ),
+            diagnostic(
+                Severity::Info,
+                "not-extracted",
+                "frontmatter に markdag のキーがない",
+                None,
+                None,
+            ),
+            // 空の hint は原文の `item.hint ?` で偽なので行を足さない
+            diagnostic(
+                Severity::Error,
+                "ref-ambiguous",
+                "「Test」",
+                Some((6, 11)),
+                Some(""),
+            ),
+            // hint の中の改行はそのまま (2 行目は下げない)
+            diagnostic(Severity::Error, "cycle", "x", None, Some("行1\n行2")),
+        ];
+        assert_eq!(
+            format_diagnostics(&items),
+            "warning option-unknown 10:5 markdag のキー「detail」は使えません\n    もしかして「details」\ninfo not-extracted frontmatter に markdag のキーがない\nerror ref-ambiguous 6:11 「Test」\nerror cycle x\n    行1\n行2"
+        );
+        assert_eq!(format_diagnostics(&[]), "");
     }
 }
 

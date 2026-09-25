@@ -55,7 +55,7 @@ describe('行頭の記号の読み取り', () => {
         expect(markOf('# root\n## [X] A', 'A')).toBe('x');
         expect(markOf('# root\n\n[-] Setext\n---\n', 'Setext')).toBe('-');
         // 項目の行頭でない行 (項目の続きの段落) の記号はタスクにしない
-        expect(markOf('# root\n- a\n\n  [-] plain', 'a [-] plain')).toBeNull();
+        expect(markOf('# root\n- a\n\n  [-] plain', 'a')).toBeNull();
         expect(markOf('# root\n- [?] A', '[?] A')).toBeNull();
         expect(markOf('# root\n- [x]A', '[x]A')).toBeNull();
         expect(['/', '-', ' ', 'x'].map((mark) => taskStateOf(mark as '/' | '-' | ' ' | 'x'))).toEqual(['doing', 'canceled', 'todo', 'done']);

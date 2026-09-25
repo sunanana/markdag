@@ -1,10 +1,11 @@
 // markdag の中核 (純粋な Rust)。Markdown の解析 (parse)、frontmatter とグラフの組み立て (model)、配置 (layout) と、
-// それらが共有する型と JSON の契約 (types)、単体 HTML のページの組み立て (standalone) を持つ。DOM も JS も知らず、wasm とネイティブの両方から同じように呼ばれる。
+// それらが共有する型と JSON の契約 (types)、単体 HTML のページの組み立て (standalone)、ネイティブの入口 (CLI と MCP) が共有する検査と JSON の組み立て (native) を持つ。DOM も JS も知らず、wasm とネイティブの両方から同じように呼ばれる。
 #![forbid(unsafe_code)]
 
 pub mod layout;
 pub mod limits;
 pub mod model;
+pub mod native;
 pub mod parse;
 pub mod standalone;
 pub mod types;

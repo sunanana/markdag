@@ -22,6 +22,18 @@ console.log(diagram.diagnostics);
 
 `markdag/standalone` writes a diagram as one HTML file that opens on its own, with the interaction kept. See `docs/usage.md`.
 
+### Command line
+
+The `markdag` command checks a document, prints it as JSON, or writes it as a standalone HTML file. It is built from this repository with `npm run build:cli` (Node and a Rust toolchain are needed) and lands at `target/release/markdag`.
+
+```sh
+markdag check doc.md          # one diagnostic per line; exit 1 on an error, 2 when the file cannot be read
+markdag parse doc.md --json   # { "parsed": ..., "model": ... } as one line of JSON
+markdag html doc.md -o doc.html
+```
+
+Details are in `docs/validation.md`. The same checks are also available to AI clients through an MCP server, `markdag-mcp`; see `docs/mcp.md`.
+
 ## Documentation
 
 Everything needed to use markdag is under `docs/`. If you are an AI agent:
@@ -32,7 +44,8 @@ Everything needed to use markdag is under `docs/`. If you are an AI agent:
 ```
 docs/
 ├── writing-guide.md        How to write a document: notation, frontmatter, pitfalls, what is not supported yet
-├── validation.md           How to check a document (`npm run check`), how to read the diagnostics, the list of diagnostic codes
+├── validation.md           How to check a document (`npm run check` or the `markdag` command), how to read the diagnostics, the list of diagnostic codes
+├── mcp.md                  The MCP server (`markdag-mcp`): how to build it, register it with Claude Code, and its tools
 ├── usage.md                How to install the library and render a diagram in a page: API, options, styling, driving the view from an application
 └── examples/
     ├── notation.md         Every notation in one short document
@@ -43,7 +56,7 @@ docs/
 
 The examples are written in Japanese. `docs/writing-guide.md` has an English one.
 
-The core is the Rust crate `crates/markdag-core` (parsing, the model and diagnostics, the layout, the standalone page), compiled to WebAssembly by `crates/markdag-wasm`. Building needs a Rust toolchain with the `wasm32-unknown-unknown` target. The TypeScript under `src/` wraps it: `parse/`, `model/` and `layout/` call the WebAssembly module, `wasm/` loads it, `view/` does the rendering and interaction, plus `style.css`, `index.ts` (the public entry) and `core.ts` (the entry that loads nothing from a CDN). The frontmatter JSON Schema is `src/model/frontmatter.schema.json`.
+The core is the Rust crate `crates/markdag-core` (parsing, the model and diagnostics, the layout, the standalone page), compiled to WebAssembly by `crates/markdag-wasm`, to the `markdag` command by `crates/markdag-cli`, and to the MCP server by `crates/markdag-mcp`. Building needs a Rust toolchain with the `wasm32-unknown-unknown` target. The TypeScript under `src/` wraps it: `parse/`, `model/` and `layout/` call the WebAssembly module, `wasm/` loads it, `view/` does the rendering and interaction, plus `style.css`, `index.ts` (the public entry) and `core.ts` (the entry that loads nothing from a CDN). The frontmatter JSON Schema is `src/model/frontmatter.schema.json`.
 
 ## Relation to markmap
 

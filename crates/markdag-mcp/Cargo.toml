@@ -1,0 +1,28 @@
+[package]
+name = "markdag-mcp"
+description = "MCP server (stdio) for markdag: check a document, return it as JSON, and serve the writing guide"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "markdag-mcp"
+path = "src/main.rs"
+
+[dependencies]
+markdag-core = { path = "../markdag-core" }
+rmcp = { version = "3.4.1", default-features = false, features = ["server", "macros", "transport-io"] }
+tokio = { version = "1", features = ["macros", "rt", "io-std"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+indexmap = "2"
+
+[dev-dependencies]
+rmcp = { version = "3.4.1", default-features = false, features = ["client", "server", "transport-async-rw"] }
+tokio = { version = "1", features = ["macros", "rt", "io-util"] }

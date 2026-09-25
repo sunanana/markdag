@@ -171,7 +171,8 @@ test.describe('タスク', () => {
     });
 
     test('HTML で直接書いたチェックボックスの状態は、ほかのタスクの切り替えで描き直しても残り、その内容を書き換えたら戻る', async ({ page }) => {
-        const markdown = ['---', 'markdag:', '---', '', '# Root', '', '- <input type="checkbox"> raw', '- [ ] Task', ''].join('\n');
+        // 1 行目の生の HTML は文字として表示するので (A-219)、チェックボックスは 2 行目に書く
+        const markdown = ['---', 'markdag:', '---', '', '# Root', '', '- Raw', '  <input type="checkbox"> raw', '- [ ] Task', ''].join('\n');
         await open(page);
         await page.evaluate((source) => {
             const target = window as unknown as TestWindow;

@@ -71,27 +71,27 @@ markdag:
 
 ## 2. The frontmatter turns the notation on
 
-Groups, tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `%group`, `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type.
+Groups, tags, `$id`, details and milestones are extracted only when the frontmatter has the key `markdag`. A document whose frontmatter has only `title` (or no frontmatter) is shown exactly as markmap shows it, and `%group`, `#tag` and `$id` stay in the node as plain text. A `markdag:` key with no value is enough to turn extraction on, and it is not reported as a wrong type. The first-line rule of section 3 (only text and inline Markdown on the first line) also applies only then: without the key, the first line is read as markmap reads it.
 
 The frontmatter must start on the first line of the file with `---` and end with a line that is only `---`. Save the file without a byte order mark (U+FEFF): after one, the frontmatter is not recognized. In a document without frontmatter, a byte order mark is skipped and the first line is read as usual.
 
 ## 3. Notation in the body
 
-Nodes are headings and list items. The first line of a node is what `markdag.relations`, `markdag.groups.*.members` and `markdag.branches` refer to.
+Nodes are headings and list items. The first line of a node (the heading text, or the first line of a list item) is its name: `markdag.relations`, `markdag.groups.*.members` and `markdag.branches` refer to it, matched exactly. The first line holds only text and inline Markdown that ends on that line (emphasis, strikethrough, `` `code` ``, links, `$math$`). Raw HTML on the first line is not interpreted: it is shown as the characters written. Blocks (tables, fenced code, HTML blocks, blockquotes, nested lists, headings) start on the second line or later (see "The first line of a node" in section 6).
 
 | Notation | Where | Meaning |
 | --- | --- | --- |
 | `%name` | End of the first line of a heading or list item | Puts the node and all its descendants in group `name` |
 | `#key:value`, `#key` | End of the first line of a heading or list item | A tag on this node only: a key with a value, several values (`#key:a,b`), a value with spaces (`#key:"a b"`), or no value (`#key`). Shown in the node as written |
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
-| `> ...` | A blockquote inside a list item | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
+| `> ...` | A blockquote inside a list item, from its second line on | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
 | `[ ]`, `[/]`, `[x]`, `[-]` | Start of a list item or a heading (`- [ ] Name`, `## [/] Name`) | A task: `[ ]` open, `[/]` in progress, `[x]` done, `[-]` canceled. `[X]` is the same as `[x]`. Clicking the label moves the task to the next mark in `tasks.cycle` (by default `[ ]` and `[x]` alternate, and `[/]` and `[-]` are changed by editing the text), and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not change the task. See `tasks` below |
 
 Rules:
 
 - `%name`, `#key:value` and `$name` must be separated from the text by a half-width space, and must be at the end of the line. Several marks can follow each other in any order (`Deploy %backend #owner:alice #urgent $deploy`). One `$id` per node.
-- Only the first line of a node is scanned. A mark on the second line of a list item stays as text.
+- Only the first line of a node is scanned, and a mark at its end is read whatever the line looks like (`- <div> $note` has the id `note`). A mark on the second line of a list item stays as text.
 - Group names and tag keys are letters, digits, `_` and `-` in any script (`%開発`, `#担当:山田` work). `$name` is `$` + an ASCII letter + ASCII letters, digits, `_`, `-`. `$日本` is not an id.
 - A tag value runs to the next space. `,` separates values (`#owner:alice,bob`). A value in `"…"` may contain spaces and `,` and is one value (`#owner:"山田 太郎"`). `#key:` with nothing after the colon stays as text. The same key written twice on one line joins the values.
 - A name made only of digits is not a mark: `Issue #123` and `%50` stay as text. `C#` is not a tag because there is no space before `#`. Write `\%name` or `\#name` to keep a trailing mark as text.
@@ -126,6 +126,7 @@ markdag:
 - The four keys are the kinds of lines. `chain`: nodes connected in sequence. `join`: several nodes converge on one. `fork`: one node fans out to several. `depends`: any other "should be finished first" dependency.
 - The arrow always points from the side that finishes first to the side that starts later. `Signup API --> Signup form` reads "the signup form depends on the signup API".
 - `-->` and `&` are operators only when they have half-width spaces or tabs on both sides. `A-->B` and `A&B` are not parsed. This lets names such as `R&D` be written as they are.
+- A term in double quotes is one name: `-->`, `&` and `/` inside it are not operators or separators, and a leading `$` or `(` is part of the name (`"R & D" --> "A --> B"`). Write `\"` for a `"` and `\\` for a `\` inside the quotes. `/*` and `/**` go after the closing quote (`"A --> B"/*`), and a path can quote one segment (`Parent/"CI/CD"`). A `"` that does not start a term (`say "hi" --> B`) is an ordinary character. In YAML, a line that starts with `"` must be wrapped in single quotes as a whole: `- '"名前 <!-- メモ -->" --> 確認'` (a `'` inside is written `''`).
 - `A & B --> C & D` makes four lines (every left term to every right term). `A --> B --> C` makes `A --> B` and `B --> C`.
 - The expected shapes are: `join` = two or more nodes `-->` one node; `fork` = one node `-->` two or more nodes; `chain` = every term is one node. A different shape still draws, with a `shape-mismatch` warning.
 - Relations are processed in the order they are written. A line that would close a cycle is skipped with a `cycle` error, and the rest of the expression is still drawn.
@@ -135,16 +136,18 @@ markdag:
 | Form | Points at |
 | --- | --- |
 | `Name` | The node whose first line is `Name` |
+| `"Name"` | The node whose first line is `Name`, with `/`, `$`, `(`, `-->` and `&` read as part of the name |
 | `Parent/Name` | `Name` that has `Parent` among its ancestors (not only the direct parent) |
 | `$id` | The node that has `$id` at the end of its first line |
 | `Name/*` | All leaves under `Name`, not `Name` itself |
 | `Name/**` | `Name` and all its descendants |
 
 - The text to match is the first line of the node without decoration, tags, `$id` and the task checkbox. `## **Release** $release` is matched by `Release`.
-- An exact match wins. If there is no exact match, a prefix match is tried, and an `info` diagnostic `ref-prefix` reports it. Treat `ref-prefix` as a typo to fix.
+- Only an exact match counts. A reference that is only the start of a node's name (`Rel` for `Release`) points at nothing: the line, the group membership or the branch start is not added, and a `warning` diagnostic `ref-prefix` lists every node it may have meant (`もしかして「Release」、「Relax」`).
+- A list item whose first line is empty has no name and cannot be matched by text: see "The first line of a node" in section 6.
 - If the same text appears on several nodes, the reference is an error (`ref-ambiguous`). Write `Parent/Name`, or put a `$id` on the node. Prefer `$id` for nodes that many relations point at, and in documents that will grow: adding a node later can make a text reference ambiguous.
 - Matching is case-sensitive. Runs of half-width spaces are treated as one.
-- `/` in a selector is the path separator. For a node named `CI/CD` write `CI\/CD`. For a node whose name starts with `$` write `\$100 budget`. For a node whose name starts with `(` write `\(draft)`.
+- `/` in a selector is the path separator. For a node named `CI/CD` write `CI\/CD` or `"CI/CD"`. For a node whose name starts with `$` write `\$100 budget`. For a node whose name starts with `(` write `\(draft)`. A name with raw HTML usually contains `/` (`</b>`), so quote it: `"<b>重要</b> 作業"`.
 - `Name/*` on a node without children is an error (`selector-empty`).
 
 ### groups
@@ -340,6 +343,7 @@ The other keys under `markdag`:
 | `- *A --> B`, `- &A --> B`, `- [A] --> B`, `- {A} --> B`, `- !A --> B`, `- >A --> B`, `- \|A --> B`, `- %A --> B` | The first character is a YAML indicator | Quote the whole line |
 | `- A　-->　B` (full-width spaces) | Not a YAML problem, but `-->` is not recognized as an operator (`relation-syntax`) | Half-width spaces around `-->` and `&` |
 | `members: [API, Spec/*]` with names containing `,` `[` `]` `{` `}` | Flow syntax splits on these characters | Use the block form, one `- item` per line |
+| `- "A --> B" --> C` | YAML reads `"A --> B"` as a quoted string and fails on the text after it | Wrap the whole line in single quotes: `- '"A --> B" --> C'` |
 
 When the frontmatter fails to parse as YAML, all of it is ignored, including everything under `markdag`, and the document is shown as a plain markmap.
 
@@ -349,7 +353,19 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - A relation from a node to one of its ancestors is a cycle, because the tree already has lines from parent to child. `X/* --> X` is the common case.
 - A top-level node (a direct child of the root) that is the target of any relation loses its line from the root. This is intended: the node is positioned after its predecessors instead.
 - A relation that duplicates a tree line or an earlier relation is skipped with a `duplicate-edge` warning.
-- A node whose first line is a table, a code block or an HTML block has no text to match, so it cannot be referenced by name and cannot take a tag or `$id`. It is still included in `X/*` and `X/**`.
+- The first line of a node. The name of a node is its first line: the heading text, or the first line of a list item, without inline decoration (`## **Release**` is `Release`). Raw HTML on the first line is shown as the characters written and is part of the name as written (`- 名前 <!-- メモ -->` is named `名前 <!-- メモ -->`, `- a<br>b` is `a<br>b`). A first line that looks like the start of a block (a table row `| … |`, a fence ```` ``` ````, an HTML block `<div>`, a blockquote `>`, a nested list marker `- - a`, a heading `- # a`) is also shown as text, reports `block-on-first-line` (warning), and the lines below it are read on their own. A mark at the end of the first line (`$id`, `%name`, `#key`) is always read. Write blocks from the second line on, under a label or under an empty first line. The label is the whole name: it is not joined with the text of the block. Only a list item whose first line is empty has no name; it cannot be referenced by text, but it is still included in `X/*` and `X/**`, and a `$id` on the first line names it. A table or code block directly under a heading is a node without a name too. When a reference fails and its text is inside such a node, the `ref-not-found` hint says so.
+
+```markdown
+- Summary table $sum
+  | Item | Count |
+  |---|---|
+  | a | 1 |
+- $note
+  <div class="note">Read this first</div>
+- <b>Important</b> task $important
+```
+
+  `Summary table` (or `$sum`) references the first node, `$note` the second (its first line is empty), and `"<b>Important</b> task"` (quoted because of the `/`) or `$important` the third, which shows `<b>Important</b> task` as text. `Item` and `Read this first` do not reference anything.
 - Under one heading, do not mix list items with deeper headings. When a heading has list items and is then followed by a deeper heading, the parser (which follows markmap here) drops those list items without a diagnostic. Give the list its own subheading.
 
 ## 7. Not supported yet
@@ -357,7 +373,7 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - `(X)` (treat the branch of X as one unit and draw a frame around it). It is parsed, reports a `not-supported` warning, and behaves as `X`.
 - A dedicated warning for full-width spaces. In a relation, the expression fails with `relation-syntax`. At the end of a node line, the group mark, tag or `$id` silently stays as text.
 - Filtering the diagram by tags. Tags are extracted and shown, and applications can read them, but the view has no filter yet.
-- Raw HTML headings. A raw HTML block placed where headings and list items are (`<h2>Design</h2>` on its own) is not drawn, and a heading inside it reports `html-heading-ignored` (info). Write the heading in Markdown (`## Design`). A Markdown heading or list inside a raw HTML wrapper (`<section>`, `<blockquote>`, with blank lines around the Markdown) is a node like any other. Up to 0.7, the raw HTML heading became a node and the wrapped Markdown was dropped. Raw HTML inside a list item is still shown as the item's content.
+- Raw HTML headings. A raw HTML block placed where headings and list items are (`<h2>Design</h2>` on its own) is not drawn, and a heading inside it reports `html-heading-ignored` (info). Write the heading in Markdown (`## Design`). A Markdown heading or list inside a raw HTML wrapper (`<section>`, `<blockquote>`, with blank lines around the Markdown) is a node like any other. Up to 0.7, the raw HTML heading became a node and the wrapped Markdown was dropped. Raw HTML from the second line of a list item on is still shown as the item's content (on the first line it is shown as text; see section 6).
 - Nesting deeper than 500 levels (lists, blockquotes, emphasis). The deeper part is not drawn and `nesting-too-deep` is reported. In the frontmatter, YAML nested deeper than 100 levels is reported as `yaml-syntax` and the whole frontmatter is ignored.
 - YAML 1.1 tags such as `!!timestamp`, `!!binary` and `!!set`. The value is read as the plain string or collection written after the tag.
 - Only the first YAML syntax error is reported. Fix it and check again to see the next one.

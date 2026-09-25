@@ -265,12 +265,71 @@ export function reviveMarks(_key: string, value: unknown): unknown {
 
 type Envelope = { ok: unknown } | { error: { code: string; message: string } };
 
+// Rust が書いた JSON の文字をそのまま送り返す値 (A-215 (4))。JSON.parse は整数に見えるキーを先頭へ並べ直すので、
+// 書かれた順を保ちたい値 (解析の結果の frontmatter) は受けたときの文字を持っておき、送るときにその文字を埋める
+export class RawJson {
+    constructor(readonly text: string) {}
+}
+
+// 入力を JSON の文字にする。RawJson は印の変換を通さず、持っている文字をそのまま埋める
+function stringifyInput(input: unknown): string {
+    const raws: string[] = [];
+    const nonce = Math.random().toString(36).slice(2);
+    const token = (index: number): string => `\u0000markdag-raw-${nonce}-${index}\u0000`;
+    const text = JSON.stringify(input, (key, value: unknown) => {
+        if (value instanceof RawJson) return token(raws.push(value.text) - 1);
+        return replaceMarks(key, value);
+    });
+    return raws.reduce((result, raw, index) => result.replace(JSON.stringify(token(index)), () => raw), text);
+}
+
+// JSON の文字の start から始まる値 1 つの終わりの位置 (Rust の書く詰めた JSON を読む)
+function endOfJsonValue(text: string, start: number): number {
+    let depth = 0;
+    let inString = false;
+    for (let index = start; index < text.length; index += 1) {
+        const char = text[index];
+        if (inString) {
+            if (char === '\\') index += 1;
+            else if (char === '"') {
+                inString = false;
+                if (depth === 0) return index + 1;
+            }
+            continue;
+        }
+        if (char === '"') inString = true;
+        else if (char === '{' || char === '[') depth += 1;
+        else if (char === '}' || char === ']') {
+            depth -= 1;
+            if (depth === 0) return index + 1;
+            if (depth < 0) return index;
+        } else if (depth === 0 && char === ',') return index;
+    }
+    return text.length;
+}
+
 // JSON の値を渡して JSON の値を受ける。包みが使うのはこの関数だけ。
 // 戻りの封筒が error なら MarkdagError を投げ、ok なら中身を返す (印は数とオブジェクトに戻してある)
 export function callJson<T>(name: JsonFunction, input: unknown): T {
-    const envelope = JSON.parse(callJsonText(name, JSON.stringify(input, replaceMarks)), reviveMarks) as Envelope;
+    return callJsonKeeping<T>(name, input, null).value;
+}
+
+// callJson と同じ。加えて、戻りの中で最初に出る欄 field の値の JSON の文字 (Rust が書いたまま) を返す。欄がなければ null。
+// 欄の名前は、それより前の値の中にキーとして出てこないものに限る (文字列の中の " は \" になっているので、キーとしてだけ一致する)
+export function callJsonKeeping<T>(name: JsonFunction, input: unknown, field: string | null): { value: T; raw: string | null } {
+    const text = callJsonText(name, stringifyInput(input));
+    const envelope = JSON.parse(text, reviveMarks) as Envelope;
     if ('error' in envelope) throw new MarkdagError(name, envelope.error.code, envelope.error.message);
-    return envelope.ok as T;
+    let raw: string | null = null;
+    if (field !== null) {
+        const key = `${JSON.stringify(field)}:`;
+        const at = text.indexOf(key);
+        if (at >= 0) {
+            const start = at + key.length;
+            raw = text.slice(start, endOfJsonValue(text, start));
+        }
+    }
+    return { value: envelope.ok as T, raw };
 }
 
 // 印の変換と封筒の解釈を通さずに、JSON の文字列を渡して封筒の JSON の文字列を受ける (試験で Rust の書いた JSON と比べるため)

@@ -1,7 +1,7 @@
 // parse 層の包み。Markdown をノードの木にする解析は Rust (wasm の parse_document) が行い、ここは境界の結果を公開の形に直す:
 // 数式とコードの印 (features) を外部のスタイルシートの URL (styleUrls) に直して欄を消し、ページに KaTeX と highlight.js があれば
 // 印の要素に飾り (組版と色付け) を当てる。変換器 (markmap-lib) は使わない。wasm を init する前に呼ぶと WasmNotReadyError を投げる。
-import { callJson } from '../wasm/boundary';
+import { callJson, callJsonKeeping, markUndefined, replaceMarks, reviveMarks } from '../wasm/boundary';
 import type { TaskState } from './task';
 
 export { DEFAULT_TASK_CYCLE, isTaskMark, nextTaskMark, TASK_MARKS, TASK_STATES, taskMarkOf, taskStateOf, toggleTask } from './task';
@@ -156,9 +156,30 @@ export function decorateParsed(raw: RawParsedDocument): ParsedDocument {
     return { nodes, frontmatter: rest.frontmatter, extracted: rest.extracted, taskIcons: rest.taskIcons, styleUrls: styleUrlsOf(features) };
 }
 
+// 解析の結果の frontmatter と、Rust が書いたときの JSON の文字 (YAML に書かれた順のキー。A-215 (4))。
+// JSON.parse は整数に見えるキー (groups の 2024、7 など) を先頭へ並べ直すので、公開の形 (frontmatter のオブジェクト) は変えずに
+// 書かれた順をここに持ち、buildModel がその文字を Rust に送る。オブジェクトが解析のあとで書き換えられていれば使わない
+const writtenFrontmatter = new WeakMap<object, string>();
+
+export function rememberWrittenFrontmatter(frontmatter: unknown, raw: string | null): void {
+    if (raw !== null && frontmatter !== null && typeof frontmatter === 'object') writtenFrontmatter.set(frontmatter, raw);
+}
+
+// frontmatter が解析の結果のままなら、書かれた順を保った JSON の文字を返す。書き換えられていれば (中身が違えば) null
+export function writtenFrontmatterOf(frontmatter: unknown): string | null {
+    if (frontmatter === null || typeof frontmatter !== 'object') return null;
+    const raw = writtenFrontmatter.get(frontmatter);
+    if (raw === undefined) return null;
+    const canonical = (value: unknown): string => JSON.stringify(markUndefined(value), replaceMarks);
+    return canonical(frontmatter) === canonical(JSON.parse(raw, reviveMarks)) ? raw : null;
+}
+
 // options は Rust 化の前の変換器の指定の名残で、使わない
 export function parseDocument(source: string, _options?: ParseOptions): ParsedDocument {
-    return decorateParsed(callJson<RawParsedDocument>('parse_document', { source }));
+    const { value, raw } = callJsonKeeping<RawParsedDocument>('parse_document', { source }, 'frontmatter');
+    const parsed = decorateParsed(value);
+    rememberWrittenFrontmatter(parsed.frontmatter, raw);
+    return parsed;
 }
 
 // ノードの内容の先頭にある状態の記号を、別の状態のものに差し替える。絵なら絵、文字のままなら文字を差し替え、どちらでもなければそのまま。

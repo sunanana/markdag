@@ -1,0 +1,24 @@
+[package]
+name = "markdag-cli"
+description = "Command line tool for markdag: check a document, print it as JSON, or export it as standalone HTML"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "markdag"
+path = "src/main.rs"
+
+[dependencies]
+markdag-core = { path = "../markdag-core" }
+clap = { version = "4", features = ["derive"] }
+indexmap = "2"
+regex = "1"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

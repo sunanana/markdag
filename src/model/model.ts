@@ -4,9 +4,9 @@
 // フックのモジュールは JSON にできないので、境界へは export の名前と「関数か」だけを送る (HookSpec)。
 // wasm を init する前に呼ぶと WasmNotReadyError を投げる。空のモデル (emptyModel) だけは init の前でも作れる。
 import type { LayoutInputRelation } from '../layout/input-types';
-import { decorateParsed, type NodeTag, type OutlineNode, type ParsedDocument, type RawParsedDocument, type SourcePosition } from '../parse/document';
+import { decorateParsed, rememberWrittenFrontmatter, writtenFrontmatterOf, type NodeTag, type OutlineNode, type ParsedDocument, type RawParsedDocument, type SourcePosition } from '../parse/document';
 import { DEFAULT_TASK_CYCLE, type TaskMark, type TaskState } from '../parse/task';
-import { callJson, isWellFormedText, markUndefined } from '../wasm/boundary';
+import { callJson, callJsonKeeping, isWellFormedText, markUndefined, RawJson } from '../wasm/boundary';
 import { rulesModule, type HookModule, type ResolvedHook, type ResolvedHooks } from './hooks';
 import type { TagKeyDef } from './tags';
 import { isRecord } from './util';
@@ -195,15 +195,24 @@ export function checkFrontmatter(frontmatter: Record<string, unknown>, markdown?
 }
 
 export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unknown>, markdown?: string, extra: ModelOptions = {}): GraphModel {
-    const raw = callJson<RawGraphModel>('build_model', { nodes, frontmatter: markUndefined(frontmatter), source: markdown ?? null, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, declaredHookRefs(frontmatter)) });
+    // parseDocument の結果の frontmatter なら、YAML に書かれた順のまま送る (groups の並びが renderDocument の経路とそろう。A-215 (4))
+    const written = writtenFrontmatterOf(frontmatter);
+    const sent = written === null ? markUndefined(frontmatter) : new RawJson(written);
+    const raw = callJson<RawGraphModel>('build_model', { nodes, frontmatter: sent, source: markdown ?? null, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, declaredHookRefs(frontmatter)) });
     return graphModelOf(raw, extra.hookRefs);
 }
 
 // 解析とモデルの組み立てを 1 回の呼び出しで行う (render と、原文から描く単体 HTML。設計文書 (b) の N+1 を避ける経路)。
 // 結果は parseDocument と buildModel(parsed.nodes, parsed.frontmatter, source, extra) を続けて呼んだものと同じ
 export function renderDocument(source: string, extra: ModelOptions = {}): { parsed: ParsedDocument; model: GraphModel } {
-    const raw = callJson<{ parsed: RawParsedDocument; model: RawGraphModel }>('render_document', { source, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, wellFormedOwnKeys(extra.hookRefs)) });
-    return { parsed: decorateParsed(raw.parsed), model: graphModelOf(raw.model, extra.hookRefs) };
+    const { value: raw, raw: frontmatterText } = callJsonKeeping<{ parsed: RawParsedDocument; model: RawGraphModel }>(
+        'render_document',
+        { source, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, wellFormedOwnKeys(extra.hookRefs)) },
+        'frontmatter',
+    );
+    const parsed = decorateParsed(raw.parsed);
+    rememberWrittenFrontmatter(parsed.frontmatter, frontmatterText);
+    return { parsed, model: graphModelOf(raw.model, extra.hookRefs) };
 }
 
 // 空の文書 (ノードも frontmatter もない) のモデル。buildModel([], {}) と同じ値を wasm を呼ばずに作る (init の前に createHookBridge を作れるように)

@@ -10,12 +10,15 @@ import { parse as parseYaml } from 'yaml';
 
 import type * as Markdag from '../src/index';
 
+// YAML を読む前に改行を LF にそろえる (CRLF の行末の \r が値に残らないように。Rust の CLI の parse_yaml と同じ読み方)
+const toLf = (text: string): string => text.replace(/\r\n?/g, '\n');
+
 // frontmatter の markdag の下の $ref を、書かれた順に取り出す
 function refsOf(markdown: string, key: 'types' | 'hooks'): string[] {
     const body = /^---\r?\n([\s\S]*?)\n---\r?\n/.exec(markdown)?.[1];
     let frontmatter: unknown;
     try {
-        frontmatter = body === undefined ? undefined : parseYaml(body);
+        frontmatter = body === undefined ? undefined : parseYaml(toLf(body));
     } catch {
         return [];
     }
@@ -29,7 +32,7 @@ function loadTypeRefs(file: string, markdown: string): Record<string, unknown> {
     const loaded: Record<string, unknown> = {};
     for (const ref of refsOf(markdown, 'types')) {
         try {
-            loaded[ref] = parseYaml(readFileSync(resolve(dirname(file), ref), 'utf8'));
+            loaded[ref] = parseYaml(toLf(readFileSync(resolve(dirname(file), ref), 'utf8')));
         } catch {
             loaded[ref] = null;
         }

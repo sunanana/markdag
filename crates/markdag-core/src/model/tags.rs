@@ -981,6 +981,15 @@ struct Entry<'a> {
     tag: &'a NodeTag,
 }
 
+// 診断の文に出すノードの呼び名。名前 (refText) を持たないノード (1 行目が空の項目など。A-219) は $id か「名前のないノード」
+fn node_label(node: &OutlineNode) -> String {
+    match (node.ref_text.is_empty(), &node.ref_id) {
+        (false, _) => format!("「{}」", node.ref_text),
+        (true, Some(ref_id)) => format!("「${ref_id}」"),
+        (true, None) => "名前のないノード".to_string(),
+    }
+}
+
 /// 原文: lintTags
 /// 本文のタグを、解決済みのキーの定義に当てる。定義のないキーは unknownKey が deny のときだけ知らせる
 pub fn lint_tags(
@@ -1015,7 +1024,7 @@ pub fn lint_tags(
 
     for node in nodes {
         for tag in &node.tags {
-            let name = format!("「{}」の {}", node.ref_text, format_tag(tag));
+            let name = format!("{}の {}", node_label(node), format_tag(tag));
             let Some(def) = by_key.get(tag.key.as_str()) else {
                 if options.unknown_key == TagLintUnknownKey::Deny {
                     // 台帳: closest(tag.key, [...byKey.keys()])
@@ -1133,8 +1142,8 @@ pub fn lint_tags(
             report(
                 "tag-unique",
                 format!(
-                    "「{}」の {} は、ほかのノードにも書かれています ({})",
-                    node.ref_text,
+                    "{}の {} は、ほかのノードにも書かれています ({})",
+                    node_label(node),
                     format_tag(tag),
                     others.join("、")
                 ),

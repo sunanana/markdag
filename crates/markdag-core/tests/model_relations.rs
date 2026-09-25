@@ -111,9 +111,9 @@ fn root_only() -> Vec<OutlineNode> {
     outline(&[leaf("root", None)])
 }
 
-fn info(code: &str, message: &str, hint: &str) -> Diagnostic {
+fn warning(code: &str, message: &str, hint: &str) -> Diagnostic {
     Diagnostic {
-        severity: Severity::Info,
+        severity: Severity::Warning,
         code: code.to_string(),
         message: message.to_string(),
         at: None,
@@ -125,12 +125,13 @@ fn info(code: &str, message: &str, hint: &str) -> Diagnostic {
 #[test]
 fn model_epic_relations_expand_to_hand_written_edges() {
     let model = build(&epic(), epic_frontmatter());
+    // 「登録API」は前方一致でしか当たらないので線を引かず、warning で候補を示す (旧実装は前方一致で引いて info。A-217)
     assert_eq!(
         model.diagnostics,
-        vec![info(
+        vec![warning(
             "ref-prefix",
-            "「登録API --> 登録画面」: 「登録API」は前方一致で「登録API POST /items」に解決しました",
-            "書き間違いなら「登録API POST /items」に直します",
+            "「登録API --> 登録画面」: 「登録API」に完全に一致するノードがありません。前方一致では指しません",
+            "もしかして「登録API POST \\/items」",
         )]
     );
     assert_eq!(
@@ -141,8 +142,8 @@ fn model_epic_relations_expand_to_hand_written_edges() {
         pairs(&model, RelationKind::Chain),
         ["10>11", "11>15", "15>16", "16>17"]
     );
-    // 「登録API」は前方一致、「リリース」は完全一致が優先される
-    assert_eq!(pairs(&model, RelationKind::Depends), ["7>5"]);
+    // 「登録API」の depends は引かない。「リリース」は完全一致で「リリースノート作成」と取り違えない
+    assert!(pairs(&model, RelationKind::Depends).is_empty());
     assert_eq!(model.suppress_root_line, [10, 11, 15, 16, 17]);
 }
 
@@ -402,9 +403,10 @@ fn model_branches_option_and_its_diagnostics() {
     assert_eq!(codes(&wrong_type), ["option-invalid"]);
 }
 
-// 原文: 名前の先頭だけが一致した参照は、書き間違いに気づけるよう参考の診断に出す
+// 原文: 名前の先頭だけが一致した参照は、書き間違いに気づけるよう参考の診断に出す。
+// A-217 で前方一致では引かなくなったので、枝の起点にも線にもせず、warning で候補を示す (旧実装は引いて info)
 #[test]
-fn model_prefix_match_is_reported_as_info() {
+fn model_prefix_match_is_reported_as_warning_without_resolving() {
     let nodes = outline(&[
         leaf("root", None),
         leaf("リリース", Some(0)),
@@ -414,14 +416,27 @@ fn model_prefix_match_is_reported_as_info() {
         &nodes,
         json!({ "markdag": { "branches": ["リリー"], "relations": { "chain": ["開発 --> リリース"] } } }),
     );
-    assert_eq!(model.branches, [2]);
+    assert!(model.branches.is_empty(), "{:?}", model.branches);
     assert_eq!(
         model.diagnostics,
-        vec![info(
+        vec![warning(
             "ref-prefix",
-            "markdag.branches: 「リリー」は前方一致で「リリース」に解決しました",
-            "書き間違いなら「リリース」に直します",
+            "markdag.branches: 「リリー」に完全に一致するノードがありません。前方一致では指しません",
+            "もしかして「リリース」",
         )]
+    );
+    assert_eq!(pairs(&model, RelationKind::Chain), ["3>2"]);
+    // relations の前方一致も線を引かない。式の全体を引かずに warning を 1 件
+    let relation = build(
+        &nodes,
+        json!({ "markdag": { "relations": { "chain": ["開 --> リリース"] } } }),
+    );
+    assert!(relation.relations.is_empty());
+    assert_eq!(codes(&relation), ["ref-prefix"]);
+    assert_eq!(relation.diagnostics[0].severity, Severity::Warning);
+    assert_eq!(
+        relation.diagnostics[0].hint.as_deref(),
+        Some("もしかして「開発」")
     );
 }
 

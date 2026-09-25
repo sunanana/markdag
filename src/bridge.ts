@@ -45,6 +45,12 @@ export interface HookBridge {
 // 原文の 1 行 (0 始まり)。範囲の外は null
 const lineAt = (text: string, index: number): string | null => text.split(/\r?\n/)[index] ?? null;
 
+// 診断の文に出すノードの呼び名。名前 (refText) を持たないノード (1 行目が空の項目など) は $id か「名前のないノード」
+function nodeLabel(node: OutlineNode): string {
+    if (node.refText) return `「${node.refText}」`;
+    return node.refId ? `「$${node.refId}」` : '名前のないノード';
+}
+
 export function createHookBridge(options: HookBridgeOptions): HookBridge {
     const { source, viewHooks: own = {} } = options;
     let view: MarkdagView | null = null;
@@ -100,7 +106,7 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
                 options.onDiagnostic?.({
                     severity: 'info',
                     code: 'hook-rejected',
-                    message: `「${node.refText}」の状態 [${taskMarkOf(state)}] は、クリックで進む順 (markdag.tasks.cycle) にないので変えられません`,
+                    message: `${nodeLabel(node)}の状態 [${taskMarkOf(state)}] は、クリックで進む順 (markdag.tasks.cycle) にないので変えられません`,
                     at: null,
                     hint: '原文の記号を書き換えるか、markdag.tasks.cycle にその記号を足します',
                 });

@@ -204,7 +204,8 @@ pub(super) fn normalize_task_marks(source: &str) -> String {
 }
 
 /// 原文: stripAnnotations
-/// 見出しとリスト項目の 1 行目の末尾から、`%グループ`、`#タグ`、`$id` を取り除く。行数は変えない
+/// 見出しとリスト項目の 1 行目の末尾から、`%グループ`、`#タグ`、`$id` を取り除く。行数は変えない。
+/// 1 行目がブロックの書き始めに見える行でも印は読む (A-219。1 行目は文字として読むので、印を取っても形は変わらない)
 pub(super) fn strip_annotations(source: &str) -> StripAnnotationsResult {
     let mut annotations: IndexMap<usize, LineAnnotation> = IndexMap::new();
     let text = rewrite_body_lines(source, |line, index, _| {
@@ -476,6 +477,13 @@ pub(super) fn yaml_parse(raw: &str) -> Result<JsValue, YamlParseError> {
             }
         }
     }
+}
+
+/// 原文: scripts/check.ts の parseYaml (eemeli/yaml の parse。markdag.types.$ref が指すファイルを読む)。
+/// yaml_parse を外から使う入口。改行は frontmatter と同じく LF にそろえてから読み、throw する入力は None にする
+/// (check.ts は catch して null を渡し、build_model が types-unresolved にする)
+pub fn parse_yaml(text: &str) -> Option<JsValue> {
+    yaml_parse(&LINE_BREAK.replace_all(text, "\n")).ok()
 }
 
 // saphyr-parser のイベントを 1 回読んだ結果。Stopped は構文の誤りで止まった所 (写しを書き換えて読み直せるかは SaphyrInput が決める)
@@ -1884,14 +1892,24 @@ enum TopNode {
 }
 
 /// 原文: describeFirstLine
-/// 1 行目 (最初の <br> より前) の、装飾と状態の記号を除いた文字と、全体が 1 つの太字で包まれているか。
+/// 1 行目の、装飾と状態の記号を除いた文字と、全体が 1 つの太字で包まれているか。
 /// 原文は DOMParser で読み、svg を除き、最初の <br> から後ろを削る。ここでは HTML の層が書いた内容を字句に分けて、同じ順で読む
 // AST でなく書き出した HTML から読む。生の HTML の要素と文字、拒まれたリンクの <br>、記号の絵が HTML の層の出力にしかないため
 // (台帳 98 行、A-138 (1))
-// BUG(port): 1 行目を最初の <br> でしか切らないので、2 つ目の段落や表とコードの中身も refText に混ざる (`- a\n\n  b` の refText は "a b"。RULEBOOK 2.7、judge/review.md の欠陥の疑い)
+// refText は 1 行目だけにする (旧実装は最初の <br> でしか切らず、2 つ目の段落や表とコードの中身も混ざった。
+// docs/ignore/bugs/TODO.md の a、migration/judge/accepted.md)。段落の中の改行は <br> になるので、body の直下の文字の改行は
+// ブロックの境目。文字のあとの改行、文字のあとの Markdown のブロック (data-lines を持つ要素)、最初の Markdown のブロックの
+// あとの要素で refText を切る。milestone は旧実装のまま (最初の <br> までの意味のある子を数える)
 fn describe_first_line(html: &str) -> DescribeFirstLineResult {
-    // body.textContent (コメントを含まない)
+    // body.textContent (コメントを含まない) のうち 1 行目の分
     let mut text = String::new();
+    // 1 行目が終わったか
+    let mut ref_done = false;
+    // body の直下に Markdown のブロック (data-lines を持つ要素) が出たか
+    let mut seen_block = false;
+    // HTML の層は改行を LF で書き、単独の CR は `&#13;` からしか来ないので、1 行目の区切りに数えない。
+    // DOM は CR を LF にするが、refText では空白と LF は同じ 1 つの空白になるので空白に置き換えてよい
+    let html = html.replace("\r\n", "\n").replace('\r', " ");
     let mut top: Vec<TopNode> = Vec::new();
     let mut open = OpenElements::default();
     // 原文は `<body>${html}</body>` を読むので、閉じの `</body>` までを字句に分ける (`a </` の `</` はその `<` とつながってコメントになる)
@@ -1915,6 +1933,11 @@ fn describe_first_line(html: &str) -> DescribeFirstLineResult {
                     removed: false,
                 } = open.start(&name, self_closing, &attributes)
                 {
+                    let block = attributes.iter().any(|attribute| attribute == "data-lines");
+                    if seen_block || (block && !normalize_ref_text(&text).is_empty()) {
+                        ref_done = true;
+                    }
+                    seen_block |= block;
                     top.push(TopNode::Element {
                         name,
                         text: String::new(),
@@ -1928,7 +1951,19 @@ fn describe_first_line(html: &str) -> DescribeFirstLineResult {
                     top_level,
                     removed: false,
                 } => {
-                    text.push_str(&value);
+                    if !ref_done {
+                        match value.find('\n') {
+                            Some(end)
+                                if top_level
+                                    && !normalize_ref_text(&format!("{text}{}", &value[..end]))
+                                        .is_empty() =>
+                            {
+                                text.push_str(&value[..end]);
+                                ref_done = true;
+                            }
+                            _ => text.push_str(&value),
+                        }
+                    }
                     if top_level {
                         // 隣り合う文字のノードは、意味のある子の数に効かないのでつなげない (svg を除いたあとの DOM でもつながらない)
                         top.push(TopNode::Text(value));
@@ -1962,6 +1997,12 @@ fn describe_first_line(html: &str) -> DescribeFirstLineResult {
         ref_text: normalize_ref_text(&text),
         milestone,
     }
+}
+
+/// 名前を持たないノード (A-219) の内容の、最初の行の文字。参照が見つからないとき、名前を持たないノードを
+/// 文字で指そうとしたのかを見分けて案内する (model 層の ref-not-found の hint)
+pub(crate) fn nameless_content(html: &str) -> String {
+    describe_first_line(html).ref_text
 }
 
 // 詳細の引用ブロックに付ける印 (クラス)。描画の側は、この印で詳細を隠したり、その場に開いて見せたりする
@@ -2234,8 +2275,9 @@ fn visit(
         }
     };
     let first_line = describe_first_line(&plain);
-    // 規則 2.1 の `a || b`: 1 行目の文字が空ならルートだけ title で補う
-    let ref_text = if !first_line.ref_text.is_empty() {
+    // 規則 2.1 の `a || b`: 1 行目の文字が空ならルートだけ title で補う。名前を持たないノード (1 行目が空の項目など。A-219) は
+    // 内容の最初の行の文字を使わない
+    let ref_text = if node.named && !first_line.ref_text.is_empty() {
         first_line.ref_text
     } else if parent.is_none() {
         normalize_ref_text(scope.title)
@@ -2302,6 +2344,7 @@ pub fn parse_document(original: &str) -> ParsedDocument {
         body,
         frontmatter_lines,
         read.as_ref().map(|info| &info.value),
+        extracted,
     );
 
     let source_lines: Vec<&str> = source.split('\n').collect();
@@ -4506,7 +4549,8 @@ mod tests {
         ),
         ("a<script>x<br></script>b", "ax<br>b", false),
         ("<b>x</i>y</b>z", "xyz", false),
-        ("<p>a</p>\n<pre><code>c\n</code></pre>", "a c", false),
+        // 旧実装は "a c" (2 つ目のブロックも混ざる。docs/ignore/bugs/TODO.md の a で 1 行目だけにした)
+        ("<p>a</p>\n<pre><code>c\n</code></pre>", "a", false),
         ("a </br> b", "a", false),
         ("<svg/>a", "a", false),
         ("<svg><svg></svg><br></svg>a<br>b", "", false),
@@ -4565,7 +4609,8 @@ mod tests {
     ];
 
     // (原文, nodes の形)。nodes の形は document_nodes_shape (記号の絵は <todo> などに置き換える)。期待値は Rust の出力で、
-    // 同じ原文を旧実装 (src/ を審判の harness の IIFE にして Chromium で動かしたもの) の parsed と比べて、DOM で正規化した html を含む全欄が一致することを確かめた
+    // 同じ原文を旧実装 (src/ を審判の harness の IIFE にして Chromium で動かしたもの) の parsed と比べて、DOM で正規化した html を含む全欄が一致することを確かめた。
+    // ただし 2 つ目のブロックを持つ項目の refText は 1 行目だけにした (docs/ignore/bugs/TODO.md の a。旧実装は 2 つ目の段落、表、コード、引用ブロックの中身も混ざる)
     const PARSE_CASES: &[(&str, &str)] = &[
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a\n  > q\n",
@@ -4577,11 +4622,11 @@ mod tests {
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- > only quote\n- b\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<blockquote data-lines=\"5,6\" class=\"mdag-details\">\n<p data-lines=\"5,6\">only quote</p>\n</blockquote>", "", null, [], [], false, 0, [5, 6], null, "<p data-lines=\"5,6\">only quote</p>"], [3, 1, 2, "b", "b", null, [], [], false, 0, [6, 7], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "&gt; only quote", "> only quote", null, [], [], false, 0, [5, 6], null, null], [3, 1, 2, "b", "b", null, [], [], false, 0, [6, 7], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a\n\n  > loose q\n\n  more text\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<p data-lines=\"5,6\">a</p>\n<blockquote data-lines=\"7,8\" class=\"mdag-details\">\n<p data-lines=\"7,8\">loose q</p>\n</blockquote>\n<p data-lines=\"9,10\">more text</p>", "a more text", null, [], [], false, 0, [5, 10], null, "<p data-lines=\"7,8\">loose q</p>"]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<p data-lines=\"5,6\">a</p>\n<blockquote data-lines=\"7,8\" class=\"mdag-details\">\n<p data-lines=\"7,8\">loose q</p>\n</blockquote>\n<p data-lines=\"9,10\">more text</p>", "a", null, [], [], false, 0, [5, 10], null, "<p data-lines=\"7,8\">loose q</p>"]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a\n  > outer\n  > > inner\n",
@@ -4605,7 +4650,7 @@ mod tests {
         ),
         (
             "# R\n\n- a\n  > q not extracted\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [0, 1], null, null], [2, 1, 2, "a\n<blockquote data-lines=\"3,4\">\n<p data-lines=\"3,4\">q not extracted</p>\n</blockquote>", "a q not extracted", null, [], [], false, 0, [2, 4], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [0, 1], null, null], [2, 1, 2, "a\n<blockquote data-lines=\"3,4\">\n<p data-lines=\"3,4\">q not extracted</p>\n</blockquote>", "a", null, [], [], false, 0, [2, 4], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- **M**\n  > q\n",
@@ -4625,15 +4670,17 @@ mod tests {
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- **M**\n- **M** x\n- x **M**\n- __M__\n- ***M***\n- **M**<br>two\n- **M**\n  second\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<strong>M</strong>", "M", null, [], [], true, 0, [5, 6], null, null], [3, 1, 2, "<strong>M</strong> x", "M x", null, [], [], false, 0, [6, 7], null, null], [4, 1, 2, "x <strong>M</strong>", "x M", null, [], [], false, 0, [7, 8], null, null], [5, 1, 2, "<strong>M</strong>", "M", null, [], [], true, 0, [8, 9], null, null], [6, 1, 2, "<em><strong>M</strong></em>", "M", null, [], [], false, 0, [9, 10], null, null], [7, 1, 2, "<strong>M</strong><br>two", "M", null, [], [], true, 0, [10, 11], null, null], [8, 1, 2, "<strong>M</strong><br>\nsecond", "M", null, [], [], true, 0, [11, 13], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<strong>M</strong>", "M", null, [], [], true, 0, [5, 6], null, null], [3, 1, 2, "<strong>M</strong> x", "M x", null, [], [], false, 0, [6, 7], null, null], [4, 1, 2, "x <strong>M</strong>", "x M", null, [], [], false, 0, [7, 8], null, null], [5, 1, 2, "<strong>M</strong>", "M", null, [], [], true, 0, [8, 9], null, null], [6, 1, 2, "<em><strong>M</strong></em>", "M", null, [], [], false, 0, [9, 10], null, null], [7, 1, 2, "<strong>M</strong>&lt;br&gt;two", "M<br>two", null, [], [], false, 0, [10, 11], null, null], [8, 1, 2, "<strong>M</strong><br>\nsecond", "M", null, [], [], true, 0, [11, 13], null, null]]"##,
         ),
         (
+            // 1 行目の生の HTML (<strong>、<b>、コメント) は書いたままの文字として表示し、名前にも入る。<strong> は太字にならないので
+            // マイルストーンでもない (旧実装の refText は "raw"、"bold"、"M"、"**M**"。A-219)
             "---\nmarkdag: {}\n---\n# R\n\n- **a\n  b**\n- <strong>raw</strong>\n- <b>bold</b>\n- **M** <!-- c -->\n- <!-- c --> **M**\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<strong>a<br>\nb</strong>", "a", null, [], [], true, 0, [5, 7], null, null], [3, 1, 2, "<strong>raw</strong>", "raw", null, [], [], true, 0, [7, 8], null, null], [4, 1, 2, "<b>bold</b>", "bold", null, [], [], false, 0, [8, 9], null, null], [5, 1, 2, "<strong>M</strong> <!-- c -->", "M", null, [], [], false, 0, [9, 10], null, null], [6, 1, 2, "\n<!-- c --> **M**", "**M**", null, [], [], false, 0, [10, 11], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<strong>a<br>\nb</strong>", "a", null, [], [], true, 0, [5, 7], null, null], [3, 1, 2, "&lt;strong&gt;raw&lt;/strong&gt;", "<strong>raw</strong>", null, [], [], false, 0, [7, 8], null, null], [4, 1, 2, "&lt;b&gt;bold&lt;/b&gt;", "<b>bold</b>", null, [], [], false, 0, [8, 9], null, null], [5, 1, 2, "<strong>M</strong> &lt;!-- c --&gt;", "M <!-- c -->", null, [], [], false, 0, [9, 10], null, null], [6, 1, 2, "&lt;!-- c --&gt; <strong>M</strong>", "<!-- c --> M", null, [], [], false, 0, [10, 11], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- first\n\n  **M**\n\n- **L**\n\n  x\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "\n<p data-lines=\"5,6\">first</p>\n<p data-lines=\"7,8\"><strong>M</strong></p>", "first M", null, [], [], false, 0, [5, 9], null, null], [3, 1, 2, "\n<p data-lines=\"9,10\"><strong>L</strong></p>\n<p data-lines=\"11,12\">x</p>", "L x", null, [], [], false, 0, [9, 12], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "\n<p data-lines=\"5,6\">first</p>\n<p data-lines=\"7,8\"><strong>M</strong></p>", "first", null, [], [], false, 0, [5, 9], null, null], [3, 1, 2, "\n<p data-lines=\"9,10\"><strong>L</strong></p>\n<p data-lines=\"11,12\">x</p>", "L", null, [], [], false, 0, [9, 12], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# **H**\n\n## **H2** $id\n\n## [ ] **T**\n\n- [x] **done**\n- [/] **doing** #k\n",
@@ -4647,13 +4694,14 @@ mod tests {
             "---\nmarkdag: {}\n---\n# R\n\n- `**M**`\n- *M*\n- **M** \n- ** M **\n",
             r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<code>**M**</code>", "**M**", null, [], [], false, 0, [5, 6], null, null], [3, 1, 2, "<em>M</em>", "M", null, [], [], false, 0, [6, 7], null, null], [4, 1, 2, "<strong>M</strong>", "M", null, [], [], true, 0, [7, 8], null, null], [5, 1, 2, "** M **", "** M **", null, [], [], false, 0, [8, 9], null, null]]"##,
         ),
+        // 1 行目の生の HTML は書いたままの文字として表示し、名前にも入る (旧実装の refText は "a b c"、"a b"、"a"、"asb"、"ap{}b"。A-219)
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a <span>b</span> c\n- a <svg><text>x</text></svg> b\n- a <br> b\n- a </br> b\n- x &copy; y &nbsp;z &amp&lt\n- a<script>s</script>b\n- a<style>p{}</style>b\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "a <span>b</span> c", "a b c", null, [], [], false, 0, [5, 6], null, null], [3, 1, 2, "a <svg><text>x</text></svg> b", "a b", null, [], [], false, 0, [6, 7], null, null], [4, 1, 2, "a <br> b", "a", null, [], [], false, 0, [7, 8], null, null], [5, 1, 2, "a </br> b", "a", null, [], [], false, 0, [8, 9], null, null], [6, 1, 2, "x © y  z &amp;amp&amp;lt", "x © y  z &amp&lt", null, [], [], false, 0, [9, 10], null, null], [7, 1, 2, "a<script>s</script>b", "asb", null, [], [], false, 0, [10, 11], null, null], [8, 1, 2, "a<style>p{}</style>b", "ap{}b", null, [], [], false, 0, [11, 12], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "a &lt;span&gt;b&lt;/span&gt; c", "a <span>b</span> c", null, [], [], false, 0, [5, 6], null, null], [3, 1, 2, "a &lt;svg&gt;&lt;text&gt;x&lt;/text&gt;&lt;/svg&gt; b", "a <svg><text>x</text></svg> b", null, [], [], false, 0, [6, 7], null, null], [4, 1, 2, "a &lt;br&gt; b", "a <br> b", null, [], [], false, 0, [7, 8], null, null], [5, 1, 2, "a &lt;/br&gt; b", "a </br> b", null, [], [], false, 0, [8, 9], null, null], [6, 1, 2, "x © y  z &amp;amp&amp;lt", "x © y  z &amp&lt", null, [], [], false, 0, [9, 10], null, null], [7, 1, 2, "a&lt;script&gt;s&lt;/script&gt;b", "a<script>s</script>b", null, [], [], false, 0, [10, 11], null, null], [8, 1, 2, "a&lt;style&gt;p{}&lt;/style&gt;b", "a<style>p{}</style>b", null, [], [], false, 0, [11, 12], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a\n\n  | t | u |\n  |---|---|\n  | 1 | 2 |\n- b\n\n  ```\n  code\n  ```\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "\n<p data-lines=\"5,6\">a</p>\n<table data-lines=\"7,10\">\n<thead data-lines=\"7,8\">\n<tr data-lines=\"7,8\">\n<th>t</th>\n<th>u</th>\n</tr>\n</thead>\n<tbody data-lines=\"9,10\">\n<tr data-lines=\"9,10\">\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>", "a t u 1 2", null, [], [], false, 0, [5, 10], null, null], [3, 1, 2, "\n<p data-lines=\"10,11\">b</p>\n<pre data-lines=\"12,15\"><code data-lines=\"12,15\">code\n</code></pre>", "b code", null, [], [], false, 0, [10, 15], null, null]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "\n<p data-lines=\"5,6\">a</p>\n<table data-lines=\"7,10\">\n<thead data-lines=\"7,8\">\n<tr data-lines=\"7,8\">\n<th>t</th>\n<th>u</th>\n</tr>\n</thead>\n<tbody data-lines=\"9,10\">\n<tr data-lines=\"9,10\">\n<td>1</td>\n<td>2</td>\n</tr>\n</tbody>\n</table>", "a", null, [], [], false, 0, [5, 10], null, null], [3, 1, 2, "\n<p data-lines=\"10,11\">b</p>\n<pre data-lines=\"12,15\"><code data-lines=\"12,15\">code\n</code></pre>", "b", null, [], [], false, 0, [10, 15], null, null]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# [x] Root\n\n## [/] doing\n\n## [-] canceled\n\n## [ ] todo\n\n- [X] upper\n- [x]\n- [ ]  two spaces\n",
@@ -4707,13 +4755,14 @@ mod tests {
             "---\nmarkdag: {}\n---\n# R\n\n- a #t:v %g $id\n  > q\n",
             r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "a\n<blockquote data-lines=\"6,7\" class=\"mdag-details\">\n<p data-lines=\"6,7\">q</p>\n</blockquote>", "a", "id", ["g"], [["t", ["v"], [6, 5, 4]]], false, 0, [5, 7], null, "<p data-lines=\"6,7\">q</p>"]]"##,
         ),
+        // 1 行目の生の <p> は書いたままの文字 (旧実装の refText は "a x"。A-219)
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a <p>x\n  > q after open p\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "a <p>x\n<blockquote data-lines=\"6,7\" class=\"mdag-details\">\n<p data-lines=\"6,7\">q after open p</p>\n</blockquote>", "a x", null, [], [], false, 0, [5, 7], null, "<p data-lines=\"6,7\">q after open p</p>"]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "a &lt;p&gt;x\n<blockquote data-lines=\"6,7\" class=\"mdag-details\">\n<p data-lines=\"6,7\">q after open p</p>\n</blockquote>", "a <p>x", null, [], [], false, 0, [5, 7], null, "<p data-lines=\"6,7\">q after open p</p>"]]"##,
         ),
         (
             "---\nmarkdag: {}\n---\n# R\n\n- a\n  <div>\n\n  > q1\n\n  </div>\n\n  > q2\n",
-            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<p data-lines=\"5,6\">a</p>\n<div>\n<blockquote data-lines=\"8,9\">\n<p data-lines=\"8,9\">q1</p>\n</blockquote>\n</div>\n<blockquote data-lines=\"12,13\" class=\"mdag-details\">\n<p data-lines=\"12,13\">q2</p>\n</blockquote>", "a q1", null, [], [], false, 0, [5, 13], null, "<p data-lines=\"12,13\">q2</p>"]]"##,
+            r##"[[1, null, 1, "R", "R", null, [], [], false, 0, [3, 4], null, null], [2, 1, 2, "<p data-lines=\"5,6\">a</p>\n<div>\n<blockquote data-lines=\"8,9\">\n<p data-lines=\"8,9\">q1</p>\n</blockquote>\n</div>\n<blockquote data-lines=\"12,13\" class=\"mdag-details\">\n<p data-lines=\"12,13\">q2</p>\n</blockquote>", "a", null, [], [], false, 0, [5, 13], null, "<p data-lines=\"12,13\">q2</p>"]]"##,
         ),
     ];
 
@@ -4736,6 +4785,312 @@ mod tests {
             };
             assert_eq!(describe_first_line(html), expected, "{html:?}");
         }
+    }
+
+    // (id, refText, refId, groups) の組
+    fn names_and_marks(source: &str) -> Vec<(u32, String, Option<String>, Vec<String>)> {
+        parse_document(source)
+            .nodes
+            .into_iter()
+            .map(|node| (node.id, node.ref_text, node.ref_id, node.groups))
+            .collect()
+    }
+
+    #[test]
+    fn document_nameless_nodes_have_no_name() {
+        // 名前は 1 行目の文字 (A-219)。1 行目にブロックの書き始め (表、コード、HTML、引用) や生の HTML を書いても、書いたままの文字が名前になる。
+        // インラインの飾りは外し、magic comment は名前に入れない。1 行目が空の項目だけが名前を持たない
+        let source = concat!(
+            "---\nmarkdag: {}\n---\n# R\n\n",
+            "- | x | y |\n  |---|---|\n  | 1 | 2 |\n",
+            "- ```\n  code\n  ```\n",
+            "- <div>\n  raw\n  </div>\n",
+            "- <b>重要</b> 作業\n",
+            "- > quoted\n",
+            "- **飾り** と `code` と [リンク](https://example.com)\n",
+            "- 行末のコメント <!-- markmap: fold -->\n",
+            "- a<br>b\n",
+            "-\n  | c |\n  |---|\n  | 3 |\n",
+        );
+        let names: Vec<String> = names_and_marks(source)
+            .into_iter()
+            .map(|(_, name, _, _)| name)
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "R",
+                "| x | y |",
+                "```",
+                "<div>",
+                "<b>重要</b> 作業",
+                "> quoted",
+                "飾り と code と リンク",
+                "行末のコメント",
+                "a<br>b",
+                ""
+            ]
+        );
+        // 見出しの生の HTML も書いたままの文字で名前に入る
+        let headings =
+            names_and_marks("---\nmarkdag: {}\n---\n# R\n## <span>H</span> 見出し\n## **H2**\n");
+        assert_eq!(
+            headings
+                .iter()
+                .map(|(_, name, _, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            ["R", "<span>H</span> 見出し", "H2"]
+        );
+        // 見出しの下の表とコードのブロックのノードはラベルの行を持てないので名前を持たない
+        let blocks = names_and_marks("# R\n\n| x |\n|---|\n| 1 |\n\n```\ncode\n```\n");
+        assert_eq!(
+            blocks
+                .iter()
+                .map(|(_, name, _, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            ["R", "", ""]
+        );
+    }
+
+    #[test]
+    fn document_first_line_raw_html_is_shown_as_written() {
+        // 1 行目の生の HTML は解釈せず、書いたままの文字として表示し、名前にも入る (A-219)。2 行目以降の生の HTML は今までどおり
+        let parsed = parse_document(concat!(
+            "---\nmarkdag: {}\n---\n# R <i>x</i>\n\n",
+            "- 名前 <!-- メモ -->\n",
+            "- a<br>b\n",
+            "- <b>重要</b> 作業\n",
+            "- ラベル\n  <b>2 行目</b>\n",
+            "- 折りたたむ <!-- markmap: fold -->\n  - 子\n",
+        ));
+        let shape: Vec<(&str, &str)> = parsed
+            .nodes
+            .iter()
+            .map(|node| (node.ref_text.as_str(), node.html.as_str()))
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                ("R <i>x</i>", "R &lt;i&gt;x&lt;/i&gt;"),
+                ("名前 <!-- メモ -->", "名前 &lt;!-- メモ --&gt;"),
+                ("a<br>b", "a&lt;br&gt;b"),
+                ("<b>重要</b> 作業", "&lt;b&gt;重要&lt;/b&gt; 作業"),
+                ("ラベル", "ラベル<br>\n<b>2 行目</b>"),
+                ("折りたたむ", "折りたたむ"),
+                ("子", "子"),
+            ]
+        );
+        let heading = parse_document("---\nmarkdag: {}\n---\n# R\n## <span>見出し</span>\n");
+        assert_eq!(heading.nodes[1].ref_text, "<span>見出し</span>");
+        assert_eq!(heading.nodes[1].html, "&lt;span&gt;見出し&lt;/span&gt;");
+        // markmap の magic comment は折りたたみの印のまま (表示にも名前にも出ない)
+        assert_eq!(parsed.nodes[5].fold_hint, 1.0);
+        // markdag の記法を読まない文書は markmap と同じく生の HTML を読む
+        let plain = parse_document("# R\n- <b>重要</b> 作業\n");
+        assert_eq!(plain.nodes[1].html, "<b>重要</b> 作業");
+    }
+
+    #[test]
+    fn document_first_line_block_starts_are_text() {
+        // 1 行目のブロックの書き始めは文字として表示し、ブロックにしない。2 行目以降は、それだけでブロックになるかで決まる (A-219)
+        let parsed = parse_document(concat!(
+            "---\nmarkdag: {}\n---\n# R\n\n",
+            "- | x | y |\n  |---|---|\n  | 1 | 2 |\n",
+            "- ```js\n  code\n  ```\n",
+            "- <div>\n  inner\n  </div>\n",
+            "- > q\n  > 2 行目の引用\n",
+            "- # H\n",
+            "- - a\n  - b\n",
+            "- 1. one\n",
+            "- ***\n",
+            "- [ ] <b>task</b>\n",
+        ));
+        let shape: Vec<(&str, &str)> = parsed
+            .nodes
+            .iter()
+            .map(|node| (node.ref_text.as_str(), node.html.as_str()))
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                ("R", "R"),
+                ("| x | y |", "| x | y |<br>\n|---|---|<br>\n| 1 | 2 |"),
+                (
+                    "```js",
+                    "```js<br>\ncode<pre data-lines=\"10,11\"><code data-lines=\"10,11\"></code></pre>"
+                ),
+                ("<div>", "&lt;div&gt;<br>\ninner</div>"),
+                (
+                    "> q",
+                    "&gt; q\n<blockquote data-lines=\"15,16\" class=\"mdag-details\">\n<p data-lines=\"15,16\">2 行目の引用</p>\n</blockquote>"
+                ),
+                ("# H", "# H"),
+                ("- a", "- a"),
+                ("b", "b"),
+                ("1. one", "1. one"),
+                ("***", "***"),
+                (
+                    "<b>task</b>",
+                    &format!("{UNMARKED} &lt;b&gt;task&lt;/b&gt;") as &str
+                ),
+            ]
+        );
+        assert_eq!(
+            parsed.nodes[4].details.as_deref(),
+            Some("<p data-lines=\"15,16\">2 行目の引用</p>")
+        );
+        assert!(parsed.nodes[10].task.is_some());
+        // 前の項目のブロックが閉じたことで、後ろの行が新しい項目の 1 行目になる場合も文字にする
+        let chained =
+            parse_document("---\nmarkdag: {}\n---\n# R\n- ```\n- | a |\n  |---|\n  ```\n");
+        let names: Vec<&str> = chained
+            .nodes
+            .iter()
+            .map(|node| node.ref_text.as_str())
+            .collect();
+        assert_eq!(names, ["R", "```", "| a |"]);
+    }
+
+    #[test]
+    fn document_label_and_id_lines_name_a_block() {
+        // ブロックの前のラベルの行は名前になり、ブロックの文字とは連結しない。$id だけの行は 1 行目が空なので名前を持たず $id を付ける
+        let source = concat!(
+            "---\nmarkdag: {}\n---\n# R\n\n",
+            "- 集計表 $sum %g\n  | a | b |\n  |---|---|\n  | 1 | 2 |\n",
+            "- $note\n  <div>inner</div>\n",
+            "- <b>重要</b> 作業 $imp\n",
+        );
+        assert_eq!(
+            names_and_marks(source),
+            [
+                (1, "R".to_string(), None, vec![]),
+                (
+                    2,
+                    "集計表".to_string(),
+                    Some("sum".to_string()),
+                    vec!["g".to_string()]
+                ),
+                (3, String::new(), Some("note".to_string()), vec![]),
+                (
+                    4,
+                    "<b>重要</b> 作業".to_string(),
+                    Some("imp".to_string()),
+                    vec![]
+                ),
+            ]
+        );
+        // ラベルの下の表は表のまま
+        assert!(parse_document(source).nodes[1].html.contains("<table"));
+    }
+
+    #[test]
+    fn document_block_lines_keep_their_marks_as_text() {
+        // 1 行目がブロックの書き始めに見える行でも、行末の印は読む (A-219。A-218 (4) の「読まない」を置き換えた)。
+        // 行末にない印 (表の行の中の $t) は今までどおり文字
+        let source = concat!(
+            "---\nmarkdag: {}\n---\n# R\n\n",
+            "- <div> $d %g\n  hello\n  </div>\n",
+            "- | x | $t |\n  |---|---|\n  | 1 | 2 |\n",
+            "- 普通の行 $ok\n",
+            "- ~~~ $c\n  code\n  ~~~\n",
+        );
+        let parsed = parse_document(source);
+        let marks: Vec<(Option<&str>, usize)> = parsed
+            .nodes
+            .iter()
+            .map(|node| (node.ref_id.as_deref(), node.groups.len()))
+            .collect();
+        assert_eq!(
+            marks,
+            [
+                (None, 0),
+                (Some("d"), 1),
+                (None, 0),
+                (Some("ok"), 0),
+                (Some("c"), 0)
+            ]
+        );
+        assert!(parsed.nodes[1].html.contains("&lt;div&gt;<br>"));
+        assert!(!parsed.nodes[1].html.contains("$d"));
+        assert!(parsed.nodes[2].html.contains("| x | $t |"));
+        assert!(!parsed.nodes[2].html.contains("<table"));
+        assert_eq!(parsed.nodes[4].ref_text, "~~~");
+        assert_eq!(strip_annotations("- <div> $d\n").annotations.len(), 1);
+    }
+
+    #[test]
+    fn document_describe_first_line_keeps_first_line_only() {
+        // refText は 1 行目だけ。2 つ目の段落、表、コード、引用ブロック、生の HTML のブロックは混ざらない (TODO の a)
+        let cases: &[(&str, &str, bool)] = &[
+            (
+                "\n<p data-lines=\"2,3\">a</p>\n<p data-lines=\"4,5\">b</p>",
+                "a",
+                false,
+            ),
+            (
+                "a\n<table data-lines=\"3,6\">\n<tr><td>x</td></tr>\n</table>",
+                "a",
+                false,
+            ),
+            (
+                "\n<p data-lines=\"6,7\">f</p>\n<pre data-lines=\"7,10\"><code>c\n</code></pre>",
+                "f",
+                false,
+            ),
+            (
+                "<div>raw</div>\n<p data-lines=\"2,3\">after</p>",
+                "raw",
+                false,
+            ),
+            (
+                "<p data-lines=\"5,6\">a</p>\n<div>\n<blockquote data-lines=\"8,9\">\n<p>q</p>\n</blockquote>\n</div>",
+                "a",
+                false,
+            ),
+            // 詳細を除いた内容の、詳細のあとの文字
+            ("a\n\n  tail", "a", false),
+            // 1 つ目のブロックに文字がなければ空 (2 つ目のブロックの文字は拾わない)
+            (
+                "\n<p data-lines=\"1,2\"><img src=x></p>\n<p data-lines=\"3,4\">b</p>",
+                "",
+                false,
+            ),
+            // 段落の中の <p> でない生の HTML、段落の中の改行 (<br>)、1 つのブロックの中の改行はそのまま
+            ("a <div>x</div> b", "a x b", false),
+            (
+                "<p data-lines=\"1,3\">w <span>s</p>\n<p data-lines=\"4,5\">p2</p>",
+                "w s",
+                false,
+            ),
+            (
+                "\n<pre data-lines=\"1,4\"><code>c\nd\n</code></pre>",
+                "c d",
+                false,
+            ),
+            ("<div>\nraw\nmore\n</div>", "raw more", false),
+            // milestone は旧実装のまま (最初の <br> までの意味のある子を数える)
+            ("<strong>M</strong>", "M", true),
+            (
+                "\n<p data-lines=\"1,2\"><strong>M</strong></p>\n<p data-lines=\"3,4\">t</p>",
+                "M",
+                false,
+            ),
+        ];
+        for (html, ref_text, milestone) in cases {
+            let expected = DescribeFirstLineResult {
+                ref_text: (*ref_text).to_string(),
+                milestone: *milestone,
+            };
+            assert_eq!(describe_first_line(html), expected, "{html:?}");
+        }
+        // 文書から: 段落を 2 つ持つ項目を 1 つ目の段落の名前で読む
+        let parsed = parse_document("# R\n\n- a\n\n  b\n- c\n  | x |\n  |---|\n  | 1 |\n");
+        let names: Vec<&str> = parsed
+            .nodes
+            .iter()
+            .map(|node| node.ref_text.as_str())
+            .collect();
+        assert_eq!(names, ["R", "a", "c"]);
     }
 
     #[test]
@@ -4852,8 +5207,9 @@ mod tests {
         ("r \r s", "r s", false),
         ("a \r b \u{c} c", "a b \u{c} c", false),
         ("a <span>\r</span> b", "a b", false),
-        ("a\r\nb", "a b", false),
-        ("a\r\r\nb", "a b", false),
+        // CRLF の LF は 1 行目の区切り (旧実装は "a b"。TODO の a)。単独の CR は区切りにしない (&#13; からしか来ない)
+        ("a\r\nb", "a", false),
+        ("a\r\r\nb", "a", false),
         ("a\r<br>b", "a", false),
         ("a &#13; b", "a \r b", false),
         // body の中の <html> <body> <head> と、表の外の表の部品は無視される
@@ -5048,9 +5404,15 @@ mod tests {
         ] {
             let parsed = parse_document(&format!("{front}{item}"));
             let node = &parsed.nodes[1];
+            // 1 行目の生の HTML は書いたままの文字なので、閉じていない要素が詳細を飲み込まない (旧実装の refText は "a"。A-219)
+            let first_line = item
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .trim_start_matches("- ");
             assert_eq!(
                 (node.ref_text.as_str(), node.details.as_deref()),
-                ("a", Some(quote)),
+                (first_line, Some(quote)),
                 "{item:?}"
             );
             assert!(
@@ -5071,6 +5433,7 @@ mod tests {
             parse_document("# r\n- a &#13; b &#x0C; c\n").nodes[1].ref_text,
             "a b \u{c} c"
         );
+        // markdag の記法を読まない文書は 1 行目の規則 (A-219) を当てず、markmap と同じく生の HTML を読む (旧実装と同じ "a b")
         assert_eq!(
             parse_document("# r\n- a <span>&#13;</span> b\n").nodes[1].ref_text,
             "a b"

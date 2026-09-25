@@ -7,5 +7,6 @@ mod notes;
 mod outline;
 pub mod task;
 
-pub use document::{parse_document, replace_leading_mark};
+pub(crate) use document::nameless_content;
+pub use document::{parse_document, parse_yaml, replace_leading_mark};
 pub use notes::body_diagnostics;

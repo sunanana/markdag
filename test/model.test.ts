@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeTag, OutlineNode } from '../src/parse/document';
-import { buildModel, checkFrontmatter } from '../src/model/model';
+import { buildModel, checkFrontmatter, renderDocument } from '../src/model/model';
+import { parseDocument } from '../src/parse/document';
 import { suggestTagKeys, suggestTagValues } from '../src/model/tags';
 
 // [参照用のテキスト, 親の位置 (0 始まり。ルートは null), グループ, $id, タグ]
@@ -71,19 +72,20 @@ const pairs = (model: ReturnType<typeof buildModel>, kind: string): string[] =>
 describe('model 層', () => {
     it('「新機能エピック」の relations を、手で書き起こしたエッジと同じに展開する', () => {
         const model = buildModel(EPIC, EPIC_FRONTMATTER);
+        // 「登録API」は前方一致でしか当たらないので線を引かず、warning で候補を示す (前方一致で引いた 0.7 までは info。A-217)
         expect(model.diagnostics).toEqual([
             {
-                severity: 'info',
+                severity: 'warning',
                 code: 'ref-prefix',
-                message: '「登録API --> 登録画面」: 「登録API」は前方一致で「登録API POST /items」に解決しました',
+                message: '「登録API --> 登録画面」: 「登録API」に完全に一致するノードがありません。前方一致では指しません',
                 at: null,
-                hint: '書き間違いなら「登録API POST /items」に直します',
+                hint: 'もしかして「登録API POST \\/items」',
             },
         ]);
         expect(pairs(model, 'join')).toEqual(['4>10', '5>10', '7>10', '8>10', '9>10']);
         expect(pairs(model, 'chain')).toEqual(['10>11', '11>15', '15>16', '16>17']);
-        // 「登録API」は前方一致、「リリース」は完全一致が優先される
-        expect(pairs(model, 'depends')).toEqual(['7>5']);
+        // 「登録API」の depends は引かない。「リリース」は完全一致で「リリースノート作成」と取り違えない
+        expect(pairs(model, 'depends')).toEqual([]);
         expect(model.suppressRootLine).toEqual([10, 11, 15, 16, 17]);
     });
 
@@ -216,21 +218,83 @@ describe('model 層', () => {
         expect(wrongType.diagnostics.map((item) => item.code)).toEqual(['option-invalid']);
     });
 
-    it('名前の先頭だけが一致した参照は、書き間違いに気づけるよう参考の診断に出す', () => {
+    it('名前の先頭だけが一致した参照は指さず、書き間違いに気づけるよう warning で候補を示す (A-217)', () => {
         const nodes = outline([
             ['root', null],
             ['リリース', 0],
             ['開発', 0],
         ]);
         const model = buildModel(nodes, { markdag: { branches: ['リリー'], relations: { chain: ['開発 --> リリース'] } } });
-        expect(model.branches).toEqual([2]);
+        expect(model.branches).toEqual([]);
+        expect(pairs(model, 'chain')).toEqual(['3>2']);
         expect(model.diagnostics).toEqual([
             {
-                severity: 'info',
+                severity: 'warning',
                 code: 'ref-prefix',
-                message: 'markdag.branches: 「リリー」は前方一致で「リリース」に解決しました',
+                message: 'markdag.branches: 「リリー」に完全に一致するノードがありません。前方一致では指しません',
                 at: null,
-                hint: '書き間違いなら「リリース」に直します',
+                hint: 'もしかして「リリース」',
+            },
+        ]);
+    });
+
+    it('前方一致の候補が 2 つ以上でも warning の ref-prefix で、候補をすべて示す (A-218 (1))', () => {
+        const nodes = outline([
+            ['root', null],
+            ['Release', 0],
+            ['Relax', 0],
+            ['x', 0],
+        ]);
+        const model = buildModel(nodes, { markdag: { relations: { chain: ['Rel --> x'] } } });
+        expect(model.relations).toEqual([]);
+        expect(model.diagnostics).toEqual([
+            {
+                severity: 'warning',
+                code: 'ref-prefix',
+                message: '「Rel --> x」: 「Rel」に完全に一致するノードがありません。前方一致では指しません',
+                at: null,
+                hint: 'もしかして「Release」、「Relax」',
+            },
+        ]);
+    });
+
+    it('" で囲んだ項は 1 つの名前で、中の --> と & は区切りにしない (A-219)', () => {
+        const markdown = [
+            '---',
+            'markdag:',
+            '    relations:',
+            '        chain:',
+            '            - \'"名前 <!-- メモ -->" --> "R & D"\'',
+            '---',
+            '# root',
+            '- 名前 <!-- メモ -->',
+            '- R & D',
+        ].join('\n');
+        const { parsed, model } = renderDocument(markdown);
+        expect(parsed.nodes.map((node) => node.refText)).toEqual(['root', '名前 <!-- メモ -->', 'R & D']);
+        expect(parsed.nodes[1]?.html).toBe('名前 &lt;!-- メモ --&gt;');
+        expect(pairs(model, 'chain')).toEqual(['2>3']);
+        expect(model.diagnostics).toEqual([]);
+    });
+
+    it('ノードの 1 行目のブロックの書き始めは文字にし、warning の block-on-first-line で知らせる (A-219)', () => {
+        const markdown = ['---', 'markdag: {}', '---', '# root', '- | a | b | $t', '  |---|---|', '- 集計表', '  | c |', '  |---|'].join('\n');
+        const parsed = parseDocument(markdown);
+        expect(parsed.nodes.map((node) => [node.refText, node.refId])).toEqual([
+            ['root', null],
+            ['| a | b |', 't'],
+            ['集計表', null],
+        ]);
+        expect(parsed.nodes[1]?.html).not.toContain('<table');
+        expect(parsed.nodes[2]?.html).toContain('<table');
+        const model = buildModel(parsed.nodes, parsed.frontmatter, markdown);
+        expect(model.diagnostics).toEqual([
+            {
+                severity: 'warning',
+                code: 'block-on-first-line',
+                message: 'ノードの 1 行目にブロック (表、コード、HTML、引用など) の書き始めがあります。1 行目は書いたままの文字として表示します',
+                at: { line: 5, column: 3, length: 9 },
+                hint: 'ブロックは 2 行目以降に書きます。1 行目にラベルを書くか、空にします',
             },
         ]);
     });
@@ -902,5 +966,62 @@ describe('タスクの設定', () => {
         const wrong = buildModel(EPIC, { markdag: { tasks: { dim: { states: ['x'], details: 'always' } } } });
         expect(wrong.taskDim).toEqual({ states: ['done'], details: 'keep', tags: 'keep' });
         expect(wrong.diagnostics.map((item) => [item.code, item.message])).toEqual([['option-invalid', 'markdag.tasks.dim.details に指定できるのは keep, hover, click, never です ("always")']]);
+    });
+});
+
+describe('parseDocument → buildModel の経路の groups の並び (A-215 (4))', () => {
+    // 整数に見えるキーを混ぜた groups。YAML に書いた順は b, 2024, a, 7 (007), 1 (1.0)
+    const source = [
+        '---',
+        'markdag:',
+        '    groups:',
+        '        b: { label: B }',
+        '        2024: { label: 年, members: [Two] }',
+        '        a: { label: A }',
+        '        007: { label: 七, members: [Seven] }',
+        '        1.0: { label: 一点零, members: [One] }',
+        '---',
+        '',
+        '# Root',
+        '## One %b',
+        '## Two %a',
+        '## Seven',
+    ].join('\n');
+    const written = ['b', '2024', 'a', '7', '1'];
+
+    it('公開の frontmatter の形は変えない (キーの並びは JSON.parse のまま)', () => {
+        const parsed = parseDocument(source);
+        expect(Object.keys(parsed).sort()).toEqual(['extracted', 'frontmatter', 'nodes', 'styleUrls', 'taskIcons']);
+        const groups = (parsed.frontmatter.markdag as { groups: Record<string, unknown> }).groups;
+        expect(Object.keys(groups)).toEqual(['1', '7', '2024', 'b', 'a']);
+    });
+
+    it('2 回の呼び出しでも、書いた順に groups と groupsOf を並べる (renderDocument の 1 回の経路と同じ)', () => {
+        const parsed = parseDocument(source);
+        const model = buildModel(parsed.nodes, parsed.frontmatter, source);
+        expect(model.groups.map((group) => group.id)).toEqual(written);
+        expect([...model.groupsOf.entries()]).toEqual([
+            [1, []],
+            [2, ['b', '1']],
+            [3, ['2024', 'a']],
+            [4, ['7']],
+        ]);
+        const once = renderDocument(source).model;
+        expect(model.groups).toEqual(once.groups);
+        expect([...model.groupsOf.entries()]).toEqual([...once.groupsOf.entries()]);
+        // renderDocument の結果の frontmatter を buildModel に渡しても書いた順
+        const again = renderDocument(source).parsed;
+        expect(buildModel(again.nodes, again.frontmatter, source).groups.map((group) => group.id)).toEqual(written);
+    });
+
+    it('解析のあとで書き換えた frontmatter は、書き換えたオブジェクトの中身で組み立てる', () => {
+        const parsed = parseDocument(source);
+        const groups = (parsed.frontmatter.markdag as { groups: Record<string, Record<string, unknown>> }).groups;
+        groups['z'] = { label: 'Z' };
+        const model = buildModel(parsed.nodes, parsed.frontmatter, source);
+        expect(model.groups.map((group) => group.id)).toEqual(['1', '7', '2024', 'b', 'a', 'z']);
+        // 別に組んだ (解析の結果でない) オブジェクトも、そのオブジェクトの並びのまま
+        const copied = JSON.parse(JSON.stringify(parsed.frontmatter)) as Record<string, unknown>;
+        expect(buildModel(parsed.nodes, copied, source).groups.map((group) => group.id)).toEqual(['1', '7', '2024', 'b', 'a', 'z']);
     });
 });

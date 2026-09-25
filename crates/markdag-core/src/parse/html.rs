@@ -100,7 +100,7 @@ fn split_lines(body: &str) -> Vec<&str> {
 
 /// markmap の magic comment の中身 (`<!-- markmap: fold -->` の `fold`)。html-parser の extractMagicComments の写し:
 /// コメントの data を trim して `markmap: ` で始まれば、その後ろを trim したもの
-fn magic_comment(literal: &str) -> Option<String> {
+pub(super) fn magic_comment(literal: &str) -> Option<String> {
     let data = js_trim(literal).strip_prefix("<!--")?.strip_suffix("-->")?;
     js_trim(data)
         .strip_prefix("markmap: ")
