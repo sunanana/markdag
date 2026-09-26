@@ -119,7 +119,7 @@ fn drop_later_yaml_errors(expected: Vec<Value>, actual: &[Value]) -> Vec<Value> 
 }
 
 // accepted.md #39 (A-221): 最上位の markmap を読まなくなった。コーパスは旧実装の書き方のままなので、
-// Rust だけが出す option-removed を落とし、期待値の「markdag が読むキー」の一覧から markmap を外して比べる
+// Rust だけが出す「markmap」の option-unknown を落とし、期待値の「markdag が読むキー」の一覧から markmap を外して比べる
 fn without_removed_markmap(expected: Vec<Value>, actual: Vec<Value>) -> (Vec<Value>, Vec<Value>) {
     let expected = expected
         .into_iter()
@@ -136,7 +136,12 @@ fn without_removed_markmap(expected: Vec<Value>, actual: Vec<Value>) -> (Vec<Val
         .collect();
     let actual = actual
         .into_iter()
-        .filter(|item| item["code"] != "option-removed")
+        .filter(|item| {
+            !(item["code"] == "option-unknown"
+                && item["message"]
+                    .as_str()
+                    .is_some_and(|message| message.starts_with("frontmatter のキー「markmap」")))
+        })
         .collect();
     (expected, actual)
 }

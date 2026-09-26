@@ -108,8 +108,6 @@ The shape of the frontmatter is defined by one JSON Schema, `src/model/frontmatt
 
 Everything markdag reads is under the `markdag` key. Only `title` stays at the top level (it is the text of the root node). `relations` or `groups` written at the top level (the form used up to 0.2.0) are reported as `option-misplaced` and ignored.
 
-The top-level `markmap` key is not read. A document that still has it gets an `option-removed` warning, and everything under it is ignored. Move `markmap.initialExpandLevel` to `markdag.initialExpandLevel` (see Display options). The other markmap options (`colorFreezeLevel`, `color`, `maxWidth`, `duration` and the rest) were removed and have no replacement: delete them.
-
 ### relations
 
 ```yaml

@@ -410,9 +410,9 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
             vec!["option-misplaced"],
         ),
         (
-            "markdag のキーを markmap の下に置いた (最上位の markmap は読まない)",
+            "markdag のキーを markmap の下に置いた (最上位の markmap は知らないキー)",
             js(json!({ "markmap": { "markdag": { "details": { "display": "always" } } } })),
-            vec!["option-removed"],
+            vec!["option-unknown"],
         ),
         (
             "最初に開く深さに数字の文字列を書いた",
@@ -430,9 +430,9 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
             vec!["option-invalid"],
         ),
         (
-            "markmap の知らないキー (最上位の markmap は読まない)",
+            "markmap の下のキーは値によらず検べない (最上位の markmap は知らないキー)",
             js(json!({ "markmap": { "colorFreeze": 2 } })),
-            vec!["option-removed"],
+            vec!["option-unknown"],
         ),
         // JS から渡された undefined の値は、原文の値を診断に書き添えられない
         (
@@ -443,7 +443,7 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
         (
             "markmap の下の undefined も読まない",
             undefined_in("markmap", "color"),
-            vec!["option-removed"],
+            vec!["option-unknown"],
         ),
         (
             "title など markdag の外のキーは、最上位にあってもよい",
@@ -453,7 +453,7 @@ fn silent_cases() -> Vec<(&'static str, JsValue, Vec<&'static str>)> {
         (
             "markmap.htmlParser も読まない",
             js(json!({ "markmap": { "htmlParser": { "selector": "h1,h2" } } })),
-            vec!["option-removed"],
+            vec!["option-unknown"],
         ),
         (
             "frontmatter がキーと値の組でない",
@@ -678,8 +678,7 @@ fn model_initial_expand_level_is_read_under_markdag() {
 }
 
 #[test]
-fn model_leftover_markmap_is_warned_and_ignored() {
-    let removed = "frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します";
+fn model_leftover_markmap_is_an_unknown_key() {
     let with_level = diagnose(
         "---\nmarkmap:\n    initialExpandLevel: 3\nmarkdag:\n    branches: [a]\n---\n\n# root\n\n## a\n",
     );
@@ -687,36 +686,15 @@ fn model_leftover_markmap_is_warned_and_ignored() {
         with_level,
         [Diagnostic {
             severity: Severity::Warning,
-            code: "option-removed".to_string(),
-            message: removed.to_string(),
+            code: "option-unknown".to_string(),
+            message: "frontmatter のキー「markmap」は、markdag が読むキー (markdag, title) のどれでもありません".to_string(),
             at: Some(position(2, 1, 7)),
-            hint: some(
-                "initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。markmap: の行は消します"
-            ),
+            hint: some("もしかして「markdag」"),
         }]
-    );
-    let without_level = diagnose(
-        "---\ntitle: T\nmarkmap:\n    colorFreezeLevel: 2\n    maxWidth: 300\n---\n\n# root\n",
-    );
-    let codes: Vec<(&str, Option<&str>)> = without_level
-        .iter()
-        .map(|item| (item.code.as_str(), item.hint.as_deref()))
-        .collect();
-    assert_eq!(
-        codes,
-        [
-            (
-                "option-removed",
-                Some(
-                    "markmap のキー (colorFreezeLevel, maxWidth) は削除したオプションで、書いても効きません。markmap: の行ごと消します"
-                )
-            ),
-            ("not-extracted", None),
-        ]
     );
     // 値は読まないので、markmap の下の書き損じは型の診断にならない
     assert_eq!(
         check_codes(json!({ "markmap": { "initialExpandLevel": "abc", "autoFit": "no" } })),
-        ["option-removed"]
+        ["option-unknown"]
     );
 }

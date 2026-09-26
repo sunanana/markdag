@@ -608,7 +608,7 @@ pub(crate) fn schema_diagnostics(
         .map(|issue| to_diagnostic(issue, locator))
         .collect();
     // 最上位は、ほかの道具のキー (title など) を許すので閉じられない。代わりに、下の階層に書くはずのキーと、
-    // スキーマが知っているキーの書き間違いらしい名前と、読まなくなった markmap だけを、ここで拾う
+    // スキーマが知っているキーの書き間違いらしい名前だけを、ここで拾う
     let root_properties = properties_of(Some(root));
     let root_names: Vec<String> = root_properties.keys().cloned().collect();
     // 規則 2.6 (A-022): ownersOf の既定の引数 into は、呼び出し側が空の値を作って渡す
@@ -619,11 +619,6 @@ pub(crate) fn schema_diagnostics(
     for key in js_object_keys(frontmatter) {
         // 規則 2.1 (A-027): `key in rootProperties` は自分の持つキーだけを見る (`__proto__` や `toString` を飛ばさない)
         if root_properties.contains_key(&key) {
-            continue;
-        }
-        // 最上位の markmap は読まない (A-221)。markdag の書き間違いとは扱わず、消すか移すかを知らせる
-        if key == "markmap" {
-            diagnostics.push(removed_markmap(frontmatter, locator));
             continue;
         }
         let parent = owner.get(&key);
@@ -680,46 +675,6 @@ pub(crate) fn schema_diagnostics(
         (None, None) => Ordering::Equal,
     });
     diagnostics
-}
-
-/// 最上位に残った markmap の診断 (A-221)。markmap のオプションは initialExpandLevel だけが markdag.initialExpandLevel に移り、
-/// ほかは削除したので、移すキーと消すキーを hint で分けて知らせる
-fn removed_markmap(frontmatter: &JsValue, locator: &FrontmatterLocator) -> Diagnostic {
-    let keys: Vec<String> = match frontmatter {
-        JsValue::Object(entries) => match entries.get("markmap") {
-            Some(JsValue::Object(markmap)) => markmap.keys().cloned().collect(),
-            _ => Vec::new(),
-        },
-        _ => Vec::new(),
-    };
-    let moved = keys.iter().any(|key| key == "initialExpandLevel");
-    let removed: Vec<String> = keys
-        .into_iter()
-        .filter(|key| key != "initialExpandLevel")
-        .collect();
-    let moving = "initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)";
-    let hint = match (moved, removed.is_empty()) {
-        (true, true) => format!("{moving}。markmap: の行は消します"),
-        (true, false) => format!(
-            "{moving}。ほかのキー ({}) は削除したオプションで書いても効かないので、markmap: の行ごと消します",
-            as_list(&removed)
-        ),
-        (false, false) => format!(
-            "markmap のキー ({}) は削除したオプションで、書いても効きません。markmap: の行ごと消します",
-            as_list(&removed)
-        ),
-        (false, true) => {
-            "markmap のオプションは削除したので、書いても効きません。markmap: の行を消します"
-                .to_string()
-        }
-    };
-    Diagnostic {
-        severity: Severity::Warning,
-        code: "option-removed".to_string(),
-        message: "frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します".to_string(),
-        at: locator.key(&[PathStep::Key("markmap".to_string())]),
-        hint: Some(hint),
-    }
 }
 
 /// 原文: checkFrontmatter。frontmatter の形と型だけを検べる入口。原文を渡すと、診断に frontmatter での位置が付く
@@ -1115,9 +1070,9 @@ mod tests {
                 &["option-misplaced"],
             ),
             (
-                "markdag のキーを markmap の下に置いた (最上位の markmap は読まない)",
+                "markdag のキーを markmap の下に置いた (最上位の markmap は知らないキー)",
                 r#"{"markmap":{"markdag":{"details":{"display":"always"}}}}"#,
-                &["option-removed"],
+                &["option-unknown"],
             ),
             (
                 "最初に開く深さに数字の文字列を書いた",
@@ -1135,9 +1090,9 @@ mod tests {
                 &["option-invalid"],
             ),
             (
-                "markmap の知らないキー (最上位の markmap は読まない)",
+                "markmap の下のキーは値によらず検べない (最上位の markmap は知らないキー)",
                 r#"{"markmap":{"colorFreeze":2}}"#,
-                &["option-removed"],
+                &["option-unknown"],
             ),
             (
                 "title など markdag の外のキーは、最上位にあってもよい",
@@ -1147,7 +1102,7 @@ mod tests {
             (
                 "markmap.htmlParser も読まない",
                 r#"{"markmap":{"htmlParser":{"selector":"h1,h2"}}}"#,
-                &["option-removed"],
+                &["option-unknown"],
             ),
             (
                 "frontmatter がキーと値の組でない",
@@ -1183,8 +1138,8 @@ mod tests {
         for (parent, key, expected) in [
             ("markdag", "initialExpandLevel", "option-invalid"),
             ("markdag", "branches", "option-invalid"),
-            ("markmap", "initialExpandLevel", "option-removed"),
-            ("markmap", "color", "option-removed"),
+            ("markmap", "initialExpandLevel", "option-unknown"),
+            ("markmap", "color", "option-unknown"),
         ] {
             let got: Vec<String> = check_frontmatter(&undefined_in(parent, key), None)
                 .into_iter()
@@ -1337,30 +1292,12 @@ mod tests {
             r###"[{"severity":"warning","code":"option-unknown","message":"markdag のキー「zzzzzzzz」は使えません (relations, groups, types, tags, rules, hooks ほか)","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"}]"###,
         ),
         (
-            "removed_markmap_moves_initial_expand_level",
+            "leftover_markmap_is_unknown",
             r###"{"markmap":{"initialExpandLevel":2,"colorFreezeLevel":2,"color":"red"},"markdag":null}"###,
             Some(
                 "---\nmarkmap:\n    initialExpandLevel: 2\n    colorFreezeLevel: 2\n    color: red\nmarkdag:\n---\n\n# root",
             ),
-            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":{"line":2,"column":1,"length":7},"hint":"initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。ほかのキー (colorFreezeLevel, color) は削除したオプションで書いても効かないので、markmap: の行ごと消します"}]"###,
-        ),
-        (
-            "removed_markmap_only_initial_expand_level",
-            r###"{"markmap":{"initialExpandLevel":2}}"###,
-            None,
-            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。markmap: の行は消します"}]"###,
-        ),
-        (
-            "removed_markmap_without_initial_expand_level",
-            r###"{"title":"T","markmap":{"colorFreezeLevel":2,"maxWidth":300}}"###,
-            None,
-            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"markmap のキー (colorFreezeLevel, maxWidth) は削除したオプションで、書いても効きません。markmap: の行ごと消します"}]"###,
-        ),
-        (
-            "removed_markmap_not_a_mapping",
-            r###"{"markmap":null}"###,
-            None,
-            r###"[{"severity":"warning","code":"option-removed","message":"frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します","at":null,"hint":"markmap のオプションは削除したので、書いても効きません。markmap: の行を消します"}]"###,
+            r###"[{"severity":"warning","code":"option-unknown","message":"frontmatter のキー「markmap」は、markdag が読むキー (markdag, title) のどれでもありません","at":{"line":2,"column":1,"length":7},"hint":"もしかして「markdag」"}]"###,
         ),
         (
             "unknown_root_near",

@@ -3546,7 +3546,7 @@ mod tests {
 
     #[test]
     fn annotations_frontmatter_markmap_values_are_kept_as_written() {
-        // 最上位の markmap は読まないので、値を直さず書いたままにする (A-221。model 層が option-removed の警告にする)
+        // 最上位の markmap は読まないので、値を直さず書いたままにする (A-221。model 層では最上位の知らないキーとして扱う)
         let info =
             read_frontmatter("---\nmarkmap:\n  color: 5\n  duration: abc\n  maxWidth: null\n---\n")
                 .expect("読める");

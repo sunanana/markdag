@@ -476,7 +476,7 @@ test.describe('図の操作', () => {
         expect(result.callsAfterSame).toBe(result.calls);
     });
 
-    test('最初に閉じる深さは markdag.initialExpandLevel が決め、最上位の markmap は読まずに警告する', async ({ page }) => {
+    test('最初に閉じる深さは markdag.initialExpandLevel が決め、最上位の markmap は知らないキーとして読まない', async ({ page }) => {
         await open(page);
         const result = await page.evaluate((markdown) => {
             const target = window as unknown as TestWindow;
@@ -495,7 +495,7 @@ test.describe('図の操作', () => {
         }, DOC);
         expect(result.underMarkdag).toEqual({ folded: [2, 5, 6], codes: [] });
         expect(result.leftover.folded).toEqual([]);
-        expect(result.leftover.codes).toEqual(['option-removed']);
+        expect(result.leftover.codes).toEqual(['option-unknown']);
         // 枝の起点がない文書は、ノードごとに色が分かれる (colorFreezeLevel で祖先の色にそろえない)
         expect(result.leftover.strokes).toEqual(result.plain);
         expect(new Set(['2', '3', '4'].map((id) => result.plain[id])).size).toBe(3);

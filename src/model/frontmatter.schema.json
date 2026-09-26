@@ -1,6 +1,6 @@
 {
     "type": "object",
-    "description": "markdag の frontmatter のスキーマ。JSON Schema 2020-12 の部分集合で、使うキーワードは type, enum, const, pattern, minLength, items, properties, additionalProperties, uniqueItems, oneOf, $ref, description に限る (実行時はこのスキーマを直接読んで検証するため)。x- で始まるキーワードは日本語の診断を組み立てるための注釈で、検証には影響しない。x-hint は直し方の手がかり (Diagnostic.hint)、x-code は診断のコード (既定は additionalProperties の違反が option-unknown、それ以外が option-invalid)、x-severity は重大度 (既定は warning)。最上位は additionalProperties を閉じない。markdag を読まない文書 (markmap と同じ表示) の title など、ほかの道具のキーを許すため。最上位の markmap は読まず、スキーマにも持たない (残っていれば option-removed の警告にする)",
+    "description": "markdag の frontmatter のスキーマ。JSON Schema 2020-12 の部分集合で、使うキーワードは type, enum, const, pattern, minLength, items, properties, additionalProperties, uniqueItems, oneOf, $ref, description に限る (実行時はこのスキーマを直接読んで検証するため)。x- で始まるキーワードは日本語の診断を組み立てるための注釈で、検証には影響しない。x-hint は直し方の手がかり (Diagnostic.hint)、x-code は診断のコード (既定は additionalProperties の違反が option-unknown、それ以外が option-invalid)、x-severity は重大度 (既定は warning)。最上位は additionalProperties を閉じない。markdag を読まない文書 (markmap と同じ表示) の title など、ほかの道具のキーを許すため",
     "properties": {
         "markdag": {
             "type": ["object", "null"],

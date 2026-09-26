@@ -647,17 +647,17 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
         ['relations のキーを最上位に置いた', { fork: 'A --> B' }, ['option-misplaced']],
         ['relations のキーを markdag の直下に置いた', { markdag: { fork: ['A --> B'] } }, ['option-misplaced']],
         ['legend のキーを markdag の直下に置いた', { markdag: { position: 'top-left' } }, ['option-misplaced']],
-        ['markdag のキーを markmap の下に置いた (最上位の markmap は読まない)', { markmap: { markdag: { details: { display: 'always' } } } }, ['option-removed']],
+        ['markdag のキーを markmap の下に置いた (最上位の markmap は知らないキー)', { markmap: { markdag: { details: { display: 'always' } } } }, ['option-unknown']],
         ['最初に開く深さに数字の文字列を書いた', { markdag: { initialExpandLevel: '2' } }, ['option-invalid']],
         ['真偽値に文字列を書いた (逆の意味になる)', { markdag: { edgeHighlight: 'no' } }, ['option-invalid']],
         ['最初に開く深さに数でない文字列を書いた', { markdag: { initialExpandLevel: 'abc' } }, ['option-invalid']],
-        ['markmap の知らないキー (最上位の markmap は読まない)', { markmap: { colorFreeze: 2 } }, ['option-removed']],
+        ['markmap の下のキーは値によらず検べない (最上位の markmap は知らないキー)', { markmap: { colorFreeze: 2 } }, ['option-unknown']],
         // JS から渡された undefined の値は、原文の値を診断に書き添えられない
         ['最初に開く深さが undefined', { markdag: { initialExpandLevel: undefined } }, ['option-invalid']],
-        ['markmap の下の undefined も読まない', { markmap: { color: undefined } }, ['option-removed']],
+        ['markmap の下の undefined も読まない', { markmap: { color: undefined } }, ['option-unknown']],
         ['title など markdag の外のキーは、最上位にあってもよい', { title: 'x', author: 'y' }, []],
         // CSS の色として読める書き方は、弾かない
-        ['markmap.htmlParser も読まない', { markmap: { htmlParser: { selector: 'h1,h2' } } }, ['option-removed']],
+        ['markmap.htmlParser も読まない', { markmap: { htmlParser: { selector: 'h1,h2' } } }, ['option-unknown']],
         ['frontmatter がキーと値の組でない', 'abc' as unknown as Record<string, unknown>, ['option-invalid']],
         ['グループの色に 8 桁の 16 進', { markdag: { groups: { a: { color: '#3B7DD880' } } } }, []],
         ['グループの色に色の名前', { markdag: { groups: { a: { color: 'steelblue' } } } }, []],
@@ -702,8 +702,6 @@ describe('黙って無視されていた書き方を、スキーマが警告に�
 });
 
 describe('最初に開いておく深さと、読まなくなった最上位の markmap (A-221)', () => {
-    const removed = 'frontmatter の「markmap」は読みません (markmap のオプションは削除しました)。この位置では無視します';
-
     it('markdag.initialExpandLevel は整数だけを受け付ける', () => {
         for (const level of [-1, 0, 3]) expect(checkFrontmatter({ markdag: { initialExpandLevel: level } })).toEqual([]);
         for (const wrong of ['2', 1.5, true, [2], null]) {
@@ -721,35 +719,20 @@ describe('最初に開いておく深さと、読まなくなった最上位の 
         ]);
     });
 
-    it('initialExpandLevel を含む markmap は、markdag.initialExpandLevel に移すよう知らせる', () => {
+    it('最上位に残った markmap は、ほかの知らないキーと同じに扱い、値は検べない', () => {
         const source = '---\nmarkmap:\n    initialExpandLevel: 3\n    colorFreezeLevel: 2\nmarkdag:\n---\n\n# root\n';
         const parsed = parseDocument(source);
         expect(parsed.frontmatter.markmap).toEqual({ initialExpandLevel: 3, colorFreezeLevel: 2 });
         expect(buildModel(parsed.nodes, parsed.frontmatter, source).diagnostics).toEqual([
             {
                 severity: 'warning',
-                code: 'option-removed',
-                message: removed,
+                code: 'option-unknown',
+                message: 'frontmatter のキー「markmap」は、markdag が読むキー (markdag, title) のどれでもありません',
                 at: { line: 2, column: 1, length: 7 },
-                hint: 'initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。ほかのキー (colorFreezeLevel) は削除したオプションで書いても効かないので、markmap: の行ごと消します',
+                hint: 'もしかして「markdag」',
             },
         ]);
-        expect(checkFrontmatter({ markmap: { initialExpandLevel: 3 } })[0]?.hint).toBe(
-            'initialExpandLevel は markdag.initialExpandLevel に移します (markdag: の下に字下げして initialExpandLevel: を書きます)。markmap: の行は消します',
-        );
-    });
-
-    it('initialExpandLevel を含まない markmap は、削除したキーとして知らせ、値は検べない', () => {
-        expect(checkFrontmatter({ title: 'T', markmap: { colorFreezeLevel: 'abc', autoFit: 'no' } })).toEqual([
-            {
-                severity: 'warning',
-                code: 'option-removed',
-                message: removed,
-                at: null,
-                hint: 'markmap のキー (colorFreezeLevel, autoFit) は削除したオプションで、書いても効きません。markmap: の行ごと消します',
-            },
-        ]);
-        expect(checkFrontmatter({ markmap: null })[0]?.hint).toBe('markmap のオプションは削除したので、書いても効きません。markmap: の行を消します');
+        expect(checkFrontmatter({ title: 'T', markmap: { colorFreezeLevel: 'abc', autoFit: 'no' } }).map((item) => item.code)).toEqual(['option-unknown']);
     });
 });
 

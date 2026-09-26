@@ -69,7 +69,7 @@ describe('境界を越える往復 (wasm)', () => {
         const parsed = parseDocument(source);
         expect(parsed.frontmatter.markmap).toEqual({ initialExpandLevel: 'abc', color: 3, duration: 'y' });
         const twoCalls = buildModel(parsed.nodes, parsed.frontmatter, source).diagnostics;
-        expect(twoCalls.map((item) => item.code)).toEqual(['option-removed', 'option-invalid']);
+        expect(twoCalls.map((item) => item.code)).toEqual(['option-unknown', 'option-invalid']);
         expect(twoCalls).toEqual(renderDocument(source, {}).model.diagnostics);
     });
 
