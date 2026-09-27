@@ -1,5 +1,5 @@
 // アイコン機能の受け入れテスト (ブラウザの面)。testdata/acceptance/icons/ の例を 1 件ずつ回す。
-// - screen の例 (9 件): render で描き、DOM と計算値を見る
+// - screen の例 (11 件): render で描き、DOM と計算値を見る
 // - library の例のうち DOM を使うもの (render、createHookBridge + MarkdagView、単体 HTML を開く): DOM を使わない例は test/acceptance-icons.test.ts
 // - cli の例の opened の欄 (markdag html が書いた HTML を開いたとき): バイナリは cargo test --workspace が作った target/debug/markdag
 // 公開の入口 (harness の markdag、dist/standalone.js、CLI のバイナリ) だけを呼ぶ。期待は expect.yaml から読み、ここに写さない。
@@ -327,6 +327,7 @@ const SCREEN_KEYS = [
     'after',
     'untouched',
     'after_leave',
+    'svg_ids',
 ];
 
 async function runScreen(page: Page, example: IconExample): Promise<string[]> {
@@ -359,6 +360,13 @@ async function runScreen(page: Page, example: IconExample): Promise<string[]> {
     if (want.node_text_has !== undefined) {
         const texts = await read((probe, root) => probe.nodeTexts(root));
         for (const part of want.node_text_has as string[]) if (!texts.some((text) => text.includes(part))) problems.push(`node_text_has: 「${part}」を含むノードがない (${JSON.stringify(texts)})`);
+    }
+    // 図の中の id を持つ要素の数と、重なりがないこと (同じ SVG の写しごとの id の付け直し)
+    if (want.svg_ids !== undefined) {
+        problems.push(...unknownKeys(want.svg_ids, ['count', 'unique'], 'svg_ids'));
+        const ids = await read((_probe, root) => [...root.querySelectorAll('[id]')].map((element) => element.id));
+        if (want.svg_ids.count !== undefined && ids.length !== want.svg_ids.count) problems.push(`svg_ids.count: 期待 ${want.svg_ids.count}、実際 ${ids.length} (${JSON.stringify(ids)})`);
+        if (want.svg_ids.unique === true && new Set(ids).size !== ids.length) problems.push(`svg_ids.unique: id が重なる (${JSON.stringify(ids)})`);
     }
     if (want.icon_elements !== undefined) {
         const count = await read((_probe, root) => root.querySelectorAll('.mdag-icon, .mdag-frame-icon').length);

@@ -1,0 +1,17 @@
+kind: 境界
+checks: >-
+    タグの値が Object の組み込みの名前 (constructor、__proto__、toString、hasOwnProperty、valueOf) でも落ちない。icons に書いていない値なのでロゴにせず文字のまま (値の対応は自分のキーだけで引く)。同じタグに並べた github はロゴになる。問い合わせるのは文書の alias の ref だけ
+call:
+    api: >-
+        render(container, input.md, { resolveIcon, onDiagnostic })
+    resolver:
+        "simple-icons:github": { sync: ../../assets/circle.svg }
+expect:
+    asked: ["simple-icons:github"]
+    after_settled:
+        body_marks: { gh: svg }
+        tag_logos: 1        # #tool:hasOwnProperty,github の github だけ
+        frame_logos: 1
+        legend_logos: 1
+    diagnostics: []
+    onDiagnostic: []

@@ -1,6 +1,6 @@
 kind: 誤り
 checks: >-
-    引けないロゴ (null) と SVG として読めない文字列は文字のままで診断なし。script、onload、title、XML 宣言を含む SVG は取り除いてから描く
+    引けないロゴ (null) と SVG として読めない文字列は文字のままで、onDiagnostic に icon-unresolved (warning、位置なし) を 1 件ずつ出す (render の diagnostics には入れない)。script、onload、title、XML 宣言を含む SVG は取り除いてから描く
 render:
     options: { onDiagnostic }
     resolver:
@@ -9,7 +9,10 @@ render:
         ./dirty.svg: ../../assets/dirty.svg
 expect:
     diagnostics: []
-    onDiagnostic: []
+    # 順は問わない
+    onDiagnostic:
+        - { code: icon-unresolved, severity: warning, at: null, message_has: ["simple-icons:github", "返さなかった (null)"] }
+        - { code: icon-unresolved, severity: warning, at: null, message_has: ["simple-icons:broken", "SVG として読めなかった"] }
     body_marks:
         - { icon: gh, svg: false, text: ":gh:" }
         - { icon: broken, svg: false, text: ":broken:" }

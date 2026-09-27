@@ -36,15 +36,16 @@ export const DIAGRAM_GLOBAL = 'markdagStandalone';
 // 焼き込む前にロゴを sanitizeSvg に通す。SVG として読めないものは落とす (開いたページでは文字のまま)。
 // 開いたときにも描画の側がもう一度通すので、ここは埋める中身を減らし、script などをページに持ち込まないためのもの
 // CLI の html (Rust) は埋める前に通さず、読んだ SVG をそのまま埋める (開いたときの 1 回だけ通る)。
-// そのため同じ SVG でも JS と CLI で埋める文字列が違う
+// そのため同じ SVG でも JS と CLI で埋める文字列が違う。
+// 結果は Object.fromEntries で組む (代入だと ref が __proto__ のときに原型を差し替えてしまい、その ref が落ちる)
 function sanitizeIcons(icons: Record<string, string> | undefined): Record<string, string> | undefined {
     if (!icons) return undefined;
-    const sanitized: Record<string, string> = {};
+    const sanitized: Array<[string, string]> = [];
     for (const [ref, svg] of Object.entries(icons)) {
         const clean = typeof svg === 'string' ? sanitizeSvg(svg) : null;
-        if (clean !== null) sanitized[ref] = clean;
+        if (clean !== null) sanitized.push([ref, clean]);
     }
-    return sanitized;
+    return Object.fromEntries(sanitized);
 }
 
 // 素材 (HTML に JSON で埋めるもの) とページの指定を分けて渡す。素材は書かれた欄の順に Rust が JSON にする。

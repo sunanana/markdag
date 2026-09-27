@@ -47,8 +47,8 @@ pub fn public_parsed(parsed: &ParsedDocument) -> JsValue {
 /// Node の check (--hooks なし) と同じ診断を集める: 解析と組み立ての診断に、markdag のキーがない文書の not-extracted を足す。
 /// types は $ref に書いた文字列をキーにした型のファイルの中身 (ないキーは「渡していない」で types-unresolved になる)。
 pub fn diagnose(markdown: &str, types: IndexMap<String, JsValue>) -> Vec<Diagnostic> {
-    // MCP は markdag.icons.$ref の中身を受け取らない (icons を渡さないので icons-unresolved になる)。
-    // CLI は diagnose_with_icons で文書からの相対で読んで渡す
+    // icons を渡さないので、icons.$ref を書いた文書では icons-unresolved になる。
+    // CLI と MCP は diagnose_with_icons で icons.$ref の中身を渡す
     diagnose_with_icons(markdown, types, None)
 }
 

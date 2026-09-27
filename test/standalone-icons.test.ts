@@ -71,7 +71,7 @@ describe('mountStandalone の焼き込んだロゴの resolver', () => {
         expect(bakedIconResolver(undefined)).toBeUndefined();
     });
 
-    it('橋渡しに渡すと最初の setDocument の前にロゴが入り、渡されない ref は文字のまま (null) になる。診断は出さない', () => {
+    it('橋渡しに渡すと最初の setDocument の前にロゴが入り、渡されない ref は文字のまま (null) で icon-unresolved (warning) を 1 件出す', () => {
         const calls: string[] = [];
         const view = {
             setIconSvg: (ref: string, svg: string | null) => calls.push(`icon ${ref} ${svg === null ? 'null' : 'svg'}`),
@@ -84,7 +84,9 @@ describe('mountStandalone の焼き込んだロゴの resolver', () => {
         const { parsed, model } = renderDocument(doc(['## :gh: Push', '## :k8s: Deploy', '## :rocket: Release']));
         bridge.setDocument(parsed, model);
         expect(calls).toEqual(['icon ./logos/github.svg svg', 'icon simple-icons:kubernetes null', 'document']);
-        expect(onDiagnostic).not.toHaveBeenCalled();
+        expect(onDiagnostic).toHaveBeenCalledTimes(1);
+        expect(onDiagnostic.mock.calls[0]?.[0]).toMatchObject({ severity: 'warning', code: 'icon-unresolved', at: null });
+        expect(onDiagnostic.mock.calls[0]?.[0].message).toContain('simple-icons:kubernetes');
     });
 });
 

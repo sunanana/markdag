@@ -1488,6 +1488,15 @@ export class MarkdagView {
                 logo.innerHTML = parts.logo.svg;
                 elements.push(logo);
             }
+            if (parts.emoji) {
+                const emoji = svgElement('text', 'mdag-frame-icon');
+                emoji.setAttribute('x', String(parts.emoji.x));
+                emoji.setAttribute('y', String(parts.emoji.y));
+                emoji.dataset.icon = parts.emoji.alias;
+                emoji.dataset.iconKind = 'emoji';
+                emoji.textContent = parts.emoji.text;
+                elements.push(emoji);
+            }
             if (clickable) for (const element of elements) element.dataset.group = frame.group.id;
             this.frameLayer.append(...elements);
         }

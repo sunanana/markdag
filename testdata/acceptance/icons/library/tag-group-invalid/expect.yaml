@@ -20,7 +20,7 @@ expect:
         oncall: { icon: null }
     groups:
         a: null
-        # 絵文字の alias を経由した icon は診断なしで残る。枠と凡例にはロゴも絵文字も出ない (扱いは決めていない)
+        # 絵文字の alias を経由した icon は診断なしで残る。画面では枠のラベルの前と凡例に絵文字が出る (screen/frame-legend-emoji)
         b: fire
         c: null
         d: null

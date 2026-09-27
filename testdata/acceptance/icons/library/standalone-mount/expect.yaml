@@ -1,6 +1,6 @@
 kind: 正常
 checks: >-
-    単体 HTML を開くと、焼き込んだロゴは同期で描かれ、焼き込んでいない set:name は文字のまま (診断なし)。ネットワークに出ない
+    単体 HTML を開くと、焼き込んだロゴは同期で描かれ、焼き込んでいない set:name は文字のままで、表にない ref として icon-unresolved (warning、位置なし) をページの diagnostics に 1 件入れる (この例の試験は診断を読まない。e2e/icons-unresolved-severity.spec.ts が見る)。ネットワークに出ない
 call:
     api: >-
         buildStandaloneHtml({ source: input.md, icons }) の HTML をブラウザで開く (中で mountStandalone が動く)

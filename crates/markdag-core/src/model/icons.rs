@@ -343,6 +343,10 @@ pub(crate) fn resolve_icons(
                 if !matches!(value, JsValue::String(_) | JsValue::Object(_)) {
                     continue;
                 }
+                // 空の文字列はスキーマの minLength が同じ位置で知らせている (空の値は 1 件)
+                if matches!(value, JsValue::String(text) if text.is_empty()) {
+                    continue;
+                }
                 if let Some(color) = read_color(value) {
                     table.color = color;
                     continue;
@@ -396,6 +400,8 @@ pub(crate) fn resolve_icons(
                         table.aliases.insert(name.clone(), def);
                     }
                     Err(ValueError::Shape(..)) => {}
+                    // 空の値 (文字列の形と .ref) はスキーマの minLength が同じ位置で知らせている
+                    Err(ValueError::Content { .. }) if is_empty_ref(value) => {}
                     Err(ValueError::Content {
                         code,
                         detail,
@@ -419,6 +425,17 @@ pub(crate) fn resolve_icons(
         }
     }
     ResolveIconsResult { table, issues }
+}
+
+// alias の値の参照が空の文字列か (文字列の形と、オブジェクトの形の ref)
+fn is_empty_ref(value: &JsValue) -> bool {
+    match value {
+        JsValue::String(text) => text.is_empty(),
+        JsValue::Object(entries) => {
+            matches!(entries.get("ref"), Some(JsValue::String(text)) if text.is_empty())
+        }
+        _ => false,
+    }
 }
 
 /// 大文字を含むだけで alias の名前にならないとき、小文字にした名前を「もしかして」で示す手がかり。
@@ -556,6 +573,38 @@ mod tests {
             result.issues[2].message.contains(".png"),
             "{}",
             result.issues[2].message
+        );
+    }
+
+    // 文書に書いた空の値はスキーマの minLength が知らせるので黙る。スキーマが見ない $ref のファイルの中は知らせる
+    #[test]
+    fn 空の値は文書ではスキーマに任せ_ref_のファイルでは知らせる() {
+        let own = resolve_icons(
+            &js(
+                json!({ "empty": "", "blank": { "ref": "" }, "tinted": { "ref": "", "color": "mono" } }),
+            ),
+            None,
+        );
+        assert!(own.issues.is_empty(), "{:?}", own.issues);
+        assert!(own.table.aliases.is_empty());
+        let provided: IndexMap<String, JsValue> = [(
+            "./a.yaml".to_string(),
+            js(json!({ "empty": "", "blank": { "ref": "" } })),
+        )]
+        .into_iter()
+        .collect();
+        let from_file = resolve_icons(&js(json!({ "$ref": "./a.yaml" })), Some(&provided));
+        let messages: Vec<&str> = from_file
+            .issues
+            .iter()
+            .map(|issue| issue.message.as_str())
+            .collect();
+        assert_eq!(
+            messages,
+            [
+                "markdag.icons.$ref「./a.yaml」 の empty「」: 値が空です",
+                "markdag.icons.$ref「./a.yaml」 の blank.ref「」: 値が空です",
+            ]
         );
     }
 

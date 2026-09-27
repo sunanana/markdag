@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    id (グラデーションと clipPath) を持つ同じ SVG を本文 2 か所、タグ、枠のラベル、凡例に置いても、写しごとに id を付け直し、ページの中で id が重ならない。塗りと切り抜きは自分の写しの中を指すので、どの写しも同じ見た目になる
+render:
+    options: {}
+    resolver:
+        "simple-icons:grad": ../../assets/gradient.svg
+expect:
+    diagnostics: []
+    body_marks:
+        - { node: 本文のロゴ, icon: grad, svg: true }
+        - { node: もう 1 つの本文, icon: grad, svg: true }
+    # 図の中の id を持つ要素の数と、重なりがないこと (本文 2、タグ 1、枠 1、凡例 1 の写しに id 2 つずつ)
+    svg_ids: { count: 10, unique: true }
+look:
+    - 本文 2 つ、タグ、枠のラベル、凡例のロゴがどれも、角の丸い赤から青へのグラデーションの四角に見える (塗りが抜けたり黒くなったりしない)

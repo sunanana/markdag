@@ -43,7 +43,7 @@ const colorOf = (def: IconDef, icons: IconTable): IconColor => def.color ?? icon
 function logoBody(def: IconDef, context: IconRenderContext): { html: string; color: IconColor | null } | null {
     if (def.kind === 'emoji') return { html: escapeHtml(def.ref), color: null };
     const svg = context.svgOf(def.ref);
-    return svg ? { html: svg, color: colorOf(def, context.icons) } : null;
+    return svg ? { html: svgCopy(svg), color: colorOf(def, context.icons) } : null;
 }
 
 // ロゴの要素。data-icon-color は SVG のときだけ付け、絵文字には付けない (CSS はこれで大きさと色を当てる)
@@ -82,12 +82,13 @@ function addResolvableRef(refs: Set<string>, def: IconDef | null | undefined): v
 }
 
 // タグ 1 つに付けるロゴの alias。キーの印 (icon) が先、値の印 (icons) が値の順。
-// icon と icons を両方書いたキーでは、値のロゴがあってもキーの印を出す
+// icon と icons を両方書いたキーでは、値のロゴがあってもキーの印を出す。
+// icons は自分の持つキーだけで引く (値が constructor や __proto__ でも Object の原型のものを拾わない。Rust の IndexMap と同じ結果)
 function tagAliases(tag: Pick<NodeTag, 'key' | 'values'>, def: TagKeyDef | undefined): string[] {
     if (!def) return [];
     const aliases = def.icon === undefined ? [] : [def.icon];
     for (const value of tag.values) {
-        const alias = def.icons?.[value];
+        const alias = def.icons !== undefined && Object.hasOwn(def.icons, value) ? def.icons[value] : undefined;
         if (alias !== undefined) aliases.push(alias);
     }
     return aliases;
@@ -130,21 +131,19 @@ export function nodeIconRefs(node: Pick<OutlineNode, 'html'>, tags: Array<Pick<N
     return refs;
 }
 
-// グループのロゴ (枠のラベルと凡例に出す)。絵文字の alias はグループの icon に書けない (モデルが誤りにする) ので扱わない。
+// グループのロゴ (枠のラベルと凡例に出す)。絵文字の alias は本文と同じく解決せず、その文字を出す (mono / original の色の規則も当てない)。
 // icon がない、表にない alias、SVG が引けないときは null (ロゴなしで今までどおり描く)
-export interface GroupLogo {
-    alias: string;
-    ref: string;
-    svg: string;
-    color: IconColor;
-}
+export type GroupLogo =
+    | { kind: 'svg'; alias: string; ref: string; svg: string; color: IconColor }
+    | { kind: 'emoji'; alias: string; text: string };
 
 export function groupLogo(group: Pick<GroupDef, 'icon'>, context: IconRenderContext): GroupLogo | null {
     if (group.icon === undefined) return null;
     const def = iconDefOf(context.icons, group.icon);
-    if (!def || def.kind === 'emoji') return null;
+    if (!def) return null;
+    if (def.kind === 'emoji') return { kind: 'emoji', alias: group.icon, text: def.ref };
     const svg = context.svgOf(def.ref);
-    return svg ? { alias: group.icon, ref: def.ref, svg, color: colorOf(def, context.icons) } : null;
+    return svg ? { kind: 'svg', alias: group.icon, ref: def.ref, svg: svgCopy(svg), color: colorOf(def, context.icons) } : null;
 }
 
 // 枠のラベルのロゴの大きさと、ロゴと文字の間
@@ -154,17 +153,22 @@ export const FRAME_ICON_GAP = 4;
 // 枠のラベルの並び。ラベルは SVG の <text> なので、ロゴは同じ SVG の中の入れ子の <svg> として文字の左に置き、文字を右にずらす。
 // x はラベルの左端、baseline は文字のベースライン。ロゴは 11px の文字の中ほどに縦の中心を合わせる。
 // paint は mono のときに塗る色 (グループの色)。original は SVG に書かれた色のままなので null
+// 絵文字の alias は logo ではなく emoji に入り、ラベルと同じベースラインの <text> として描く。文字のずらし幅はロゴと同じ。
+// emoji は絵文字のときだけ持つ (ほかのときはキーごとない)
 // 本文のロゴと違い、ツールチップ (title) と aria-label を付けない (すぐ右に名前の文字があるため)
 export interface FrameLabelParts {
     textX: number;
     logo: { x: number; y: number; size: number; alias: string; svg: string; color: IconColor; paint: string | null } | null;
+    emoji?: { x: number; y: number; alias: string; text: string };
 }
 
 export function frameLabelParts(group: Pick<GroupDef, 'icon'>, x: number, baseline: number, groupColor: string, context: IconRenderContext | null): FrameLabelParts {
     const logo = context ? groupLogo(group, context) : null;
     if (!logo) return { textX: x, logo: null };
+    const textX = x + FRAME_ICON_SIZE + FRAME_ICON_GAP;
+    if (logo.kind === 'emoji') return { textX, logo: null, emoji: { x, y: baseline, alias: logo.alias, text: logo.text } };
     return {
-        textX: x + FRAME_ICON_SIZE + FRAME_ICON_GAP,
+        textX,
         logo: {
             x,
             y: baseline - 4 - FRAME_ICON_SIZE / 2,
@@ -177,11 +181,14 @@ export function frameLabelParts(group: Pick<GroupDef, 'icon'>, x: number, baseli
     };
 }
 
-// 凡例の項目に、色チップの隣 (名前の前) に置くロゴの HTML。mono の色 (薄い色) は CSS が決める。引けなければ null
+// 凡例の項目に、色チップの隣 (名前の前) に置くロゴの HTML。mono の色 (薄い色) は CSS が決める。絵文字は本文と同じ文字の span。引けなければ null
 // 色のないグループでも、ロゴがあるときにチップ (透明の四角) を省かない
 export function legendLogoHtml(group: Pick<GroupDef, 'icon'>, context: IconRenderContext | null): string | null {
     const logo = context ? groupLogo(group, context) : null;
-    return logo ? logoSpan(logo.alias, { html: logo.svg, color: logo.color }, null) : null;
+    if (!logo) return null;
+    return logo.kind === 'emoji'
+        ? logoSpan(logo.alias, { html: escapeHtml(logo.text), color: null }, null)
+        : logoSpan(logo.alias, { html: logo.svg, color: logo.color }, null);
 }
 
 // グループのロゴが使う ref。ref の SVG が入ったときに、枠と凡例を描き直すかを決めるのに使う
@@ -206,9 +213,7 @@ export function documentIconRefs(nodes: Array<Pick<OutlineNode, 'id' | 'html'>>,
 // アニメーション、HTML の要素など)、許可していない属性 (on* を含む)、# で始まらない href、外を指す url() などの関数を含む属性、
 // 文字参照か CSS のエスケープを含む属性 (url( を隠せるため)。a 要素は g に置き換える。
 // ルートの width、height、class、style、id は外し (大きさは CSS が決める)、viewBox がなければ width と height から作る。
-// ルートの fill は中身を包む g に移す (CSS でルートの fill を決めても、書かれた色が残るように)
-// TODO(spec): 同じ SVG を何度も埋めると、中の id (グラデーションなど) がページの中で重なる。表示されていない (display: none の)
-// 最初のコピーを url(#id) が指すと、ブラウザによっては塗りが消える。id に接頭辞を付けるかは決めていない
+// ルートの fill は中身を包む g に移す (CSS でルートの fill を決めても、書かれた色が残るように)。g の fill もほかの属性と同じ書き方 (" だけを &quot;) にする
 export function sanitizeSvg(input: string): string | null {
     const tokens = svgTokens(input.replace(/\r\n?/g, '\n'));
     let index = 0;
@@ -270,7 +275,55 @@ export function sanitizeSvg(input: string): string | null {
     if (read('viewBox') === null && width !== null && height !== null && /^[\d.]+(px)?$/.test(width) && /^[\d.]+(px)?$/.test(height)) {
         attrs += ` viewBox="0 0 ${parseFloat(width)} ${parseFloat(height)}"`;
     }
-    return fill === null ? `<svg${attrs}>${inner}</svg>` : `<svg${attrs}><g fill="${escapeHtml(fill)}">${inner}</g></svg>`;
+    return fill === null ? `<svg${attrs}>${inner}</svg>` : `<svg${attrs}><g fill="${fill.replace(/"/g, '&quot;')}">${inner}</g></svg>`;
+}
+
+// 写しの id の接頭辞に使う連番。ページの中の写しごとに一意にする
+let svgCopyCount = 0;
+
+// 消毒したあとの SVG を、ページに入れる写し 1 つにする。同じ SVG を複数の場所に置くと中の id (グラデーション、clipPath など) が重なり、
+// url(#id) や href="#id" が別の写し (表示されていない吹き出しの中など) を指して塗りが消えることがあるため、写しごとに id を付け直す。
+// 付け直した id は `mdag-svg<連番>-<写しの中の順>` (元の id の文字は使わない)。合わせる参照は、同じ写しの中の id を指す
+// 属性の値の url(#id) (引用符つきと style の中を含む) と href / xlink:href の #id。写しの中にない id への参照は変えない。
+// 引用符つきの url() は閉じの引用符までを id として読む (空白や ) を含む id も合わせる)。空の id は付け直さない (href="#" が何も指さないまま)。
+// id を持たない SVG はそのまま返す。置き場の文字列は変えない (呼び出し側は、写しを作るたびにこれを通す)
+export function svgCopy(svg: string): string {
+    const tokens = svgTokens(svg);
+    const renamed = new Map<string, string>();
+    const prefix = `mdag-svg${svgCopyCount + 1}-`;
+    for (const token of tokens) {
+        if (token.type !== 'start') continue;
+        for (const attribute of token.attributes) {
+            if (attribute.name.toLowerCase() === 'id' && attribute.value !== null && attribute.value !== '' && !renamed.has(attribute.value)) renamed.set(attribute.value, `${prefix}${renamed.size}`);
+        }
+    }
+    if (renamed.size === 0) return svg;
+    svgCopyCount += 1;
+    const rewrite = (name: string, value: string): string => {
+        if (name === 'id') return renamed.get(value) ?? value;
+        if (name === 'href' || name === 'xlink:href') return value.startsWith('#') && renamed.has(value.slice(1)) ? `#${renamed.get(value.slice(1))}` : value;
+        // 消毒したあとの値の中の引用符は ' か &quot; (" は &quot; に書き直されている)
+        return value.replace(
+            /url\(\s*(?:'#([^']*)'|&quot;#((?:(?!&quot;).)*)&quot;|#([^"')\s&]+))\s*\)/gi,
+            (whole, single: string | undefined, double: string | undefined, bare: string | undefined) => {
+                const id = single ?? double ?? bare ?? '';
+                const next = renamed.get(id);
+                return next === undefined ? whole : whole.replace(`#${id}`, `#${next}`);
+            },
+        );
+    };
+    // 消毒したあとの SVG は文字、開きのタグ (属性は二重引用符)、閉じのタグだけなので、同じ書き方で組み直せば付け直した所のほかは元と同じ文字になる
+    return tokens
+        .map((token) => {
+            if (token.type === 'text') return token.text;
+            if (token.type === 'end') return `</${token.name}>`;
+            if (token.type === 'other') return '';
+            const attrs = token.attributes
+                .map((attribute) => (attribute.value === null ? ` ${attribute.name}` : ` ${attribute.name}="${rewrite(attribute.name.toLowerCase(), attribute.value)}"`))
+                .join('');
+            return `<${token.name}${attrs}${token.selfClosing ? '/>' : '>'}`;
+        })
+        .join('');
 }
 
 // 描いてよい SVG の要素 (名前は小文字で比べる)。a は g に置き換えて通す

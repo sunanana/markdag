@@ -42,8 +42,8 @@ The server takes no arguments and no environment variables. Other MCP clients th
 
 | Tool | Arguments | Result |
 |---|---|---|
-| `check_markdag` | `source` (required), `types` | The diagnostics of the document |
-| `parse_markdag` | `source` (required), `types` | The document as JSON, the same as `markdag parse --json` |
+| `check_markdag` | `source` (required), `types`, `icons` | The diagnostics of the document |
+| `parse_markdag` | `source` (required), `types`, `icons` | The document as JSON, the same as `markdag parse --json` |
 | `get_writing_guide` | none | The text of [writing-guide.md](writing-guide.md) |
 
 `source` is the whole document as text (Markdown with its frontmatter), not a file path. The server never reads files.
@@ -67,7 +67,7 @@ As with the `markdag` command, a document without a `markdag` key in its frontma
 
 ### `parse_markdag`
 
-Returns `{ "parsed": ..., "model": ... }` as structured content, the same JSON that `markdag parse --json` prints for the same document and types. The text content is that JSON as a string.
+Returns `{ "parsed": ..., "model": ... }` as structured content, the same JSON that `markdag parse --json` prints for the same document, types and icons. The text content is that JSON as a string.
 
 ### `types`
 
@@ -83,6 +83,23 @@ Files referenced by `markdag.types.$ref` are not read by the server. Pass their 
 ```
 
 A `$ref` missing from `types`, a value of `null`, and YAML text that cannot be parsed are all reported as `types-unresolved`, and the keys that use those types are not checked.
+
+The two ways of passing a file are not read exactly alike. A JSON object is read as the JSON the library exchanges with its wasm core, where an object with a single key `$undefined`, `$object` or `$number` is a marker: `{ "$undefined": true }` is read as a missing value, `{ "$object": [[key, value], ...] }` as an object with those entries, and `{ "$number": "Infinity" }` as a number. YAML text has no markers (a `$` key stays a key) and is read up to 100 levels of nesting. Pass a file whose keys start with `$` as YAML text. This applies to `types` and `icons` alike.
+
+### `icons`
+
+Files referenced by `markdag.icons.$ref` are not read by the server either. Pass their contents in `icons`, in the same shape as `types`: each key is the `$ref` string exactly as written in the frontmatter, and each value is the content of that file (the alias table), either as a JSON object or as the YAML text.
+
+```json
+{
+    "source": "---\nmarkdag:\n    icons:\n        $ref: ./icons.yaml\n...",
+    "icons": {
+        "./icons.yaml": "github: simple-icons:github\naws: logos:aws\n"
+    }
+}
+```
+
+With `icons`, the aliases in those files are merged into the alias table (see the [writing guide](writing-guide.md) for what a file cannot set, such as `color` and a nested `$ref`), so `check_markdag` and `parse_markdag` give the same result as `markdag check` and `markdag parse --json` for the same files, and `model.icons` in the parse result holds the merged alias table. A `$ref` missing from `icons` (or no `icons` at all), a value of `null`, and YAML text that cannot be parsed are all reported as `icons-unresolved`, and marks such as `:name:` are not reported as unknown aliases while a table could not be read. The server never reads the SVG files that aliases point to.
 
 ### Errors
 

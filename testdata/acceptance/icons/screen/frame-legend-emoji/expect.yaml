@@ -1,0 +1,26 @@
+kind: 正常
+checks: >-
+    グループの icon に絵文字の alias を書くと、枠のラベルの前と凡例に絵文字が出る。枠の文字はロゴと同じだけ (18px) 右へずれ、凡例は色チップ → 絵文字 → 名前。絵文字は resolveIcon に問い合わせず、色の規則も当てない。SVG のロゴの枠と、ロゴのない枠は今までどおり
+render:
+    options: { onDiagnostic }
+    resolver:
+        "simple-icons:github": ../../assets/circle.svg
+expect:
+    diagnostics: []
+    onDiagnostic: []
+    # svg.mdag-frame-icon (SVG のロゴ) の有無と、text.mdag-frame-label の x の枠の rect の x からの差。絵文字は text.mdag-frame-icon なので logo は null
+    frames:
+        - { group: hot, logo: null, label_dx: 24 }
+        - { group: repo, logo: { dx: 6, width: 14, height: 14 }, label_dx: 24 }
+        - { group: text, logo: null, label_dx: 6 }
+    # .mdag-legend の li の子の並び。絵文字は span.mdag-icon なので logo
+    legend:
+        - { group: 障害対応, order: [chip, logo], chip: "rgb(217, 130, 43)", logo_size: null, title: null }
+        - { group: リポジトリ, order: [chip, logo], logo_size: 14px }
+        - { group: ロゴなし, order: [chip] }
+    # .mdag-icon と .mdag-frame-icon の数 (枠の絵文字 1、枠の SVG 1、凡例の絵文字 1、凡例の SVG 1)
+    icon_elements: 4
+look:
+    - 障害対応の枠のラベルの左に 🔥 が見え、ラベルの文字と縦の位置がそろう
+    - 凡例の障害対応の行で、色チップの右に 🔥、その右に名前
+    - 🔥 はグループの色で塗られない (絵文字の色のまま)

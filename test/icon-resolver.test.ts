@@ -36,7 +36,7 @@ describe('IconResolution', () => {
         expect(delivered).toEqual([['simple-icons:github', GITHUB]]);
     });
 
-    it('null は引けなかったとして渡し、診断は出さない (同期と Promise)', async () => {
+    it('null は引けなかったとして渡し、icon-unresolved (warning) を ref ごとに 1 件知らせる (同期と Promise)', async () => {
         const { resolution, delivered, diagnostics } = setup((ref) => (ref === 'a:sync' ? null : Promise.resolve(null)));
         resolution.request(['a:sync', 'a:async']);
         await flush();
@@ -44,16 +44,18 @@ describe('IconResolution', () => {
             ['a:sync', null],
             ['a:async', null],
         ]);
-        expect(diagnostics).toEqual([]);
+        expect(diagnostics.map((item) => `${item.severity} ${item.code} ${item.at}`)).toEqual(['warning icon-unresolved null', 'warning icon-unresolved null']);
+        expect(diagnostics[0]?.message).toContain('a:sync');
+        expect(diagnostics[1]?.message).toContain('a:async');
     });
 
-    it('reject は引けなかったとして渡し、icon-unresolved (info) を知らせる', async () => {
+    it('reject は引けなかったとして渡し、icon-unresolved (warning) を知らせる', async () => {
         const { resolution, delivered, diagnostics } = setup(() => Promise.reject(new Error('404')));
         resolution.request(['simple-icons:nope']);
         await flush();
         expect(delivered).toEqual([['simple-icons:nope', null]]);
         expect(diagnostics).toHaveLength(1);
-        expect(diagnostics[0]).toMatchObject({ severity: 'info', code: 'icon-unresolved', at: null });
+        expect(diagnostics[0]).toMatchObject({ severity: 'warning', code: 'icon-unresolved', at: null });
         expect(diagnostics[0]?.message).toContain('simple-icons:nope');
         expect(diagnostics[0]?.message).toContain('404');
     });
@@ -106,9 +108,9 @@ describe('IconResolution', () => {
 
 // ロゴの解決の、未問い合わせ (R0) と解決待ち (R1) での出来事を、部品 (IconResolution) の側から細かく固定する
 describe('IconResolution の戻り方ごとの控えと診断', () => {
-    const UNRESOLVED_HINT = 'resolveIcon が SVG の文字列を返すか確かめます。引けないと分かっている ref は null を返すと、この診断は出ません';
+    const ERROR_HINT = 'resolveIcon が例外を投げずに (Promise なら reject せずに) SVG の文字列を返すか確かめます。一時的な失敗でも、同じ ref は聞き直しません';
 
-    it('失敗の診断は文面と手がかりまで決まっていて、理由は Error なら message、それ以外は String() の文字', async () => {
+    it('throw と reject の診断 (warning) は文面と手がかりまで決まっていて、理由は Error なら message、それ以外は String() の文字', async () => {
         const reasons: unknown[] = [new Error('404'), new TypeError('bad type'), new Error(''), 'text', 42, null, undefined, { toString: () => 'custom' }];
         for (const reason of reasons) {
             const sync = setup(() => {
@@ -120,11 +122,11 @@ describe('IconResolution の戻り方ごとの控えと診断', () => {
             await flush();
             const text = reason instanceof Error ? reason.message : String(reason);
             const expected: Diagnostic = {
-                severity: 'info',
+                severity: 'warning',
                 code: 'icon-unresolved',
-                message: `ロゴ「a:x」を resolveIcon で引けなかったので、文字のまま描きます (${text})`,
+                message: `ロゴ「a:x」を resolveIcon で引けなかったので、文字のまま描きます (例外: ${text})`,
                 at: null,
-                hint: UNRESOLVED_HINT,
+                hint: ERROR_HINT,
             };
             expect(sync.diagnostics, String(text)).toEqual([expected]);
             expect(rejected.diagnostics, String(text)).toEqual([expected]);
@@ -134,7 +136,7 @@ describe('IconResolution の戻り方ごとの控えと診断', () => {
         }
     });
 
-    it('Promise が文字列でない値で済んだら null を渡し、読めない文字列はそのまま渡す (読めるかは置き場が決める)。診断は出さない', async () => {
+    it('Promise が文字列でない値で済んだら null を渡し、読めない文字列はそのまま渡す (読めるかは置き場が決める)。どれも icon-unresolved (warning) を 1 件ずつ知らせる', async () => {
         const values: Record<string, unknown> = { 'a:undefined': undefined, 'a:number': 3, 'a:object': { svg: GITHUB }, 'a:broken': 'not svg' };
         const { resolution, delivered, diagnostics } = setup((ref) => Promise.resolve(values[ref] as string));
         resolution.request(Object.keys(values));
@@ -145,7 +147,28 @@ describe('IconResolution の戻り方ごとの控えと診断', () => {
             ['a:object', null],
             ['a:broken', 'not svg'],
         ]);
-        expect(diagnostics).toEqual([]);
+        expect(diagnostics.map((item) => `${item.severity} ${item.code}`)).toEqual(Array(4).fill('warning icon-unresolved'));
+        expect(diagnostics.map((item) => /ロゴ「([^」]+)」/.exec(item.message)?.[1])).toEqual(Object.keys(values));
+        expect(diagnostics[0]?.message).toContain('resolveIcon が返さなかった (undefined)');
+        expect(diagnostics[1]?.message).toContain('文字列でない値: number');
+        expect(diagnostics[2]?.message).toContain('文字列でない値: object');
+        expect(diagnostics[3]?.message).toContain('<svg> の要素 1 つではありません');
+    });
+
+    it('null と読めない値の診断 (warning) も、例外と同じく文面と手がかりまで決まっている', async () => {
+        const NULL_HINT = 'ref の書き間違い (set の名前、ファイルのパス) がないか、resolveIcon がこの ref の SVG の文字列を返すか確かめます。単体 HTML では、書き出すときの icons にこの ref の SVG を入れます';
+        const UNREADABLE_HINT = '<svg> の要素 1 つだけの文字列を返します (前後に別の要素がある、閉じていない、HTML など SVG でないものは読めません)';
+        const values: Record<string, unknown> = { 'a:null': null, 'a:undefined': undefined, 'a:number': 3, 'a:broken': 'not svg' };
+        const { resolution, diagnostics } = setup((ref) => values[ref] as string);
+        resolution.request(Object.keys(values));
+        await flush();
+        const warning = (message: string, hint: string): Diagnostic => ({ severity: 'warning', code: 'icon-unresolved', message, at: null, hint });
+        expect(diagnostics).toEqual([
+            warning('ロゴ「a:null」を resolveIcon が返さなかった (null) ので、文字のまま描きます', NULL_HINT),
+            warning('ロゴ「a:undefined」を resolveIcon が返さなかった (undefined) ので、文字のまま描きます', NULL_HINT),
+            warning('ロゴ「a:number」の resolveIcon の戻り値を SVG として読めなかったので、文字のまま描きます (文字列でない値: number)', UNREADABLE_HINT),
+            warning('ロゴ「a:broken」の resolveIcon の戻り値を SVG として読めなかったので、文字のまま描きます (<svg> の要素 1 つではありません)', UNREADABLE_HINT),
+        ]);
     });
 
     it('同期で返った読めない文字列もそのまま渡す', () => {
@@ -286,7 +309,7 @@ describe('橋渡しの resolveIcon', () => {
         expect(calls).toEqual(['document', 'document', 'icon simple-icons:sentry svg']);
     });
 
-    it('reject と throw は onDiagnostic に知らせ、描画は止めない', async () => {
+    it('reject と throw は onDiagnostic に warning で知らせ、描画は止めない', async () => {
         const diagnostics: Diagnostic[] = [];
         const { calls, view } = fakeView();
         const bridge = createHookBridge({
@@ -301,7 +324,7 @@ describe('橋渡しの resolveIcon', () => {
         expect(() => draw(bridge, doc(['## :github: Push', '## :sentry: Watch']))).not.toThrow();
         await flush();
         expect(calls).toEqual(['icon simple-icons:github null', 'document', 'icon simple-icons:sentry null']);
-        expect(diagnostics.map((item) => `${item.severity} ${item.code}`)).toEqual(['info icon-unresolved', 'info icon-unresolved']);
+        expect(diagnostics.map((item) => `${item.severity} ${item.code}`)).toEqual(['warning icon-unresolved', 'warning icon-unresolved']);
     });
 
     it('view を付ける前に済んだ結果は attach で入れる', () => {
@@ -313,7 +336,7 @@ describe('橋渡しの resolveIcon', () => {
     });
 
     // attach (A13) と destroy (A14) の出来事。配線 (attach、setDocument、destroy) の今の振る舞いを固定する
-    it('別の view を付けると、済んだ結果 (SVG、null、失敗) を入れ直す。失敗の診断は出し直さない (R2 R3 R4 × A13)', async () => {
+    it('別の view を付けると、済んだ結果 (SVG、null、失敗) を入れ直す。null と失敗の診断は出し直さない (R2 R3 R4 × A13)', async () => {
         const diagnostics: Diagnostic[] = [];
         const bridge = createHookBridge({
             source: () => '',
@@ -331,7 +354,10 @@ describe('橋渡しの resolveIcon', () => {
         const second = fakeView();
         bridge.attach(second.view);
         expect(second.calls).toEqual(['icon simple-icons:github svg', 'icon simple-icons:sentry null', 'icon simple-icons:aws null']);
-        expect(diagnostics.map((item) => item.code)).toEqual(['icon-unresolved']);
+        expect(diagnostics.map((item) => `${item.severity} ${item.code} ${/ロゴ「([^」]+)」/.exec(item.message)?.[1]}`)).toEqual([
+            'warning icon-unresolved simple-icons:sentry',
+            'warning icon-unresolved simple-icons:aws',
+        ]);
     });
 
     it('解決待ちの間に付け替えると、済んだ結果は今付いている view にだけ届く (R1 × A13)', async () => {

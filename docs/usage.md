@@ -325,8 +325,9 @@ type IconResolver = (ref: string) => string | null | Promise<string | null>;
 - `ref` is the value written in the document (`simple-icons:github`, `./images/our-logo.svg`), after aliases are resolved. Emoji aliases are drawn as characters and never passed.
 - A string returned synchronously is in the diagram from the first draw.
 - A `Promise` is drawn as the text `:alias:` first. When it resolves, only the places that use that logo are redrawn (node text, details, tags, group frames, legend).
-- `null` (returned or resolved), or anything that is not a string, means the logo is not available: it stays as the text written, without a diagnostic. Return `null` for a known miss such as a 404.
-- A resolver that throws or rejects leaves the logo as text too, and is reported as `icon-unresolved` (severity `info`, no position) through `onDiagnostic`. It is not added to `diagnostics` or the return value of `update`. The other logos carry on.
+- `null` (returned or resolved), anything that is not a string, or a string that cannot be read as an SVG means the logo is not available: it stays as the text written. Return `null` for a known miss such as a 404: it is still reported as `icon-unresolved` like the other failures below, but the message does not show it as an error.
+- A resolver that throws or rejects leaves the logo as text too. The other logos carry on, also when the thrown value cannot be turned into text (the message then says so instead of quoting it).
+- Each of these failures is reported once per `ref` as `icon-unresolved` (severity `warning`, no position) through `onDiagnostic`. The message says which kind of failure it was (`null`, not an SVG, or the error). It is not added to `diagnostics` or the return value of `update`. Without `resolveIcon`, no logo is resolved and `icon-unresolved` is never reported.
 - Each `ref` is asked once per diagram: several places that use it, `update`, and a redraw after a task click do not ask again, including for a `ref` that failed. Only refs that a new version of the document adds are asked.
 
 A resolver that takes `set:name` from the Iconify API and reads a relative path from where the document lives:
@@ -348,9 +349,10 @@ render(container, markdown, { resolveIcon, onDiagnostic: (diagnostic) => console
 
 ### What markdag does with the SVG
 
-- The SVG is sanitized before it is inserted, whatever it comes from. Only an allowlist of SVG elements and attributes is written back; everything else is dropped (`<script>`, `on*` attributes, `<foreignObject>`, HTML elements, comments), and so is anything that would load from outside: `href` and `xlink:href` are kept only when they start with `#`, `url(...)` only when it points to `#...`, and values with character references or `\` are dropped. A string that cannot be read as an SVG document (one `<svg>` root and nothing after it) stays as text, without a diagnostic.
+- The SVG is sanitized before it is inserted, whatever it comes from. Only an allowlist of SVG elements and attributes is written back; everything else is dropped (`<script>`, `on*` attributes, `<foreignObject>`, HTML elements, comments), and so is anything that would load from outside: `href` and `xlink:href` are kept only when they start with `#`, `url(...)` only when it points to `#...`, and values with character references or `\` are dropped. A string that cannot be read as an SVG document (one `<svg>` root and nothing after it) stays as text; when it came from `resolveIcon`, it is reported as `icon-unresolved`.
 - The SVG is inserted inline, not as an `<img>`, so `currentColor` works. With `color: mono` (the default), the stylesheet paints the logo in the current text color, overriding the `fill` and `stroke` attributes of a multi-colored logo: the text color in the body, the muted color in tags and the legend, and the group's color on a frame. `color` in a `style` attribute is not overridden. With `color: original` the logo keeps its own colors.
 - The stored SVG is kept when the document changes (`update`, `setDocument`), so the same `ref` is not resolved again.
+- Each place that shows a logo gets its own copy of the SVG, with its `id` attributes renamed and the references to them (`url(#id)`, `href="#id"`) updated inside the copy. The same SVG can appear in many places (body, tags, frames, legend) with gradients and clip paths intact.
 
 ### Logos without `render`
 
@@ -541,9 +543,9 @@ const html = buildStandaloneHtml({ parsed, iconAliases, icons });
 ```
 
 - `buildStandaloneHtml` sanitizes each SVG before embedding it (see [What markdag does with the SVG](#what-markdag-does-with-the-svg)) and leaves out strings that are not an SVG. The page sanitizes again when it inserts them.
-- When the page opens, `icons` becomes a synchronous resolver, so the logos are there from the first draw. A `ref` that is not in the table stays as text, without a diagnostic. `mountStandalone` does the same with `data.icons` and `data.iconAliases`.
+- When the page opens, `icons` becomes a synchronous resolver, so the logos are there from the first draw. A `ref` that is not in the table stays as text and is reported as `icon-unresolved` (warning, no position) in the page's diagnostics, which are logged with `console.warn` and are in `window.markdagStandalone.diagnostics`. `mountStandalone` does the same with `data.icons` and `data.iconAliases`, and adds these diagnostics to the `diagnostics` it returns. Without `icons`, the page resolves nothing and reports nothing.
 - Without `icons` and `iconAliases`, the embedded data has no extra fields: the page is the same as one exported without logos.
-- The CLI's `markdag html` reads `markdag.icons.$ref` itself and embeds only the logos given as relative `.svg` paths that the document uses, read relative to the document. `set:name` logos stay as text in its output. A file it cannot read is reported on stderr, and the exit code stays 0. It embeds the file as read; the page sanitizes it when it opens.
+- The CLI's `markdag html` reads `markdag.icons.$ref` itself and embeds only the logos given as relative `.svg` paths that the document uses, read relative to the document. `set:name` logos stay as text in its output (reported as `icon-unresolved` when the page opens, if at least one SVG file was embedded). A file it cannot read is reported on stderr, and the exit code stays 0. It embeds the file as read; the page sanitizes it when it opens.
 
 ## Diagnostics without rendering
 

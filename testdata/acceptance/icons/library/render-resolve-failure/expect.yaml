@@ -1,6 +1,6 @@
 kind: 誤り
 checks: >-
-    reject と同期の throw は、そのロゴを文字のままにして onDiagnostic に icon-unresolved (info、位置なし) を 1 件ずつ出す。render の diagnostics には入れない。ほかのロゴの問い合わせと描画は続く
+    reject と同期の throw は、そのロゴを文字のままにして onDiagnostic に icon-unresolved (warning、位置なし) を 1 件ずつ出す。render の diagnostics には入れない。ほかのロゴの問い合わせと描画は続く
 call:
     api: >-
         render(container, input.md, { resolveIcon, onDiagnostic })
@@ -15,5 +15,5 @@ expect:
     diagnostics: []
     # 順は問わない
     onDiagnostic:
-        - { code: icon-unresolved, severity: info, at: null, message_has: ["simple-icons:github", offline] }
-        - { code: icon-unresolved, severity: info, at: null, message_has: [./logo.svg, boom] }
+        - { code: icon-unresolved, severity: warning, at: null, message_has: ["simple-icons:github", "例外: offline"] }
+        - { code: icon-unresolved, severity: warning, at: null, message_has: [./logo.svg, "例外: boom"] }

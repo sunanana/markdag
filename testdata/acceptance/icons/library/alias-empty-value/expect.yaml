@@ -1,0 +1,14 @@
+kind: 誤り
+checks: >-
+    markdag.icons の値が空 (文字列の形と { ref: "" } の形) のとき、icon-invalid はその値の位置に 1 件だけ (「〜が空です」)。空の alias は表に入らない
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: icon-invalid, severity: warning, at: "5:16+2", message_has: markdag.icons.empty が空です }
+        - { code: icon-invalid, severity: warning, at: "6:23+2", message_has: markdag.icons.blank.ref が空です }
+    icons:
+        aliases:
+            ok: { kind: set, ref: "simple-icons:github" }

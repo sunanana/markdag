@@ -19,7 +19,7 @@ export interface HookBridgeOptions {
     // アプリ自身のフック。文書が宣言したフック (と rules) のあとに呼ぶ
     hooks?: HookModule | HookModule[];
     // ロゴの SVG を引く関数 (ref は set:name か相対パス)。同期で返せば最初の描画から入り、Promise なら解決後にそのロゴを使う所だけ描き直す。
-    // null、reject、throw は引けなかった (文字のまま)。reject と throw は onDiagnostic に icon-unresolved (info) を知らせる。
+    // null、SVG として読めない文字列、reject、throw は引けなかった (文字のまま) として、onDiagnostic に icon-unresolved (warning) を知らせる。
     // 同じ ref は 1 度だけ問い合わせる。省くとロゴを引かない (文字のまま)
     resolveIcon?: IconResolver;
     // 実行中に出る診断 (取りやめ、失敗、ロゴの解決の失敗)

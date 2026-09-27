@@ -114,5 +114,79 @@
             "## :k8s: A"
         ],
         "refs": []
+    },
+    {
+        "name": "タグの値が Object の組み込みの名前 (constructor、toString、__proto__、hasOwnProperty、valueOf) でも、icons に書いていなければ何も足さない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    a: ./a.svg",
+            "  tags:",
+            "    keys:",
+            "      tool:",
+            "        multiple: true",
+            "        icons: { x: a }",
+            "---",
+            "# R",
+            "## A #tool:constructor",
+            "## B #tool:toString,__proto__",
+            "## C #tool:hasOwnProperty,valueOf",
+            "## D #tool:x"
+        ],
+        "refs": ["./a.svg"]
+    },
+    {
+        "name": "表にない Object の組み込みの名前の alias は、本文、タグの値の icons、グループの icon のどこに書いても引けない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    a: ./a.svg",
+            "  tags:",
+            "    keys:",
+            "      tool:",
+            "        icons: { p: constructor, q: toString, r: __proto__, s: hasOwnProperty, t: valueOf }",
+            "  groups:",
+            "    g1: { icon: constructor }",
+            "    g2: { icon: toString }",
+            "    g3: { icon: __proto__ }",
+            "    g4: { icon: hasOwnProperty }",
+            "    g5: { icon: valueOf }",
+            "---",
+            "# R",
+            "## A :constructor: :toString: :__proto__: :hasOwnProperty: :valueOf: #tool:p %g1 %g2",
+            "## B #tool:q %g3",
+            "## C #tool:r %g4",
+            "## D #tool:s %g5",
+            "## E #tool:t :a:"
+        ],
+        "refs": ["./a.svg"]
+    },
+    {
+        "name": "Object の組み込みの名前をグループ名とタグの値の icons のキーに書けば、ほかの名前と同じに引く",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    a: ./a.svg",
+            "    b: set:b",
+            "  tags:",
+            "    keys:",
+            "      tool:",
+            "        multiple: true",
+            "        icons: { constructor: a, __proto__: b }",
+            "  groups:",
+            "    constructor: { icon: logos:c }",
+            "    toString: { icon: logos:t }",
+            "    __proto__: { icon: logos:p }",
+            "    hasOwnProperty: { icon: logos:h }",
+            "    valueOf: { icon: logos:v }",
+            "---",
+            "# R",
+            "## A #tool:__proto__,constructor,toString %constructor %toString",
+            "## B %__proto__ %hasOwnProperty %valueOf"
+        ],
+        "refs": ["set:b", "./a.svg", "logos:c", "logos:t", "logos:p", "logos:h", "logos:v"]
     }
 ]

@@ -4,8 +4,8 @@
 // テストの名前の先頭がマス (例: 「図1 R0×A2」)。1 つのテストが複数のマスを確かめるときは「・」で並べる。
 //
 // 図 1 (ref ごとのロゴの解決) の状態:
-//     R0 未問い合わせ、R1 解決待ち、R2 解決済み (SVG あり)、R3 引けなかった (null など、診断なし)、
-//     R4 失敗 (icon-unresolved を 1 度出した)、R5 外から入れた (setIconSvg、未問い合わせ)、R6 片付け済み
+//     R0 未問い合わせ、R1 解決待ち、R2 解決済み (SVG あり)、R3 引けなかった (null など。icon-unresolved の warning を 1 度出した)、
+//     R4 失敗 (throw か reject。icon-unresolved の warning を 1 度出した)、R5 外から入れた (setIconSvg、未問い合わせ)、R6 片付け済み
 // 図 1 の出来事:
 //     A1 文書にその ref がある setDocument。A2〜A6 はそのときの resolveIcon の戻り方 (A2 同期で読める SVG、
 //     A3 同期で null か文字列でない値、A4 同期で読めない文字列、A5 同期で throw、A6 Promise)。
@@ -275,14 +275,14 @@ const FIG1: Case[] = [
     {
         cells: '図1 R3×A1',
         kind: '遷移',
-        title: '引けなかった ref は聞き直さず文字のまま',
+        title: '引けなかった ref は聞き直さず文字のまま、診断も出し直さない',
         run: async (page, errors) => {
             await draw(page, FIG1_WITH, { [GH]: sync(null) });
             await update(page, FIG1_WITH2);
             const seen = await look(page, errors);
             expect(seen.asked).toEqual([GH]);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual([]);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -295,7 +295,7 @@ const FIG1: Case[] = [
             const seen = await look(page, errors);
             expect(seen.asked).toEqual([GH]);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -308,6 +308,7 @@ const FIG1: Case[] = [
             const seen = await look(page, errors);
             expect(seen.asked).toEqual([GH]);
             expect(seen.gh).toBe('text');
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -340,36 +341,36 @@ const FIG1: Case[] = [
     {
         cells: '図1 R0×A3',
         kind: '遷移',
-        title: '同期で null か文字列でない値 → 文字のまま、診断なし',
+        title: '同期で null か文字列でない値 → 文字のまま、onDiagnostic に icon-unresolved (warning、位置なし)',
         run: async (page, errors) => {
             for (const behavior of [sync(null), { how: 'sync' } as ProbeBehavior]) {
                 await draw(page, FIG1_WITH, { [GH]: behavior });
                 const seen = await look(page, errors);
                 expect(seen.gh).toBe('text');
-                expect(seen.diagnostics).toEqual([]);
+                expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
             }
         },
     },
     {
         cells: '図1 R0×A4',
         kind: '遷移',
-        title: '同期で SVG として読めない文字列 → 文字のまま、診断なし',
+        title: '同期で SVG として読めない文字列 → 文字のまま、onDiagnostic に icon-unresolved (warning、位置なし)',
         run: async (page, errors) => {
             await draw(page, FIG1_WITH, { [GH]: sync('not an svg') });
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual([]);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
         cells: '図1 R0×A5',
         kind: '遷移',
-        title: '同期で throw → 文字のまま、onDiagnostic に icon-unresolved (info、位置なし)。ほかの ref は続く',
+        title: '同期で throw → 文字のまま、onDiagnostic に icon-unresolved (warning、位置なし)。ほかの ref は続く',
         run: async (page, errors) => {
             await draw(page, [...FRONT, '---', '', '# R', '', '## :gh: A', '- [ ] :k8s: B', ''].join('\n'), { [GH]: THROW, [K8S]: sync(SQUARE) });
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
             expect(await page.locator('#a .mdag-icon[data-icon="k8s"] svg rect').count()).toBe(1);
         },
     },
@@ -396,11 +397,11 @@ const FIG1: Case[] = [
     {
         cells: '図1 R5×A4',
         kind: '今の挙動',
-        title: '外から入れた値を、読めない文字列の結果 (null) で上書きする',
+        title: '外から入れた値を、読めない文字列の結果 (null) で上書きし、診断を出す',
         run: async (page, errors) => {
             await enterR5(page, TRIANGLE, { [GH]: sync('not an svg') });
             expect(await storeShownAs(page, errors)).toBe('text');
-            expect((await look(page, errors)).diagnostics).toEqual([]);
+            expect((await look(page, errors)).diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -410,7 +411,7 @@ const FIG1: Case[] = [
         run: async (page, errors) => {
             await enterR5(page, TRIANGLE, { [GH]: THROW });
             expect(await storeShownAs(page, errors)).toBe('text');
-            expect((await look(page, errors)).diagnostics).toEqual(['info icon-unresolved null']);
+            expect((await look(page, errors)).diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -440,27 +441,27 @@ const FIG1: Case[] = [
     {
         cells: '図1 R1×A8',
         kind: '遷移',
-        title: 'Promise が null、文字列でない値、読めない文字列で済む → 文字のまま、診断なし',
+        title: 'Promise が null、文字列でない値、読めない文字列で済む → 文字のまま、onDiagnostic に icon-unresolved (warning、位置なし)',
         run: async (page, errors) => {
             for (const value of [null, 42, 'not an svg']) {
                 await draw(page, FIG1_WITH, { [GH]: MANUAL });
                 await settle(page, GH, value);
                 const seen = await look(page, errors);
                 expect(seen.gh).toBe('text');
-                expect(seen.diagnostics).toEqual([]);
+                expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
             }
         },
     },
     {
         cells: '図1 R1×A9',
         kind: '遷移',
-        title: 'Promise が reject → 文字のまま、onDiagnostic に icon-unresolved (info)',
+        title: 'Promise が reject → 文字のまま、onDiagnostic に icon-unresolved (warning)',
         run: async (page, errors) => {
             await draw(page, FIG1_WITH, { [GH]: MANUAL });
             await settle(page, GH, 'offline', true);
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -553,6 +554,7 @@ const FIG1: Case[] = [
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
             expect(seen.asked).toEqual([GH]);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -566,7 +568,7 @@ const FIG1: Case[] = [
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
             expect(seen.asked).toEqual([GH]);
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -638,7 +640,7 @@ const FIG1: Case[] = [
             await setIcon(page, GH, TRIANGLE);
             const seen = await look(page, errors);
             expect(seen.gh).toBe('path');
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -722,7 +724,7 @@ const FIG1: Case[] = [
             expect(await page.evaluate(() => (document.querySelector('#a .mdag-icon[data-icon="gh"]') as any).__kept === true)).toBe(true);
             const seen = await look(page, errors);
             expect(seen.gh).toBe('text');
-            expect(seen.diagnostics).toEqual(['info icon-unresolved null']);
+            expect(seen.diagnostics).toEqual(['warning icon-unresolved null']);
         },
     },
     {
@@ -836,8 +838,8 @@ const FIG1_ATTACH: Case[] = [
     ...(
         [
             ['R2', sync(CIRCLE), 'circle', []],
-            ['R3', sync(null), 'text', []],
-            ['R4', THROW, 'text', ['info icon-unresolved null']],
+            ['R3', sync(null), 'text', ['warning icon-unresolved null']],
+            ['R4', THROW, 'text', ['warning icon-unresolved null']],
         ] as const
     ).map(
         ([state, behavior, shown, diagnostics]): Case => ({

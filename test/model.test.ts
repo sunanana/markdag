@@ -1095,6 +1095,23 @@ describe('markdag.icons の alias の表', () => {
         expect(codes({ vm: { ref: './vm.svg', color: 'full' } })).toEqual(['option-invalid']);
     });
 
+    // 空の値はスキーマの minLength とモデルの組み立ての両方で見つかるが、知らせるのは 1 件
+    it('空の値は 1 件だけ知らせる', () => {
+        const hint = 'set:name の形 (simple-icons:github)、./images/x.svg のような SVG の相対パス、絵文字 1 文字のどれかを書きます';
+        const source = ['---', 'markdag:', '  icons:', '    empty: ""', '    blank: { ref: "" }', '---', '# R'].join('\n');
+        expect(renderDocument(source).model.diagnostics.map((item) => [item.code, item.message, item.at, item.hint])).toEqual([
+            ['icon-invalid', 'markdag.icons.empty が空です', { line: 4, column: 12, length: 2 }, hint],
+            ['icon-invalid', 'markdag.icons.blank.ref が空です', { line: 5, column: 19, length: 2 }, hint],
+        ]);
+    });
+
+    it('markdag.icons.color の空の値も 1 件だけ知らせる', () => {
+        const source = ['---', 'markdag:', '  icons:', '    color: ""', '---', '# R'].join('\n');
+        expect(renderDocument(source).model.diagnostics.map((item) => [item.code, item.message, item.at])).toEqual([
+            ['icon-invalid', 'markdag.icons.color が空です', { line: 4, column: 12, length: 2 }],
+        ]);
+    });
+
     it('$ref は後のものが勝ち、文書の定義が最優先。渡していないものと読めなかったものは icons-unresolved', () => {
         const model = icons(
             { $ref: ['./a.yaml', './b.yaml', './broken.yaml', './missing.yaml'], k8s: './k8s.svg' },

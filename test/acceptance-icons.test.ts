@@ -127,8 +127,8 @@ function runStandaloneBuild(example: IconExample): string[] {
 }
 
 describe('受け入れの例: library (DOM を使わない例)', () => {
-    it('library の DOM を使わない例が 27 件ある', () => {
-        expect(EXAMPLES.length).toBe(27);
+    it('library の例が 29 件ある (DOM を使う例も含めた数)', () => {
+        expect(EXAMPLES.length).toBe(29);
     });
 
     for (const example of EXAMPLES) {

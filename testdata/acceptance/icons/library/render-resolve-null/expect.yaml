@@ -1,6 +1,6 @@
 kind: 境界
 checks: >-
-    resolveIcon が null (同期でも Promise でも) を返したロゴは文字のままで、診断を出さない (404 にあたる)
+    resolveIcon が null (同期でも Promise でも) を返したロゴは文字のままで、onDiagnostic に icon-unresolved (warning、位置なし) を ref ごとに 1 件出す (404 にあたる)。render の diagnostics には入れない
 call:
     api: >-
         render(container, input.md, { resolveIcon, onDiagnostic })
@@ -12,4 +12,7 @@ expect:
     after_settled:
         body_marks: { gh: ":gh:", logo: ":logo:" }
     diagnostics: []
-    onDiagnostic: []
+    # 順は問わない
+    onDiagnostic:
+        - { code: icon-unresolved, severity: warning, at: null, message_has: ["simple-icons:github", "返さなかった (null)"] }
+        - { code: icon-unresolved, severity: warning, at: null, message_has: [./logo.svg, "返さなかった (null)"] }

@@ -113,6 +113,8 @@
 .mdag-fold { fill: var(--markdag-bg); stroke-width: 1.5; cursor: pointer; pointer-events: auto; }
 .mdag-frame { fill-opacity: 0.07; stroke-width: 1.2; stroke-dasharray: 4 3; }
 .mdag-frame-label { font: 11px sans-serif; }
+/* 枠のラベルの前の絵文字 (グループの icon の絵文字の alias)。ラベルと同じベースラインの文字で、色の規則は当てない */
+.mdag-frame-icon[data-icon-kind="emoji"] { font: 11px sans-serif; }
 /* グループのクリックを受ける。枠の層は最も下なので、重なったところではノードと線が優先される */
 .mdag-frame[data-group], .mdag-frame-label[data-group], .mdag-frame-icon[data-group] { pointer-events: auto; cursor: pointer; }
 .mdag-gap { fill: #c9bf9f; fill-opacity: 0.25; stroke: #c9bf9f; stroke-dasharray: 3 3; }

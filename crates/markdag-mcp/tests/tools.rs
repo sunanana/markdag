@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 
 use markdag_core::model::model::format_diagnostics;
 use markdag_core::model::util::js_json_stringify;
-use markdag_core::native::{diagnose, parse_and_model};
+use markdag_core::native::{
+    diagnose, diagnose_with_icons, parse_and_model, parse_and_model_with_icons,
+};
 use markdag_core::parse::parse_yaml;
 use markdag_mcp::server::MarkdagServer;
 use rmcp::model::{CallToolRequestParams, CallToolResult};
@@ -295,5 +297,156 @@ async fn a_call_without_source_is_an_error_result() {
             text(&result)
         );
     }
+    client.cancel().await.expect("閉じられる");
+}
+
+// markdag.icons.$ref を 1 つ書き、本文で $ref の中の alias (gh) と表にない alias (nope) を使う文書
+const ICON_REF_SOURCE: &str =
+    "---\nmarkdag:\n  icons:\n    $ref: ./icons.yaml\n---\n# R\n## :gh: Push\n## :nope: Pull\n";
+const ICON_REF_YAML: &str = "gh: simple-icons:github\n";
+
+#[tokio::test]
+async fn check_and_parse_take_icons_as_an_optional_argument() {
+    let client = connect().await;
+    let tools = client
+        .list_all_tools()
+        .await
+        .expect("tools/list が応答する");
+    for name in ["check_markdag", "parse_markdag"] {
+        let tool = tools
+            .iter()
+            .find(|tool| tool.name == name)
+            .expect("道具がある");
+        let schema = Value::Object(tool.input_schema.as_ref().clone());
+        assert!(
+            schema["properties"]["icons"].is_object(),
+            "{name}: icons は任意の引数"
+        );
+        assert_eq!(schema["required"], json!(["source"]), "{name}");
+        assert!(
+            tool.description
+                .as_deref()
+                .is_some_and(|text| text.contains("`icons`")),
+            "{name}: 説明に icons の渡し方がある"
+        );
+    }
+    let info = client.peer_info().expect("初期化の応答がある");
+    assert!(
+        info.instructions
+            .as_deref()
+            .is_some_and(|text| text.contains("markdag.icons.$ref") && text.contains("`icons`")),
+        "サーバーの説明文に icons の渡し方がある"
+    );
+    client.cancel().await.expect("閉じられる");
+}
+
+#[tokio::test]
+async fn check_markdag_resolves_icons_ref_only_when_icons_is_passed() {
+    let client = connect().await;
+
+    let without = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE }),
+    )
+    .await;
+    assert_eq!(codes(&without), ["icons-unresolved"]);
+    assert_eq!(
+        text(&without),
+        format_diagnostics(&diagnose(ICON_REF_SOURCE, Default::default()))
+    );
+
+    let from_yaml = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": { "./icons.yaml": ICON_REF_YAML } }),
+    )
+    .await;
+    let from_object = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": { "./icons.yaml": { "gh": "simple-icons:github" } } }),
+    )
+    .await;
+    let mut icons = indexmap::IndexMap::new();
+    icons.insert(
+        "./icons.yaml".to_string(),
+        parse_yaml(ICON_REF_YAML).expect("YAML として読める"),
+    );
+    let cli = format_diagnostics(&diagnose_with_icons(
+        ICON_REF_SOURCE,
+        Default::default(),
+        Some(icons),
+    ));
+    for result in [&from_yaml, &from_object] {
+        // gh は $ref の表で解決するので知らせず、表にない nope だけが icon-unknown になる
+        assert_eq!(codes(result), ["icon-unknown"]);
+        assert!(text(result).contains("nope"), "{}", text(result));
+        assert!(!text(result).contains(":gh:"), "{}", text(result));
+        assert_eq!(text(result), cli);
+    }
+    assert_eq!(structured(&from_yaml), structured(&from_object));
+
+    let unreadable = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": { "./icons.yaml": null } }),
+    )
+    .await;
+    assert_eq!(codes(&unreadable), ["icons-unresolved"]);
+
+    let other_ref = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": { "./other.yaml": ICON_REF_YAML } }),
+    )
+    .await;
+    assert_eq!(codes(&other_ref), ["icons-unresolved"]);
+
+    let wrong_type = call(
+        &client,
+        "check_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": "./icons.yaml" }),
+    )
+    .await;
+    assert_eq!(wrong_type.is_error, Some(true));
+    client.cancel().await.expect("閉じられる");
+}
+
+#[tokio::test]
+async fn parse_markdag_puts_the_icons_ref_table_into_the_model() {
+    let client = connect().await;
+
+    let without = call(
+        &client,
+        "parse_markdag",
+        json!({ "source": ICON_REF_SOURCE }),
+    )
+    .await;
+    assert!(structured(&without)["model"].get("icons").is_none());
+
+    let result = call(
+        &client,
+        "parse_markdag",
+        json!({ "source": ICON_REF_SOURCE, "icons": { "./icons.yaml": ICON_REF_YAML } }),
+    )
+    .await;
+    let value = structured(&result);
+    assert_eq!(
+        value["model"]["icons"]["aliases"],
+        json!([["gh", { "kind": "set", "ref": "simple-icons:github" }]])
+    );
+    let mut icons = indexmap::IndexMap::new();
+    icons.insert(
+        "./icons.yaml".to_string(),
+        parse_yaml(ICON_REF_YAML).expect("YAML として読める"),
+    );
+    let cli: Value = serde_json::from_str(&js_json_stringify(&parse_and_model_with_icons(
+        ICON_REF_SOURCE,
+        Default::default(),
+        Some(icons),
+    )))
+    .expect("CLI と同じ組み立ての JSON を読める");
+    assert_eq!(value, &cli);
     client.cancel().await.expect("閉じられる");
 }

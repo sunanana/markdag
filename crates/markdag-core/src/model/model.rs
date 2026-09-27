@@ -1507,7 +1507,7 @@ pub fn build_model(
     // 本文の :alias: のうち表にないもの。印は markdag.icons を書いた文書でしか読まないので、書いていない文書で :word: を
     // 書いても知らせない。$ref のファイルを 1 つでも読めていなければ、どの alias がそこにあったか分からないので、
     // 読めた分だけで判定せず、文書の定義にない alias も知らせない
-    // (icons-unresolved が先に出ている。MCP は $ref を読まないので、ここで黙らないと印ごとに警告が並ぶ)。
+    // (icons-unresolved が先に出ている。$ref の中身を渡さない呼び出し (MCP で icons を渡さないときなど) で、ここで黙らないと印ごとに警告が並ぶ)。
     // ノードにならない本文 (見出しの直下の引用ブロックなど、図に出ない所) の印も知らせる
     let icons_unresolved = icons
         .issues
@@ -2786,6 +2786,73 @@ markdag:
         // icons を書いていない文書の JSON には icons の欄が出ない (既存の出力の形を変えない)
         let plain = serde_json::to_value(built("# R\n", None)).expect("serialize");
         assert!(plain.get("icons").is_none());
+    }
+
+    // 空の値の誤りはスキーマ (minLength) とモデルの組み立ての両方で見つかる。知らせるのは 1 件だけ
+    #[test]
+    fn build_model_icons_empty_value_warns_once() {
+        let source = concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    empty: \"\"\n",
+            "    blank: { ref: \"\" }\n",
+            "---\n",
+            "# R\n",
+        );
+        let model = built(source, None);
+        let found: Vec<(&str, &str, Option<&str>)> = model
+            .diagnostics
+            .iter()
+            .map(|item| {
+                (
+                    item.code.as_str(),
+                    item.message.as_str(),
+                    item.hint.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (
+                    "icon-invalid",
+                    "markdag.icons.empty が空です",
+                    Some(
+                        "set:name の形 (simple-icons:github)、./images/x.svg のような SVG の相対パス、絵文字 1 文字のどれかを書きます"
+                    )
+                ),
+                (
+                    "icon-invalid",
+                    "markdag.icons.blank.ref が空です",
+                    Some(
+                        "set:name の形 (simple-icons:github)、./images/x.svg のような SVG の相対パス、絵文字 1 文字のどれかを書きます"
+                    )
+                ),
+            ]
+        );
+        assert_eq!(positions(&model, "icon-invalid"), [(4, 12, 2), (5, 19, 2)]);
+    }
+
+    // markdag.icons.color の空の値も、alias の空の値と同じく同じ位置に 1 件
+    #[test]
+    fn build_model_icons_empty_color_warns_once() {
+        let source = concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    color: \"\"\n",
+            "---\n",
+            "# R\n",
+        );
+        let model = built(source, None);
+        let found: Vec<(&str, &str)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.code.as_str(), item.message.as_str()))
+            .collect();
+        assert_eq!(found, [("icon-invalid", "markdag.icons.color が空です")]);
+        assert_eq!(positions(&model, "icon-invalid"), [(4, 12, 2)]);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 kind: 境界
 checks: >-
-    同じ ref は 1 度だけ問い合わせる。1 つの文書の中で何度使っても (本文 2 か所、タグ、枠)、update で描き直しても、失敗した ref も聞き直さない。update で増えた ref だけ新たに聞く
+    同じ ref は 1 度だけ問い合わせる。1 つの文書の中で何度使っても (本文 2 か所、タグ、枠)、update で描き直しても、失敗した ref も聞き直さず、その warning も 1 件のまま出し直さない。update で増えた ref だけ新たに聞く
 call:
     api: >-
         render(container, input.md, { resolveIcon, onDiagnostic }) → update(input.md) → update(update.md)
@@ -15,4 +15,4 @@ expect:
     after_settled:
         body_marks: { gh: svg, bad: ":bad:", k8s: svg }
     onDiagnostic:
-        - { code: icon-unresolved, severity: info, message_has: ["simple-icons:nosuchlogo"] }
+        - { code: icon-unresolved, severity: warning, message_has: ["simple-icons:nosuchlogo"] }

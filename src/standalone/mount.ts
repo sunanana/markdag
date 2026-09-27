@@ -42,13 +42,13 @@ export interface StandaloneData {
     // markdag.icons.$ref の解決結果 (書かれたパスをキーにした、YAML を読んだ値)。types と同じ形
     iconAliases?: Record<string, unknown>;
     // 解決済みのロゴ。ref (set:name か相対パス) → SVG の文字列。開いたときに同期の resolver として使い、ネットワークには出ない。
-    // ここにない ref は書いたとおりの文字のまま。描画の側が入れるときに sanitizeSvg を通す
+    // ここにない ref は書いたとおりの文字のままで、icon-unresolved (warning) を diagnostics に足す。描画の側が入れるときに sanitizeSvg を通す
     icons?: Record<string, string>;
 }
 
 export interface StandaloneDiagram {
     readonly view: MarkdagView;
-    // 描いた文書の診断。フックのソースを読み込めなかったときの診断も含む
+    // 描いた文書の診断。フックのソースを読み込めなかったときの診断と、焼き込んだ表で引けなかったロゴの診断も含む
     readonly diagnostics: Diagnostic[];
     destroy(): void;
 }
@@ -64,18 +64,19 @@ const FALLBACK_HEIGHT = '480px';
 const READ_ONLY_TASKS: HookModule = { beforeTaskToggle: () => false };
 
 // フックのソースを blob の URL からモジュールとして読み込む。読めなかったものは null にして、その理由を診断で返す
-// (null は hooks-unresolved の警告になるので、書き手にはフックが動いていないことが伝わる)
+// (null は hooks-unresolved の警告になるので、書き手にはフックが動いていないことが伝わる)。
+// refs は Object.fromEntries で組む (代入だと ref が __proto__ のときに原型を差し替えてしまい、その ref が落ちる)
 async function importHookScripts(scripts: Record<string, string>): Promise<{ refs: Record<string, unknown>; diagnostics: Diagnostic[] }> {
-    const refs: Record<string, unknown> = {};
+    const entries: Array<[string, unknown]> = [];
     const diagnostics: Diagnostic[] = [];
     await Promise.all(
         Object.entries(scripts).map(async ([ref, code]) => {
             const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
             try {
                 // 印は、利用者のバンドラが式の import を自分の読み込みに置き換えないためのもの (webpack は置き換えると blob の URL を読めない)
-                refs[ref] = { ...((await import(/* @vite-ignore */ /* webpackIgnore: true */ url)) as Record<string, unknown>) };
+                entries.push([ref, { ...((await import(/* @vite-ignore */ /* webpackIgnore: true */ url)) as Record<string, unknown>) }]);
             } catch (error) {
-                refs[ref] = null;
+                entries.push([ref, null]);
                 diagnostics.push({
                     severity: 'warning',
                     code: 'hook-failed',
@@ -88,7 +89,7 @@ async function importHookScripts(scripts: Record<string, string>): Promise<{ ref
             }
         }),
     );
-    return { refs, diagnostics };
+    return { refs: Object.fromEntries(entries), diagnostics };
 }
 
 // 解析結果の上でタスクを 1 つ進める。原文を解析し直せないので、そのノードの状態と先頭の記号だけを差し替えた解析結果を返す。
@@ -121,6 +122,9 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
     const hasSource = data.source !== undefined;
     let source = data.source ?? '';
     let diagnostics: Diagnostic[] = [];
+    // 描いている途中 (setDocument の中) に出るロゴの診断。ref ごとに 1 度しか出ないので、描き直しをまたいで持つ
+    const iconDiagnostics: Diagnostic[] = [];
+    const allDiagnostics = (): Diagnostic[] => [...diagnostics, ...iconDiagnostics];
 
     const viewHooks: ViewHooks =
         tasks === 'scratch'
@@ -140,7 +144,7 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
             : {};
     const bridge = createHookBridge({
         source: () => source,
-        diagnostics: () => diagnostics,
+        diagnostics: allDiagnostics,
         hooks: tasks === 'readonly' ? READ_ONLY_TASKS : undefined,
         // 原文を解析し直せるときだけ、フックからの本文の差し替えを受ける
         update: fromSource
@@ -151,6 +155,10 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
             : undefined,
         viewHooks,
         resolveIcon: bakedIconResolver(data.icons),
+        // 見る人に渡す口がないので、ロゴの診断だけを diagnostics に足す (ほかの実行中の診断は今までどおり出さない)
+        onDiagnostic: (diagnostic) => {
+            if (diagnostic.code === 'icon-unresolved') iconDiagnostics.push(diagnostic);
+        },
     });
 
     const extra = { types: data.types, hookRefs, icons: data.iconAliases };
@@ -185,7 +193,7 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
     return {
         view,
         get diagnostics() {
-            return diagnostics;
+            return allDiagnostics();
         },
         destroy: () => bridge.destroy(),
     };
