@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    buildStandaloneHtml が iconAliases (icons.$ref の中身) と icons (ref → SVG) を埋める。埋める前に sanitize し、SVG として読めないものは落とす
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md, iconAliases, icons })
+    iconAliases: { ./refs/team.yaml: refs/team.yaml の中身 }
+    icons:
+        ./logo.svg: ../../assets/dirty.svg
+        ./broken.svg: "not an svg"
+        "simple-icons:github": ../../assets/circle.svg
+expect:
+    # <script id="markdag-data" type="application/json"> の中身
+    embedded:
+        keys: [source, iconAliases, icons]
+        icons_keys: [./logo.svg, "simple-icons:github"]
+        icons:
+            ./logo.svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>'
+        iconAliases: { ./refs/team.yaml: { gh: "simple-icons:github" } }
+    html_lacks: [alert]

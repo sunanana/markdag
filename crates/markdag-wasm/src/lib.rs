@@ -19,7 +19,7 @@ use markdag_core::layout::project::{VisibleGraph, project};
 use markdag_core::model::model::{ModelOptions, build_model};
 use markdag_core::model::schema::check_frontmatter;
 use markdag_core::model::tags::{suggest_tag_keys, suggest_tag_values};
-use markdag_core::model::util::JsValue;
+use markdag_core::model::util::{JsValue, marked_map};
 use markdag_core::parse::task::{next_task_mark, toggle_task};
 use markdag_core::parse::{parse_document, replace_leading_mark};
 use markdag_core::standalone::{
@@ -230,59 +230,8 @@ macro_rules! export_json {
 
 // ---- 利用者がキーを決める写像の印 ----
 
-// JS の境界のレイヤー (replaceMarks) は、どの深さのどのオブジェクトにも「undefined でない欄が 1 つで、キーが $number、
-// $object、$undefined のどれかなら `{ "$object": [[キー, 値]] }` に包む」をかける。`{ "$undefined": true }` の印を付けるのは
-// 包みが指定した JsValue の位置 (frontmatter と types の値) だけ (A-197)。Rust で JSON のオブジェクトを読む位置は 3 種類ある:
-//   (1) derive した構造体と enum: 欄の名前は固定で、`$number` / `$object` / `$undefined` の欄を持つ型はない (js_f64 の印を除く) ので包まれない
-//   (2) JsValue::Object: JsValue の Deserialize が包みを外す
-//   (3) 文字列キーの写像 (IndexMap<String, _>): キーは利用者が書くので包まれうる。入力では types と hooks の 2 つだけ
-// (3) をこのモジュールで読み、JsValue と同じ判定で包みを外す。出力の側には (3) がない (Map は配列の組、利用者の値は JsValue)
-mod marked_map {
-    use indexmap::IndexMap;
-    use serde::de::{DeserializeOwned, Error};
-    use serde::{Deserialize, Deserializer};
-    use serde_json::Value;
-
-    const OBJECT_MARK: &str = "$object";
-
-    // 欄が `$object` だけで、値が `[キー, 値]` の組の配列なら包み (JsValue の object_from_pairs と同じ判定)
-    fn unwrap_pairs(raw: &IndexMap<String, Value>) -> Option<Vec<(String, Value)>> {
-        if raw.len() != 1 {
-            return None;
-        }
-        let Some(Value::Array(pairs)) = raw.get(OBJECT_MARK) else {
-            return None;
-        };
-        pairs
-            .iter()
-            .map(|pair| match pair.as_array().map(Vec::as_slice) {
-                Some([Value::String(key), value]) => Some((key.clone(), value.clone())),
-                _ => None,
-            })
-            .collect()
-    }
-
-    /// `Option<IndexMap<String, V>>` の欄 (`#[serde(default, deserialize_with = "marked_map::deserialize")]`)。
-    /// 欄がないか null なら None。同じキーが 2 度あれば最初の位置に最後の値を入れる (JS のオブジェクトと同じ)
-    pub fn deserialize<'de, V, D>(deserializer: D) -> Result<Option<IndexMap<String, V>>, D::Error>
-    where
-        V: DeserializeOwned,
-        D: Deserializer<'de>,
-    {
-        let Some(raw) = Option::<IndexMap<String, Value>>::deserialize(deserializer)? else {
-            return Ok(None);
-        };
-        let entries = match unwrap_pairs(&raw) {
-            Some(pairs) => pairs,
-            None => raw.into_iter().collect(),
-        };
-        let mut map = IndexMap::with_capacity(entries.len());
-        for (key, value) in entries {
-            map.insert(key, V::deserialize(value).map_err(D::Error::custom)?);
-        }
-        Ok(Some(map))
-    }
-}
+// JS の境界のレイヤー (replaceMarks) が包んだ印の外し方は core の marked_map に置く (JS の癖を写す serde の書き方の置き場)。
+// 入力で利用者がキーを決める写像 (types、hooks、icons と、候補の問い合わせで戻るタグのキーの icons) はそれを通す
 
 // ---- 入力の形 (設計文書 (b) の表の「入力」の欄) ----
 // 欄のない Option と null はどちらも None (TS の `x?: T` と `T | null` の両方を受ける)。余分な欄は読み捨てる
@@ -303,6 +252,8 @@ struct BuildModelInput {
     types: Option<IndexMap<String, JsValue>>,
     #[serde(default, deserialize_with = "marked_map::deserialize")]
     hooks: Option<HookSpec>,
+    #[serde(default, deserialize_with = "marked_map::deserialize")]
+    icons: Option<IndexMap<String, JsValue>>,
 }
 
 #[derive(Deserialize)]
@@ -320,6 +271,8 @@ struct RenderDocumentInput {
     types: Option<IndexMap<String, JsValue>>,
     #[serde(default, deserialize_with = "marked_map::deserialize")]
     hooks: Option<HookSpec>,
+    #[serde(default, deserialize_with = "marked_map::deserialize")]
+    icons: Option<IndexMap<String, JsValue>>,
 }
 
 #[derive(Serialize)]
@@ -442,7 +395,7 @@ export_json!(
     mdag_build_model,
     BuildModelInput,
     |input: BuildModelInput| {
-        let extra = ModelOptions { types: input.types, hook_refs: input.hooks };
+        let extra = ModelOptions { types: input.types, hook_refs: input.hooks, icons: input.icons };
         Ok(build_model(&input.nodes, &input.frontmatter, input.source.as_deref(), &extra))
     }
 );
@@ -460,7 +413,7 @@ export_json!(
     RenderDocumentInput,
     |input: RenderDocumentInput| {
         let parsed = parse_document(&input.source);
-        let extra = ModelOptions { types: input.types, hook_refs: input.hooks };
+        let extra = ModelOptions { types: input.types, hook_refs: input.hooks, icons: input.icons };
         let model = build_model(&parsed.nodes, &parsed.frontmatter, Some(&input.source), &extra);
         Ok(RenderDocumentOutput { parsed, model })
     }

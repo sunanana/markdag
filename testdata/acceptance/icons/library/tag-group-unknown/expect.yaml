@@ -1,0 +1,17 @@
+kind: 誤り
+checks: >-
+    タグとグループの alias が表にないと icon-unknown。markdag.icons を書いていない文書でも出す。対応はモデルに残す
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: icon-unknown, severity: warning, message_has: markdag.tags.keys.tool.icons.grafana }
+        - { code: icon-unknown, severity: warning, message_has: markdag.tags.keys.oncall.icon }
+        - { code: icon-unknown, severity: warning, message_has: markdag.groups.aws.icon }
+    tagKeys:
+        tool: { icons: { grafana: grafana } }
+        oncall: { icon: pagerduty }
+    groups:
+        aws: aws

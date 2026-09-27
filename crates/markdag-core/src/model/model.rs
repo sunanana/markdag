@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::model::hooks_decl::{resolve_hooks, rules_module};
+use crate::model::icon_uses::{attach_group_icons, attach_tag_icons, unknown_body_marks};
+use crate::model::icons::{IconIssue, resolve_icons};
 use crate::model::locator::FrontmatterLocator;
 use crate::model::schema::schema_diagnostics;
 use crate::model::tags::{TagLintOptions, TypeSource, lint_tags, resolve_tag_keys};
@@ -50,6 +52,10 @@ pub struct ModelOptions {
     /// markdag.hooks.$ref で参照したモジュールの形。None は hookRefs そのものを渡していない (設計文書 (b) の HookSpec)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hook_refs: Option<HookSpec>,
+    /// markdag.icons.$ref で参照したファイルの中身。types と同じく、$ref に書いた文字列をキーに YAML を読んだ値 (読めなければ Null)。
+    /// キーがないか値が Undefined なら「渡していない」で、どちらも icons-unresolved になる
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<IndexMap<String, JsValue>>,
 }
 
 // 規則 1 章 (A-021): 定数の正規表現は LazyLock と expect。
@@ -670,6 +676,30 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic]) -> String {
         .join("\n")
 }
 
+// markdag.icons の表と、タグとグループへの対応づけで見つかった問題を、frontmatter の位置に直して積む。
+// at_key が真ならキーの位置、偽なら値の位置を指す
+fn report_icon_issues(
+    diagnostics: &mut Vec<Diagnostic>,
+    locator: &FrontmatterLocator,
+    issues: impl IntoIterator<Item = IconIssue>,
+) {
+    for issue in issues {
+        let at = if issue.at_key {
+            locator.key(&issue.path)
+        } else {
+            locator.value(&issue.path, None)
+        };
+        report(
+            diagnostics,
+            issue.severity,
+            &issue.code,
+            issue.message,
+            at,
+            issue.hint,
+        );
+    }
+}
+
 /// 原文: buildModel の report。診断を 1 件積む (at と hint は無ければ null)
 // 規則 2.6 (A-040) と台帳 52 行: diagnostics を捕まえる閉包は、&mut Vec<Diagnostic> を引数にした自由な関数にする
 fn report(
@@ -1004,6 +1034,8 @@ pub fn build_model(
             },
             boundary: matches!(def.get("boundary"), Some(JsValue::Bool(true))),
             defined: true,
+            // ロゴは markdag.icons の表を読んだあとで入れる
+            icon: None,
         });
         let members: &[JsValue] = match def.get("members") {
             Some(JsValue::Array(items)) => items,
@@ -1066,6 +1098,7 @@ pub fn build_model(
                     color: None,
                     boundary: false,
                     defined: false,
+                    icon: None,
                 });
             }
         }
@@ -1188,7 +1221,7 @@ pub fn build_model(
         Some(JsValue::Object(entries)) => entries,
         _ => &empty,
     };
-    let resolved = resolve_tag_keys(
+    let mut resolved = resolve_tag_keys(
         &sources,
         raw_keys,
         &[key("markdag"), key("tags"), key("keys")],
@@ -1465,6 +1498,49 @@ pub fn build_model(
         }
     }
 
+    // icons: alias の表。$ref のファイルは呼び出し側が読んで extra.icons に渡す (types と同じ)
+    let icons = resolve_icons(
+        options.get("icons").unwrap_or(&JsValue::Undefined),
+        extra.icons.as_ref(),
+    );
+    report_icon_issues(&mut diagnostics, &locator, icons.issues.iter().cloned());
+    // 本文の :alias: のうち表にないもの。印は markdag.icons を書いた文書でしか読まないので、書いていない文書で :word: を
+    // 書いても知らせない。$ref のファイルを 1 つでも読めていなければ、どの alias がそこにあったか分からないので、
+    // 読めた分だけで判定せず、文書の定義にない alias も知らせない
+    // (icons-unresolved が先に出ている。MCP は $ref を読まないので、ここで黙らないと印ごとに警告が並ぶ)。
+    // ノードにならない本文 (見出しの直下の引用ブロックなど、図に出ない所) の印も知らせる
+    let icons_unresolved = icons
+        .issues
+        .iter()
+        .any(|issue| issue.code == "icons-unresolved");
+    // タグの値とグループのロゴ。対応は明示して書くものなので、markdag.icons を書いていない文書でも表にない alias を知らせる
+    // (本文の :alias: と違い、ただの文字と取り違えることがない)。$ref が読めていなければ黙るのは本文と同じ
+    let uses = attach_tag_icons(
+        &mut resolved.keys,
+        raw_keys,
+        &icons.table,
+        !icons_unresolved,
+    )
+    .into_iter()
+    .chain(attach_group_icons(
+        &mut groups,
+        groups_raw,
+        &icons.table,
+        !icons_unresolved,
+    ));
+    report_icon_issues(&mut diagnostics, &locator, uses);
+    if let Some(markdown) = markdown
+        && options.contains_key("icons")
+        && !icons_unresolved
+    {
+        // PERF(spec): 印を拾うために原文をもう 1 度解析する (本文の書き方の診断の読み直しとは別に)。
+        // 解析の結果に印の位置を持たせれば省けるが、ノードの JSON の形 (境界の型) に触るので見送った
+        diagnostics.extend(unknown_body_marks(
+            crate::parse::body_icon_marks(markdown),
+            &icons.table,
+        ));
+    }
+
     // 本文の書き方のうち図に出ないもの (上限より深い入れ子、生の HTML の見出し)。原文があるときだけ読み直して知らせる (A-105、A-112)
     if let Some(markdown) = markdown {
         diagnostics.extend(crate::parse::body_diagnostics(markdown));
@@ -1492,6 +1568,7 @@ pub fn build_model(
             options: hooks.options,
             rules,
         },
+        icons: icons.table,
         diagnostics,
     }
 }
@@ -2266,6 +2343,7 @@ markdag:
             &ModelOptions {
                 types: Some(types_option()),
                 hook_refs,
+                icons: None,
             },
         )
     }
@@ -2558,6 +2636,7 @@ markdag:
             color: None,
             boundary: false,
             defined: true,
+            icon: None,
         };
         assert_eq!(
             model.groups,
@@ -2632,6 +2711,262 @@ markdag:
             .filter_map(|diagnostic| diagnostic.at.as_ref())
             .map(|at| (at.line, at.column, at.length))
             .collect()
+    }
+
+    #[test]
+    fn build_model_icons_table_and_diagnostics() {
+        let source = concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    $ref: ./team.yaml\n",
+            "    color: original\n",
+            "    github: simple-icons:github\n",
+            "    vm: { ref: ./azure/vm.svg, color: mono }\n",
+            "    shot: ./shot.png\n",
+            "    Bad: logos:aws\n",
+            "    none:\n",
+            "---\n",
+            "# R\n",
+        );
+        let parsed = crate::parse::parse_document(source);
+        let team: JsValue = serde_json::from_str(
+            r#"{ "github": "logos:github-icon", "k8s": "simple-icons:kubernetes" }"#,
+        )
+        .expect("テストの JSON");
+        let model = build_model(
+            &parsed.nodes,
+            &parsed.frontmatter,
+            Some(source),
+            &ModelOptions {
+                icons: Some(IndexMap::from([("./team.yaml".to_string(), team)])),
+                ..ModelOptions::default()
+            },
+        );
+        // png は SVG でないので使えない、Bad は名前が不正、none は値がない (スキーマが知らせる)
+        let found: Vec<(&str, &str)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.code.as_str(), item.message.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (
+                    "icon-invalid",
+                    "markdag.icons.none には 文字列、キーと値の組 のどれかを書きます (null)"
+                ),
+                (
+                    "icon-invalid",
+                    "markdag.icons.shot「./shot.png」: 画像は SVG だけ使えます (.png は使えません)"
+                ),
+                (
+                    "icon-invalid",
+                    "markdag.icons のキー「Bad」は alias の名前に使えません"
+                ),
+            ]
+        );
+        // 名前の誤りはキーの位置、値の誤りは値の位置を指す
+        assert_eq!(
+            positions(&model, "icon-invalid"),
+            [(10, 5, 5), (8, 11, 10), (9, 5, 3)]
+        );
+        let json = serde_json::to_value(&model).expect("serialize");
+        assert_eq!(
+            json["icons"],
+            serde_json::json!({
+                "color": "original",
+                "aliases": [
+                    ["github", { "kind": "set", "ref": "simple-icons:github" }],
+                    ["k8s", { "kind": "set", "ref": "simple-icons:kubernetes" }],
+                    ["vm", { "kind": "path", "ref": "./azure/vm.svg", "color": "mono" }]
+                ]
+            })
+        );
+        // icons を書いていない文書の JSON には icons の欄が出ない (既存の出力の形を変えない)
+        let plain = serde_json::to_value(built("# R\n", None)).expect("serialize");
+        assert!(plain.get("icons").is_none());
+    }
+
+    #[test]
+    fn build_model_icon_marks_are_not_part_of_names_and_unknown_alias_warns() {
+        let source = concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    github: simple-icons:github\n",
+            "  relations:\n",
+            "    depends:\n",
+            "      - Push --> Deploy\n",
+            "---\n",
+            "# R\n",
+            "## :github: Push\n",
+            "## :k8s: Deploy\n",
+            "## 通知は、:githb: Slack に\n",
+        );
+        let model = built(source, None);
+        // 印を除いた名前で参照できる
+        assert_eq!(model.relations.len(), 1);
+        assert!(positions(&model, "ref-not-found").is_empty());
+        let unknown: Vec<(&str, Option<&str>)> = model
+            .diagnostics
+            .iter()
+            .filter(|item| item.code == "icon-unknown")
+            .map(|item| (item.message.as_str(), item.hint.as_deref()))
+            .collect();
+        assert_eq!(
+            unknown,
+            [
+                (
+                    "「:k8s:」は markdag.icons にない alias です",
+                    Some(
+                        "markdag.icons に k8s を足すとロゴになります。文字として書くなら「\\:k8s:」と書きます"
+                    )
+                ),
+                (
+                    "「:githb:」は markdag.icons にない alias です",
+                    Some(
+                        "もしかして「:github:」ですか。定義しなければ、書いたとおりの文字で表示します"
+                    )
+                ),
+            ]
+        );
+        assert_eq!(positions(&model, "icon-unknown"), [(11, 4, 5), (12, 8, 7)]);
+        assert!(
+            model
+                .diagnostics
+                .iter()
+                .filter(|item| item.code == "icon-unknown")
+                .all(|item| item.severity == Severity::Warning)
+        );
+    }
+
+    #[test]
+    fn build_model_icon_unknown_is_quiet_without_icons_or_with_unresolved_ref() {
+        // icons を書いていない文書では :word: は文字で、知らせない
+        let model = built("---\nmarkdag: {}\n---\n# R\n## :k8s: Deploy\n", None);
+        assert!(positions(&model, "icon-unknown").is_empty());
+        // $ref を読めていなければ、どの alias があったか分からないので知らせない (icons-unresolved だけ)
+        let model = built(
+            "---\nmarkdag:\n  icons:\n    $ref: ./team.yaml\n---\n# R\n## :k8s: Deploy\n",
+            None,
+        );
+        let codes: Vec<&str> = model
+            .diagnostics
+            .iter()
+            .map(|item| item.code.as_str())
+            .collect();
+        assert_eq!(codes, ["icons-unresolved"]);
+        // 原文を渡さなければ本文を読み直さない
+        let source = "---\nmarkdag:\n  icons: {}\n---\n# R\n## :k8s: Deploy\n";
+        let parsed = crate::parse::parse_document(source);
+        let model = build_model(
+            &parsed.nodes,
+            &parsed.frontmatter,
+            None,
+            &ModelOptions::default(),
+        );
+        assert!(positions(&model, "icon-unknown").is_empty());
+        assert_eq!(parsed.nodes[1].ref_text, "Deploy");
+    }
+
+    #[test]
+    fn build_model_tag_and_group_icons_are_carried_with_positions() {
+        let source = concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    apple: simple-icons:apple\n",
+            "    sentry: simple-icons:sentry\n",
+            "  tags:\n",
+            "    keys:\n",
+            "      platform:\n",
+            "        type: enum\n",
+            "        values: [ios, android]\n",
+            "        icons: { ios: apple, andriod: droid }\n",
+            "      sentry:\n",
+            "        type: boolean\n",
+            "        icon: sentry\n",
+            "      tool:\n",
+            "        icons: { x: simple-icons:x }\n",
+            "  groups:\n",
+            "    aws:\n",
+            "      icon: logos:aws\n",
+            "    ops:\n",
+            "      icon: sentry\n",
+            "---\n",
+            "# R\n",
+            "## A #platform:ios #sentry %aws %ops %free\n",
+        );
+        let model = built(source, None);
+        let found: Vec<(&str, &str)> = model
+            .diagnostics
+            .iter()
+            .map(|item| (item.code.as_str(), item.message.as_str()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (
+                    "icon-invalid",
+                    "markdag.tags.keys.platform.icons の「andriod」は、このキーの values にない値です"
+                ),
+                (
+                    "icon-unknown",
+                    "markdag.tags.keys.platform.icons.andriod の「droid」は markdag.icons にない alias です"
+                ),
+                (
+                    "icon-invalid",
+                    "markdag.tags.keys.tool.icons.x の「simple-icons:x」は alias の名前として読めません"
+                ),
+            ]
+        );
+        // values にない値はキーの位置、表にない alias は値の位置
+        assert_eq!(
+            positions(&model, "icon-invalid"),
+            [(11, 30, 7), (16, 21, 14)]
+        );
+        assert_eq!(positions(&model, "icon-unknown"), [(11, 39, 5)]);
+        let json = serde_json::to_value(&model).expect("serialize");
+        assert_eq!(
+            json["tagKeys"][0]["icons"],
+            serde_json::json!({ "ios": "apple", "andriod": "droid" })
+        );
+        assert_eq!(json["tagKeys"][1]["icon"], "sentry");
+        assert!(json["tagKeys"][2].get("icons").is_none());
+        let groups: Vec<(&str, Option<&str>)> = model
+            .groups
+            .iter()
+            .map(|group| (group.id.as_str(), group.icon.as_deref()))
+            .collect();
+        assert_eq!(
+            groups,
+            [
+                ("aws", Some("logos:aws")),
+                ("ops", Some("sentry")),
+                ("free", None)
+            ]
+        );
+        assert!(json["groups"][2].get("icon").is_none());
+    }
+
+    #[test]
+    fn build_model_tag_and_group_icons_unknown_without_icons_table() {
+        // 対応は明示して書くものなので、markdag.icons がなくても表にない alias を知らせる。$ref を読めていなければ黙る
+        let body = "  tags:\n    keys:\n      tool:\n        icons: { grafana: grafana }\n  groups:\n    aws:\n      icon: aws\n---\n# R\n";
+        let model = built(&format!("---\nmarkdag:\n{body}"), None);
+        assert_eq!(positions(&model, "icon-unknown").len(), 2);
+        let model = built(
+            &format!("---\nmarkdag:\n  icons:\n    $ref: ./team.yaml\n{body}"),
+            None,
+        );
+        let codes: Vec<&str> = model
+            .diagnostics
+            .iter()
+            .map(|item| item.code.as_str())
+            .collect();
+        assert_eq!(codes, ["icons-unresolved"]);
+        assert_eq!(model.groups[0].icon.as_deref(), Some("aws"));
     }
 
     #[test]

@@ -30,6 +30,9 @@ export interface GroupDef {
     boundary: boolean;
     // frontmatter の markdag.groups に定義があるか (定義のないグループは文字ラベルになる)
     defined: boolean;
+    // 枠のラベルの前と凡例に出すロゴ (markdag.groups.<name>.icon)。markdag.icons の alias か、: を含む set:name。
+    // 書いていなければ欄がない。引くときは iconDefOf を使う
+    icon?: string;
 }
 
 // ノードに添えるもの (詳細、タグ) の見せ方。always = 最初からノードの中に出す。hover = ノードに重ねたときに出す。click = 印のクリックで出す
@@ -54,6 +57,25 @@ export const DEFAULT_LEGEND: LegendItem[] = ['groups', 'branches'];
 
 // 凡例を置く、図の領域の隅。先頭が既定
 export type LegendPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+
+// markdag.icons の alias の値の種類。set は Iconify の流儀の set:name、path は文書からの相対パスの SVG、emoji は絵文字 1 文字 (解決せず文字のまま出す)
+export type IconKind = 'set' | 'path' | 'emoji';
+
+// ロゴの色。mono は文字の色 (currentColor) で塗る、original はロゴの元の色のまま
+export type IconColor = 'mono' | 'original';
+
+// alias 1 つの定義。color はオブジェクト形で alias ごとに固定した色で、なければ文書全体の色に従う
+export interface IconDef {
+    kind: IconKind;
+    ref: string;
+    color?: IconColor;
+}
+
+// markdag.icons を正規化した表。aliases は $ref の読み込み順に重ね、この文書の定義を最後に重ねたもの (同じ alias は後のものが勝つ)
+export interface IconTable {
+    color: IconColor;
+    aliases: Map<string, IconDef>;
+}
 
 export interface GraphModel {
     // 文書 (frontmatter の markdag.details.display) が指定する詳細の見せ方。指定がなければ null
@@ -86,6 +108,8 @@ export interface GraphModel {
     taskDim: TaskDimOptions;
     // 文書が宣言し (frontmatter の markdag.hooks)、呼び出し側が渡したフック。宣言の順に並ぶ
     hooks: ResolvedHooks;
+    // ロゴの alias の表 (frontmatter の markdag.icons と、その $ref で呼び出し側が渡した表)。SVG の実体はまだ解決していない
+    icons: IconTable;
     diagnostics: Diagnostic[];
 }
 
@@ -96,6 +120,8 @@ export interface ModelOptions {
     // markdag.hooks.$ref で参照したモジュール。$ref に書いた文字列をキーに、import した結果を渡す。
     // types と違って中身はコードなので、読み込むかどうかの判断も呼び出し側に置く (markdag は import も eval もしない)
     hookRefs?: Record<string, unknown>;
+    // markdag.icons.$ref で参照したファイルの中身。types と同じく、$ref に書いた文字列をキーに、YAML を読んだ値 (読めなければ null) を渡す
+    icons?: Record<string, unknown>;
 }
 
 // 境界に送る、呼び出し側が渡したフックのモジュールの形。文書が宣言した ref ごとに、export の名前と関数かどうか (Object.entries の順)。
@@ -103,7 +129,7 @@ export interface ModelOptions {
 type HookSpecEntry = { kind: 'module'; exports: Array<[string, boolean]> } | { kind: 'invalid' };
 
 // 境界の build_model が返すモデル。Map は配列の組、フックは関数を持たない宣言と設定
-interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks'> {
+interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks' | 'icons'> {
     groupsOf: Array<[number, string[]]>;
     tagsOf: Array<[number, NodeTag[]]>;
     hooks: {
@@ -111,6 +137,8 @@ interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks'
         options: Record<string, unknown>;
         rules: { requireUpstreamDone: boolean; readonlyGroups: string[]; keepMilestonesOpen: boolean } | null;
     };
+    // icons を書いていない文書では省かれる
+    icons?: { color: IconColor; aliases: Array<[string, IconDef]> };
 }
 
 // ref ごとの HookSpecEntry。値が undefined なら入れない (「渡したが見つからない」になる)
@@ -185,6 +213,7 @@ function graphModelOf(raw: RawGraphModel, hookRefs: Record<string, unknown> | nu
         taskCycle: raw.taskCycle,
         taskDim: raw.taskDim,
         hooks: resolvedHooksOf(raw.hooks, hookRefs),
+        icons: raw.icons === undefined ? emptyIcons() : { color: raw.icons.color, aliases: new Map(raw.icons.aliases) },
         diagnostics: raw.diagnostics,
     };
 }
@@ -198,7 +227,7 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
     // parseDocument の結果の frontmatter なら、YAML に書かれた順のまま送る (groups の並びが renderDocument の経路とそろう。A-215 (4))
     const written = writtenFrontmatterOf(frontmatter);
     const sent = written === null ? markUndefined(frontmatter) : new RawJson(written);
-    const raw = callJson<RawGraphModel>('build_model', { nodes, frontmatter: sent, source: markdown ?? null, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, declaredHookRefs(frontmatter)) });
+    const raw = callJson<RawGraphModel>('build_model', { nodes, frontmatter: sent, source: markdown ?? null, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, declaredHookRefs(frontmatter)), icons: markUndefined(extra.icons ?? null) });
     return graphModelOf(raw, extra.hookRefs);
 }
 
@@ -207,7 +236,7 @@ export function buildModel(nodes: OutlineNode[], frontmatter: Record<string, unk
 export function renderDocument(source: string, extra: ModelOptions = {}): { parsed: ParsedDocument; model: GraphModel } {
     const { value: raw, raw: frontmatterText } = callJsonKeeping<{ parsed: RawParsedDocument; model: RawGraphModel }>(
         'render_document',
-        { source, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, wellFormedOwnKeys(extra.hookRefs)) },
+        { source, types: markUndefined(extra.types ?? null), hooks: hookSpecOf(extra.hookRefs, wellFormedOwnKeys(extra.hookRefs)), icons: markUndefined(extra.icons ?? null) },
         'frontmatter',
     );
     const parsed = decorateParsed(raw.parsed);
@@ -234,6 +263,18 @@ export function emptyModel(): GraphModel {
         taskCycle: [...DEFAULT_TASK_CYCLE],
         taskDim: { states: [], details: 'keep', tags: 'keep' },
         hooks: { hooks: [], options: {} },
+        icons: emptyIcons(),
         diagnostics: [],
     };
+}
+
+// タグとグループに書いたロゴの名前 (alias か set:name) を、alias の定義に引き直す。表にない alias は null (文字だけで出す)
+export function iconDefOf(icons: IconTable, name: string): IconDef | null {
+    const def = icons.aliases.get(name);
+    if (def !== undefined) return def;
+    return name.includes(':') ? { kind: 'set', ref: name } : null;
+}
+
+function emptyIcons(): IconTable {
+    return { color: 'mono', aliases: new Map() };
 }

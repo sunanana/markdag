@@ -1,0 +1,15 @@
+kind: 誤り
+checks: >-
+    読めないロゴのファイルは焼き込まず、stderr に知らせるだけで終了コードは 0。check はロゴのファイルを読まないので診断なし
+commands:
+    - command: markdag html input.md -o out.html
+      expect:
+          exit: 0
+          stderr_has: "ロゴのファイルを読めませんでした: ./logos/gone.svg: "
+          embedded:
+              keys_lack: [icons, iconAliases]
+    - command: markdag check input.md
+      expect:
+          exit: 0
+          stdout: |
+              no diagnostics

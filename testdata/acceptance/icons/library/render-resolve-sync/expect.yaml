@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    render の resolveIcon が同期で SVG を返すと、render が戻った時点 (最初の描画) で本文・タグ・枠・凡例にロゴが入る。絵文字の alias は問い合わせない
+call:
+    api: >-
+        render(container, input.md, { resolveIcon, onDiagnostic })
+    resolver:
+        "simple-icons:github": { sync: ../../assets/circle.svg }
+        ./logo.svg: { sync: ../../assets/square.svg }
+expect:
+    # 問い合わせた ref。各 1 回、順は問わない
+    asked: ["simple-icons:github", ./logo.svg]
+    right_after_render:
+        # ノードの本文の印 (.mdag-content の span.mdag-icon[data-icon])。svg はロゴが入った、文字は文字のまま
+        body_marks: { gh: svg, logo: svg, rocket: "🚀" }
+        tag_logos: 1        # .mdag-tags の中の svg のロゴ
+        frame_logos: 1      # svg.mdag-frame-icon
+        legend_logos: 1     # 凡例の .mdag-icon の svg
+    diagnostics: []
+    onDiagnostic: []

@@ -1,0 +1,18 @@
+kind: 正常
+checks: >-
+    icons.$ref の一覧は後のファイルが勝ち、文書の定義が最後に勝つ。並びは最初に出てきた位置
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source, { icons })
+    icons: refs/a.yaml と refs/b.yaml を読み、$ref に書いた文字列 (./refs/a.yaml、./refs/b.yaml) をキーにして渡す
+expect:
+    diagnostics: []
+    icons:
+        color: mono
+        aliases:
+            github: { kind: set, ref: "logos:github-icon" }
+            k8s: { kind: set, ref: "simple-icons:kubernetes" }
+            slack: { kind: emoji, ref: "💬" }
+    nodes:
+        - refText: と と
+          marks: [github, k8s, slack]

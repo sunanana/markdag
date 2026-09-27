@@ -14,7 +14,7 @@ import type * as Markdag from '../src/index';
 const toLf = (text: string): string => text.replace(/\r\n?/g, '\n');
 
 // frontmatter の markdag の下の $ref を、書かれた順に取り出す
-function refsOf(markdown: string, key: 'types' | 'hooks'): string[] {
+function refsOf(markdown: string, key: 'types' | 'hooks' | 'icons'): string[] {
     const body = /^---\r?\n([\s\S]*?)\n---\r?\n/.exec(markdown)?.[1];
     let frontmatter: unknown;
     try {
@@ -26,11 +26,11 @@ function refsOf(markdown: string, key: 'types' | 'hooks'): string[] {
     return typeof raw === 'string' ? [raw] : Array.isArray(raw) ? raw.filter((item): item is string => typeof item === 'string') : [];
 }
 
-// markdag.types.$ref が指すファイルを、文書の場所からの相対で読む。
+// markdag.types.$ref と markdag.icons.$ref が指す YAML ファイルを、文書の場所からの相対で読む。
 // ライブラリはファイルを読まないので、この CLI が読んで渡す。読めないものは null にして、ライブラリが警告にする
-function loadTypeRefs(file: string, markdown: string): Record<string, unknown> {
+function loadYamlRefs(file: string, markdown: string, key: 'types' | 'icons'): Record<string, unknown> {
     const loaded: Record<string, unknown> = {};
-    for (const ref of refsOf(markdown, 'types')) {
+    for (const ref of refsOf(markdown, key)) {
         try {
             loaded[ref] = parseYaml(toLf(readFileSync(resolve(dirname(file), ref), 'utf8')));
         } catch {
@@ -88,11 +88,11 @@ async function importHooks(sources: Array<{ ref: string; code: string | null }>)
 }
 
 // render の描く前の段と同じ順で診断を集める。view を渡さないので、橋渡しは配置と描画のフックを呼ばない
-function diagnose(markdag: typeof Markdag, source: string, types: Record<string, unknown>, hookRefs: Record<string, unknown> | undefined): Markdag.Diagnostic[] {
+function diagnose(markdag: typeof Markdag, source: string, types: Record<string, unknown>, icons: Record<string, unknown>, hookRefs: Record<string, unknown> | undefined): Markdag.Diagnostic[] {
     // render が内部で使う解析と組み立ての 1 回の呼び出しは公開していないので、同じ結果になる parseDocument と buildModel を続けて呼ぶ
     const read = (text: string) => {
         const parsed = markdag.parseDocument(text);
-        return { parsed, model: markdag.buildModel(parsed.nodes, parsed.frontmatter, text, { types, hookRefs }) };
+        return { parsed, model: markdag.buildModel(parsed.nodes, parsed.frontmatter, text, { types, hookRefs, icons }) };
     };
     const bridge = markdag.createHookBridge({ source: () => source });
     let { parsed, model } = read(source);
@@ -133,7 +133,7 @@ const markdag = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as 
 await markdag.init();
 const markdown = readFileSync(file, 'utf8');
 const hookRefs = withHooks ? await importHooks(await loadHookSources(file, markdown)) : undefined;
-const diagnostics = diagnose(markdag, markdown, loadTypeRefs(file, markdown), hookRefs);
+const diagnostics = diagnose(markdag, markdown, loadYamlRefs(file, markdown, 'types'), loadYamlRefs(file, markdown, 'icons'), hookRefs);
 const text = markdag.formatDiagnostics(diagnostics);
 console.log(text === '' ? 'no diagnostics' : text);
 process.exitCode = diagnostics.some((item) => item.severity === 'error') ? 1 : 0;

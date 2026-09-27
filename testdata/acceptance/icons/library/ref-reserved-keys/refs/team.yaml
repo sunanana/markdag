@@ -1,0 +1,3 @@
+color: original
+$ref: ./other.yaml
+github: simple-icons:github

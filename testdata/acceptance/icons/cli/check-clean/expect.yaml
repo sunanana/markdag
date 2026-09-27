@@ -1,0 +1,9 @@
+kind: 正常
+checks: >-
+    markdag check が icons.$ref を文書の場所からの相対で読み、alias の表・本文の印・タグの対応に診断を出さない
+command: >-
+    markdag check input.md
+expect:
+    exit: 0
+    stdout: |
+        no diagnostics

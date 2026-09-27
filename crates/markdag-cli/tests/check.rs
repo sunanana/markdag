@@ -120,3 +120,31 @@ fn hooks_are_not_loaded_and_reported_as_info() {
              \x20   このアプリはフックを読み込みません (markdag.rules ならコードなしで効きます)\n",
         );
 }
+
+#[test]
+fn icon_alias_files_are_read_relative_to_the_document() {
+    let dir = tempfile::tempdir().expect("一時ディレクトリ");
+    write(dir.path(), "team.yaml", "gh: ./gh.svg\n");
+    let doc = write(
+        dir.path(),
+        "doc.md",
+        "---\nmarkdag:\n  icons:\n    $ref: ./team.yaml\n---\n# R\n## :gh: Push\n",
+    );
+    markdag()
+        .arg("check")
+        .arg(&doc)
+        .assert()
+        .code(0)
+        .stdout("no diagnostics\n");
+    let missing = write(
+        dir.path(),
+        "missing.md",
+        "---\nmarkdag:\n  icons:\n    $ref: ./none.yaml\n---\n# R\n## :gh: Push\n",
+    );
+    markdag()
+        .arg("check")
+        .arg(&missing)
+        .assert()
+        .code(0)
+        .stdout(contains("warning icons-unresolved "));
+}

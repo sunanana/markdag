@@ -25,6 +25,11 @@ export interface TagKeyDef {
     multiple: boolean;
     unique: boolean;
     description: string | null;
+    // タグの値ごとのロゴ (markdag.tags.keys.<key>.icons)。値 (書いたとおりの文字) → markdag.icons の alias。
+    // 複数の値のタグは値ごとに引いて値の順に並べる。対応表にない値は文字のまま。書いていなければ欄がない
+    icons?: Record<string, string>;
+    // キーそのものに添えるロゴ (markdag.tags.keys.<key>.icon)。値のない #sentry のようなキー向けの alias。書いていなければ欄がない
+    icon?: string;
 }
 
 // frontmatter の中での場所を指す道すじ。文字はマップのキー、数はならびの添字

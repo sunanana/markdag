@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    描き直し。view.setIconSvg で ref の SVG が変わると、その ref を使う所 (本文、詳細、タグ、枠、凡例、開いている吹き出し) だけ差し替わる。ほかのロゴの要素は作り直さない。吹き出しは開いたまま
+render:
+    options: {}
+    resolver:
+        "simple-icons:github": ../../assets/circle.svg
+        "simple-icons:kubernetes": ../../assets/square.svg
+actions:
+    - hover: 差し替わるロゴ (吹き出しを開く)
+    - call: diagram.view.setIconSvg("simple-icons:github", ../../assets/triangle.svg の中身)
+expect:
+    # 図形で見分ける (circle → path の三角)。node_logos は差し替わるノードの本文とタグのロゴ
+    before: { node_logos: [circle, circle], frame: [circle], legend: [circle], popover: [circle] }
+    after: { node_logos: [path, path], frame: [path], legend: [path], popover: [path], popover_hidden: false }
+    # :k8s: のロゴの svg 要素は差し替えの前後で同じもの
+    untouched: k8s
+look:
+    - 吹き出しの大きさが変わると置き直す。開いている間に上へ跳ぶことがある (決めたとおり)

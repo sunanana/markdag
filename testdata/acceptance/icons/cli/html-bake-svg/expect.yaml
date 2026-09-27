@@ -1,0 +1,19 @@
+kind: 正常
+checks: >-
+    markdag html が文書で使う相対パスの .svg (本文、グループ、$ref の表の alias) を読んで icons に焼き込み、icons.$ref の中身を iconAliases に入れる。set:name と絵文字は焼き込まない。開くと焼き込んだロゴが描かれる
+command: >-
+    markdag html input.md -o out.html
+expect:
+    exit: 0
+    stderr: ""
+    # out.html の <script id="markdag-data" type="application/json"> の中身
+    embedded:
+        keys_include: [iconAliases, icons]
+        iconAliases: { ./refs/team.yaml: { gh: "simple-icons:github", square: ./logos/square.svg } }
+        # キーは書いたとおりのパス。値はファイルの中身そのまま (CLI は sanitize しない)
+        icons_keys: [./logos/circle.svg, ./logos/square.svg]
+    opened:
+        # out.html をブラウザで開いたとき
+        body_marks: { logo: svg, square: svg, gh: ":gh:", rocket: "🚀" }
+        frame_logos: 1
+        requests: 0

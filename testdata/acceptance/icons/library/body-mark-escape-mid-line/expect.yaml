@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    行の途中の \:alias: は印にしない (行頭のエスケープは body-mark-boundaries が見る)。同じ行の印と並べても、エスケープしたほうだけ文字のまま
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics: []
+    nodes:
+        - refText: "文字として :github: と書く"
+          marks: []
+        - refText: "並べて と :github:"
+          marks: [github]

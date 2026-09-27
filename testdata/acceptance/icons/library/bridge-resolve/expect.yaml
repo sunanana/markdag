@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    render を使わずに createHookBridge + MarkdagView でつなぐアプリでも、resolveIcon が同じく効く (同期は setDocument の時点で、Promise は解決後に)
+call:
+    api: >-
+        createHookBridge({ source, resolveIcon }) → new MarkdagView(container, bridge.viewHooks) → bridge.attach(view) → bridge.setDocument(parsed, model, true)
+    resolver:
+        "simple-icons:github": { sync: ../../assets/circle.svg }
+        "simple-icons:kubernetes": { promise: ../../assets/square.svg, delay_ms: 200 }
+expect:
+    asked: ["simple-icons:github", "simple-icons:kubernetes"]
+    right_after_setDocument:
+        body_marks: { gh: svg, k8s: ":k8s:" }
+    after_settled:
+        body_marks: { gh: svg, k8s: svg }

@@ -1,0 +1,26 @@
+kind: 正常
+checks: >-
+    グループの枠のラベルと凡例のロゴ。枠はラベルの前に 14px のロゴ、文字は 18px 右へ。mono の枠のロゴはグループの色、色のないグループは #888。凡例は色チップ → ロゴ → 名前で、色のないグループの透明チップも残す。枠と凡例のロゴにツールチップなし。ロゴのクリックでもグループを選べる
+render:
+    options: {}
+    resolver:
+        "simple-icons:github": ../../assets/circle.svg
+        "simple-icons:kubernetes": ../../assets/square.svg
+expect:
+    diagnostics: []
+    # svg.mdag-frame-icon と text.mdag-frame-label。x は枠の rect の x からの差
+    frames:
+        - { group: infra, logo: { dx: 6, width: 14, height: 14, color: "rgb(217, 130, 43)", title: null }, label_dx: 24, logo_y_from_label: -11 }
+        - { group: plain, logo: { dx: 6, width: 14, height: 14, color: "rgb(136, 136, 136)" }, label_dx: 24 }
+        # ロゴのないグループは今までどおり
+        - { group: text, logo: null, label_dx: 6 }
+    # .mdag-legend の li の子の並び
+    legend:
+        - { group: インフラ, order: [chip, logo], chip: "rgb(217, 130, 43)", logo_size: 14px, title: null }
+        - { group: 色なし, order: [chip, logo], chip: transparent }
+        - { group: ロゴなし, order: [chip] }
+    click_frame_logo:
+        # infra の枠のロゴをクリックすると、ほかの枠のラベルが薄くなる
+        dimmed: [plain, text]
+look:
+    - 枠のロゴと 11px のラベルの縦の位置がそろって見える

@@ -137,6 +137,7 @@ mod tests {
             color: None,
             boundary: true,
             defined: true,
+            icon: None,
         }
     }
 

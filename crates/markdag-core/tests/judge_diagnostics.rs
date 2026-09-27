@@ -178,6 +178,7 @@ fn run_document(file: &Path) -> Result<DocumentResult, String> {
         &ModelOptions {
             types: Some(types),
             hook_refs,
+            icons: None,
         },
     );
     let actual: Vec<Value> = model
@@ -427,6 +428,7 @@ fn model_difference(file: &Path, known_pointers: &[&str]) -> Result<ModelCompari
         &ModelOptions {
             types: Some(types),
             hook_refs,
+            icons: None,
         },
     );
     let boundary = serde_json::to_value(&model)

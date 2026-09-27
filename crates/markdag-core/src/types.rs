@@ -298,6 +298,11 @@ pub struct GroupDef {
     pub boundary: bool,
     /// frontmatter の markdag.groups に定義があるか (定義のないグループは文字ラベルになる)
     pub defined: bool,
+    /// 枠のラベルの前と凡例に出すロゴ (markdag.groups.<name>.icon)。markdag.icons の alias か、`:` を含む set:name。
+    /// 形の読めないものは入れない。alias が表にあるかは描画の側が icons で引く (表にない alias は描かない)。
+    /// 書いていなければ JSON から省く (既存の文書の出力の形を変えないため)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// ノードに添えるもの (詳細、タグ) の見せ方
@@ -454,6 +459,20 @@ pub struct TagKeyDef {
     pub multiple: bool,
     pub unique: bool,
     pub description: Option<String>,
+    /// タグの値ごとのロゴ (markdag.tags.keys.<key>.icons)。値 (書いたとおりの文字) → markdag.icons の alias。
+    /// 複数の値のタグは、値ごとにここを引いて値の順に並べる。対応表にない値は文字のまま。書いていなければ JSON から省く
+    /// キーは利用者が書くので、境界の入力で包まれうる (包みは marked_map が外す)
+    #[serde(
+        default,
+        skip_serializing_if = "IndexMap::is_empty",
+        deserialize_with = "crate::model::util::marked_map::or_empty"
+    )]
+    pub icons: IndexMap<String, String>,
+    /// キーそのものに添えるロゴ (markdag.tags.keys.<key>.icon)。値のない #sentry のようなキー向けの alias。
+    /// 書いていなければ JSON から省く
+    // icon と icons を両方書いたキー (#tool:github) では、キーの印と値の印を両方出す
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// frontmatter の中での場所を指す道すじの 1 段 (原文の SourcePath の要素 `string | number`)。
@@ -583,6 +602,55 @@ pub struct ModelHooks {
     pub rules: Option<RulesConfig>,
 }
 
+/// markdag.icons の alias の値の種類。set は Iconify の流儀の `set:name`、path は文書からの相対パスの SVG、
+/// emoji は絵文字 1 文字 (解決せず文字のまま出す)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum IconKind {
+    Set,
+    Path,
+    Emoji,
+}
+str_enum_impl!(IconKind { Set => "set", Path => "path", Emoji => "emoji" });
+
+/// ロゴの色。mono は文字の色 (currentColor) で塗る、original はロゴの元の色のまま。先頭が既定
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum IconColor {
+    #[default]
+    Mono,
+    Original,
+}
+str_enum_impl!(IconColor { Mono => "mono", Original => "original" });
+
+/// alias 1 つの定義。color は alias ごとに固定した色 (オブジェクト形で書いたときだけ。なければ文書全体の color に従う)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IconDef {
+    pub kind: IconKind,
+    #[serde(rename = "ref")]
+    pub ref_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<IconColor>,
+}
+
+/// markdag.icons を正規化した表。aliases は $ref の読み込み順に重ね、この文書の定義を最後に重ねたもの
+/// (同じ alias は後のものが勝つ。並びは最初に出てきた位置)
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IconTable {
+    pub color: IconColor,
+    #[serde(with = "crate::model::util::pairs")]
+    pub aliases: IndexMap<String, IconDef>,
+}
+
+impl IconTable {
+    /// icons を書いていない文書と同じか (モデルの JSON では欄ごと省く。既存の文書の出力の形を変えないため)
+    pub fn is_default(&self) -> bool {
+        self.color == IconColor::Mono && self.aliases.is_empty()
+    }
+}
+
 // ModelOptions は 4 章の一覧に無いので既定の写し先 (原文の buildModel を写すモジュール) に置く (4 章 1 項)。形は台帳の types / hookRefs の行と 2.1
 
 /// buildModel の結果のデータ部分 (関数の欄は持たない)
@@ -613,6 +681,10 @@ pub struct GraphModel {
     pub task_cycle: Vec<TaskMark>,
     pub task_dim: TaskDimOptions,
     pub hooks: ModelHooks,
+    /// markdag.icons の alias の表と文書全体の色。icons を書いていなければ JSON から省く
+    // $ref の表を重ねるのは buildModel (types と同じ) なので、解析の結果 (parsed) ではなくモデルに置く
+    #[serde(default, skip_serializing_if = "IconTable::is_default")]
+    pub icons: IconTable,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -668,7 +740,9 @@ mod tests {
             LegendPosition,
             Primitive,
             TagLintSeverity,
-            TagLintUnknownKey
+            TagLintUnknownKey,
+            IconKind,
+            IconColor
         );
     }
 
@@ -693,6 +767,8 @@ mod tests {
             multiple: false,
             unique: false,
             description: None,
+            icons: IndexMap::new(),
+            icon: None,
         };
         assert_eq!(
             serde_json::to_value(&def).expect("serialize"),

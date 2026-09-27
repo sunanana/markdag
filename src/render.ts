@@ -6,6 +6,7 @@ import type { HookEvent, HookModule } from './model/hooks';
 import { renderDocument, type Diagnostic, type ModelOptions } from './model/model';
 import { toggleTask, type ParsedDocument, type ParseOptions } from './parse/document';
 import styleSheet from './style.css?inline';
+import type { IconResolver } from './view/icon-resolver';
 import { MarkdagView, type ViewHooks, type ViewOptions } from './view/view';
 
 export interface RenderOptions extends Partial<ViewOptions>, ParseOptions, ModelOptions, Pick<ViewHooks, 'onFoldChange' | 'onLayout' | 'onTransform'> {
@@ -15,7 +16,11 @@ export interface RenderOptions extends Partial<ViewOptions>, ParseOptions, Model
     onChange?: (markdown: string) => void;
     // 呼び出し側のコードが直接渡すフック。文書の宣言 (markdag.hooks) とは関係なく動き、宣言したフックのあとに呼ばれる
     hooks?: HookModule | HookModule[];
-    // フックの実行中に出た診断 (操作の取りやめ、フックの失敗)。描いた時点の診断は update の戻り値と diagnostics が持つ
+    // ロゴの SVG を引く関数 (ref は文書に書いたとおりの set:name か相対パス)。同期で返せば最初の描画から入り、
+    // Promise なら解決後にそのロゴを使う所だけ描き直す。null、reject、throw は引けなかった (文字のまま)。同じ ref は 1 度だけ問い合わせる。
+    // 省くとロゴを引かない (文字のまま)。既定の resolver は持たない
+    resolveIcon?: IconResolver;
+    // フックの実行中に出た診断 (操作の取りやめ、フックの失敗、ロゴの解決の失敗)。描いた時点の診断は update の戻り値と diagnostics が持つ
     onDiagnostic?: (diagnostic: Diagnostic) => void;
     onHookError?: (error: unknown, info: { event: HookEvent; ref: string }) => void;
 }
@@ -80,7 +85,7 @@ export function render(container: HTMLElement, markdown: string, options: Render
 // render の本体。loadDecorators を渡すと (既定の入口)、描いたあとに飾りのライブラリを読み、読めたら描き直す (A-194 (2))。null なら読まない
 export function renderWith(container: HTMLElement, markdown: string, options: RenderOptions, loadDecorators: DecoratorLoader | null): MarkdagDiagram {
     // transformer は Rust 化の前の名残で、使わない (view の指定に紛れ込まないよう取り除く)
-    const { injectStyle = true, onChange, transformer: _transformer, onFoldChange, onLayout, onTransform, types, hookRefs, hooks, onDiagnostic, onHookError, ...viewOptions } = options;
+    const { injectStyle = true, onChange, transformer: _transformer, onFoldChange, onLayout, onTransform, types, hookRefs, icons, hooks, onDiagnostic, onHookError, resolveIcon, ...viewOptions } = options;
     if (injectStyle) injectStyleSheet();
 
     // 文書に書かれたままの原文。タスクの切り替えと update が書き換えるのはこちら
@@ -91,6 +96,7 @@ export function renderWith(container: HTMLElement, markdown: string, options: Re
         source: () => source,
         diagnostics: () => diagnostics,
         hooks,
+        resolveIcon,
         onDiagnostic,
         onHookError,
         update: (next) => {
@@ -114,10 +120,10 @@ export function renderWith(container: HTMLElement, markdown: string, options: Re
     let destroyed = false;
     const draw = (fit: boolean): Diagnostic[] => {
         // 使うフックは文書の frontmatter が決めるので、まず原文を読んでフックをそろえる (解析と組み立ては 1 回の呼び出し)
-        let { parsed, model } = renderDocument(source, { types, hookRefs });
+        let { parsed, model } = renderDocument(source, { types, hookRefs, icons });
         // transformSource が原文を差し替えたときだけ、差し替えたほうで読み直す
         const rendered = bridge.transform(model, source);
-        if (rendered !== source) ({ parsed, model } = renderDocument(rendered, { types, hookRefs }));
+        if (rendered !== source) ({ parsed, model } = renderDocument(rendered, { types, hookRefs, icons }));
         // frontmatter に markdag のキーがない文書は markmap と同じ表示になり、タグや $id は文字のまま残る。
         // 書き手が気づけるよう、診断として知らせる
         const notes: Diagnostic[] = parsed.extracted

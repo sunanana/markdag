@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    $ref のファイルの中の color と $ref は予約語として飛ばし icon-invalid。位置は文書の $ref の値
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source, { icons })
+    icons: refs/team.yaml を読み、./refs/team.yaml をキーにして渡す
+expect:
+    diagnostics:
+        - { code: icon-invalid, severity: warning, at: "4:15+16", message_has: キー「color」は予約語 }
+        - { code: icon-invalid, severity: warning, at: "4:15+16", message_has: キー「$ref」は予約語 }
+    icons:
+        # ファイルの color は文書の色にならない
+        color: mono
+        aliases:
+            github: { kind: set, ref: "simple-icons:github" }

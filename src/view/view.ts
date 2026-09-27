@@ -12,7 +12,7 @@ import { DEFAULT_TASK_CYCLE, taskMarkOf, type TaskMark } from '../parse/task';
 import { frameOutline, LABEL_HEIGHT, projectAndFrames, type Frame } from './frames';
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
-import { formatTag } from '../model/tags';
+import { frameLabelParts, groupIconRefs, IconSvgStore, iconMarkHtml, legendLogoHtml, nodeIconRefs, tagLineContent, withIconMarks, type IconRenderContext } from './icons';
 
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
 // 兄弟の並びは結果の縦の位置から決め、動きの補間はしない
@@ -213,6 +213,8 @@ export class MarkdagView {
     private selectedGroup: string | null = null;
     private thicken = false;
     private elements = new Map<number, HTMLDivElement>();
+    // ロゴの SVG の置き場 (ref → SVG)。入っていない ref のロゴは文字のまま描く。入れるのは setIconSvg
+    private readonly iconSvgs = new IconSvgStore();
     private boxes = new Map<number, HTMLElement>();
     // ノードに今付けている飾り。付け直すときに前のものを外すために控える
     private decorations = new Map<number, HookDecoration>();
@@ -572,7 +574,10 @@ export class MarkdagView {
             const chip = document.createElement('i');
             chip.className = 'mdag-legend-chip';
             chip.style.background = group.color ?? 'transparent';
-            item.append(chip, `${group.label}${group.boundary ? ' (枠あり)' : ''}${group.defined ? '' : ' (定義なし)'}`);
+            item.append(chip);
+            const logo = legendLogoHtml(group, this.iconContext());
+            if (logo !== null) item.insertAdjacentHTML('beforeend', logo);
+            item.append(`${group.label}${group.boundary ? ' (枠あり)' : ''}${group.defined ? '' : ' (定義なし)'}`);
             list.append(item);
         }
         if (list.childElementCount > 0) this.legend.append(list);
@@ -689,7 +694,7 @@ export class MarkdagView {
         }
         const content = document.createElement('div');
         content.className = 'mdag-content';
-        content.innerHTML = node.html;
+        content.innerHTML = withIconMarks(node.html, this.iconContext());
         if (node.task) wrapTaskLabel(content);
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
@@ -712,7 +717,7 @@ export class MarkdagView {
             element.dataset.hasTags = '';
             const tagLabels = document.createElement('span');
             tagLabels.className = 'mdag-tags';
-            tagLabels.textContent = tags.map(formatTag).join(' ');
+            this.fillTags(tagLabels, node.id);
             box.append(tagLabels);
         }
         if (node.details !== null) element.dataset.hasDetails = '';
@@ -750,6 +755,60 @@ export class MarkdagView {
         this.boxes.set(node.id, box);
         this.observer.observe(box);
         return element;
+    }
+
+    // ロゴの SVG を入れる (null は引けなかった)。入れたものが変わったら、その ref を使うノードだけロゴを描き直す。
+    // 文書を差し替えても置き場は残る (同じ ref をもう一度解決しなくてよい)
+    setIconSvg(ref: string, svg: string | null): void {
+        if (!this.iconSvgs.set(ref, svg)) return;
+        const context = this.iconContext();
+        if (!context || !this.model) return;
+        for (const [id, element] of this.elements) {
+            const node = this.nodes[id - 1];
+            if (!node || !nodeIconRefs(node, this.model.tagsOf.get(id) ?? [], this.model).has(ref)) continue;
+            this.redrawIconMarks(element.querySelectorAll<HTMLElement>('.mdag-content .mdag-icon[data-icon]'), context);
+            const tagLabels = element.querySelector<HTMLElement>('.mdag-tags');
+            if (tagLabels) this.fillTags(tagLabels, id);
+        }
+        // 開いている吹き出しも、同じくその場で差し替える (作り直すと beforeDetailsShow / onDetailsShow がもう一度呼ばれるため)。
+        // node.html は詳細の引用ブロックも含むので、nodeIconRefs で詳細の ref も拾える
+        const shown = this.popoverNode;
+        if (shown && !this.popover.hidden && nodeIconRefs(shown, this.model.tagsOf.get(shown.id) ?? [], this.model).has(ref)) {
+            const marks = [...this.popover.querySelectorAll<HTMLElement>('.mdag-details .mdag-icon[data-icon]')].filter((mark) => !mark.closest('.mdag-popover-tags'));
+            this.redrawIconMarks(marks, context);
+            const line = this.popover.querySelector<HTMLElement>('.mdag-popover-tags');
+            if (line) this.fillTags(line, shown.id);
+            // ロゴが入ると吹き出しの大きさが変わるので置き直す。下に入りきらなくなると開いたまま上へ跳ぶが、それでよいとしている
+            this.positionPopover();
+        }
+        // 枠と凡例は、そのロゴを使うグループがあるときだけ作り直す。枠は今表示している位置で描き直す
+        if (groupIconRefs(this.model).has(ref)) {
+            this.syncLegend();
+            this.drawFrames(this.displayed);
+        }
+        this.scheduleUpdate();
+    }
+
+    // 本文の印 (と、前に描いたロゴ) を、今の置き場の中身で描き直す
+    private redrawIconMarks(marks: Iterable<HTMLElement>, context: IconRenderContext): void {
+        for (const mark of marks) mark.outerHTML = iconMarkHtml(mark.dataset.icon ?? '', context);
+    }
+
+    // ロゴを引く文脈。markdag.icons も、ロゴの対応のあるタグのキーも、icon を書いたグループもない文書では null (今までどおり文字だけで描く)
+    private iconContext(): IconRenderContext | null {
+        const model = this.model;
+        if (!model) return null;
+        const used = model.icons.aliases.size > 0 || model.tagKeys.some((def) => def.icon !== undefined || def.icons !== undefined) || model.groups.some((group) => group.icon !== undefined);
+        if (!used) return null;
+        return { icons: model.icons, svgOf: (ref) => this.iconSvgs.get(ref) };
+    }
+
+    // タグは書いたとおりの文字で見せ、引けたロゴがあればその前に置く。ロゴがなければ文字だけ (textContent)。
+    // ノードの中のタグと、吹き出しのタグの行の両方に使う
+    private fillTags(tagLabels: HTMLElement, id: number): void {
+        const content = tagLineContent(this.model?.tagsOf.get(id) ?? [], this.model?.tagKeys ?? [], this.iconContext());
+        if ('html' in content) tagLabels.innerHTML = content.html;
+        else tagLabels.textContent = content.text;
     }
 
     // 飾りを付け直す。フックの外の状態が変わって、返す飾りが変わったときに呼ぶ
@@ -875,11 +934,12 @@ export class MarkdagView {
         // 開いて表示する場合の詳細と同じ要素を入れて、見た目をそろえる。タグも詳細の一部として、そのあとに並べる
         const body = document.createElement('div');
         body.className = 'mdag-details mdag-content';
-        body.innerHTML = this.detailsInPopover(node) ? (node.details ?? '') : '';
+        // 詳細の :alias: とタグの行のロゴは、ノードの中と同じ描き方で、ここで入れる (引けないものは文字のまま)
+        body.innerHTML = this.detailsInPopover(node) ? withIconMarks(node.details ?? '', this.iconContext()) : '';
         if (this.tagsInPopover(node)) {
             const line = document.createElement('p');
             line.className = 'mdag-popover-tags';
-            line.textContent = (this.model?.tagsOf.get(node.id) ?? []).map(formatTag).join(' ');
+            this.fillTags(line, node.id);
             body.append(line);
         }
         this.popover.replaceChildren(body);
@@ -1379,7 +1439,11 @@ export class MarkdagView {
         this.positionPopover();
         // 下線は毎回作り直すので、選んでいる線に合わせた薄さを付け直す
         this.applyNodeHighlight();
+        this.drawFrames(rects);
+    }
 
+    // 枠の層 (区切りの帯と、グループの枠とラベル) を描き直す。配置のたびと、枠のロゴの SVG が入ったときに呼ぶ
+    private drawFrames(rects: Map<number, Rect>): void {
         this.frameLayer.innerHTML = '';
         if (this.options.showGaps) {
             for (const [id, rect] of rects) {
@@ -1395,6 +1459,7 @@ export class MarkdagView {
         }
         // 枠は最も下の層に置くので、重なったところではノードと線のクリックが優先される
         const clickable = this.model?.groupHighlight !== false;
+        const iconContext = this.iconContext();
         for (const frame of this.frames) {
             const outline = this.outlineOf(frame, rects);
             if (!outline) continue;
@@ -1404,15 +1469,27 @@ export class MarkdagView {
             shape.setAttribute('width', String(outline.width));
             shape.setAttribute('height', String(outline.height));
             shape.setAttribute('rx', '6');
-            shape.style.stroke = frame.group.color ?? '#888';
-            shape.style.fill = frame.group.color ?? '#888';
+            const color = frame.group.color ?? '#888';
+            shape.style.stroke = color;
+            shape.style.fill = color;
+            const parts = frameLabelParts(frame.group, outline.x + FRAME_LABEL_INSET, outline.y - 4, color, iconContext);
             const label = svgElement('text', 'mdag-frame-label');
-            label.setAttribute('x', String(outline.x + FRAME_LABEL_INSET));
+            label.setAttribute('x', String(parts.textX));
             label.setAttribute('y', String(outline.y - 4));
-            label.style.fill = frame.group.color ?? '#888';
+            label.style.fill = color;
             label.textContent = frame.group.label;
-            if (clickable) for (const element of [shape, label]) element.dataset.group = frame.group.id;
-            this.frameLayer.append(shape, label);
+            const elements: SVGElement[] = [shape, label];
+            if (parts.logo) {
+                const logo = svgElement('svg', 'mdag-frame-icon');
+                for (const [name, value] of Object.entries({ x: parts.logo.x, y: parts.logo.y, width: parts.logo.size, height: parts.logo.size })) logo.setAttribute(name, String(value));
+                logo.dataset.icon = parts.logo.alias;
+                logo.dataset.iconColor = parts.logo.color;
+                if (parts.logo.paint !== null) logo.style.color = parts.logo.paint;
+                logo.innerHTML = parts.logo.svg;
+                elements.push(logo);
+            }
+            if (clickable) for (const element of elements) element.dataset.group = frame.group.id;
+            this.frameLayer.append(...elements);
         }
         this.applyFrameHighlight();
     }

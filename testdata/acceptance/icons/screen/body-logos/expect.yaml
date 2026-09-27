@@ -1,0 +1,27 @@
+kind: 正常
+checks: >-
+    本文のロゴの位置と形。見出し・項目・詳細 (always) の :alias: が 1em の inline の svg になり、title と aria-label に :alias:。句読点やかなに続けてもロゴ。絵文字の alias は文字のまま (余白と大きさの規則なし)。未定義とエスケープは文字
+render:
+    options: {}
+    resolver:
+        "simple-icons:github": ../../assets/circle.svg
+        "simple-icons:kubernetes": ../../assets/square.svg
+expect:
+    diagnostics: [icon-unknown]
+    # ノードの .mdag-content の中の span.mdag-icon を文書の順に
+    body_marks:
+        - { node: 本文のロゴ, icon: rocket, kind: emoji, text: "🚀", title: null }
+        - { node: 見出し, icon: gh, svg: true, color: mono, role: img, title: ":gh:", aria_label: ":gh:", size: 16px, font_size: 16px }
+        - { node: 項目の先頭, icon: k8s, svg: true, size: 16px }
+        # 詳細の文字 (13px) に合わせて 1em
+        - { node: 項目の先頭, in: details, icon: gh, svg: true, size: 13px }
+        - { node: 通知は、 に流す, icon: gh, svg: true }
+        - { node: 詳細はで見る, icon: k8s, svg: true }
+        - { node: 未定義は文字のまま, icon: typo, svg: false, text: ":typo:", title: null }
+    # エスケープは印の要素にならない
+    node_text_has:
+        - ":gh: はエスケープ"
+look:
+    - ロゴが文字の高さにそろい、ベースラインから少し下げて置かれる (vertical-align -0.18em)
+    - ロゴの右に少しの余白 (0.15em)。絵文字には余白がない
+    - ロゴにマウスを重ねると :gh: のツールチップ

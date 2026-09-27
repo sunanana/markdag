@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    icons.$ref の中身を渡さないと icons-unresolved。そのあいだは本文の未定義の alias に icon-unknown を出さない
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない (./missing.yaml は存在しない)
+expect:
+    diagnostics:
+        - { code: icons-unresolved, severity: warning, at: "4:15+14", message_has: ./missing.yaml }
+    icons:
+        aliases:
+            github: { kind: set, ref: "simple-icons:github" }
+    nodes:
+        - refText: と
+          marks: [github, typo]

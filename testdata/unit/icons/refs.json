@@ -1,0 +1,118 @@
+[
+    {
+        "name": "本文、詳細、タグ、グループを最初に出てきた順に 1 つずつ。絵文字と表にない alias は入れない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    gh: ./logos/github.svg",
+            "    apple: simple-icons:apple",
+            "    fire: \"🔥\"",
+            "    unused: ./unused.svg",
+            "    ops: ./ops.svg",
+            "    det: ./det.svg",
+            "  tags:",
+            "    keys:",
+            "      platform:",
+            "        type: enum",
+            "        values: [ios, android]",
+            "        icons: { ios: apple }",
+            "  groups:",
+            "    run:",
+            "      icon: ops",
+            "    aws:",
+            "      icon: logos:aws",
+            "---",
+            "# R",
+            "## :gh: Push :fire: #platform:ios %run %aws",
+            "- :gh: again",
+            "  > 詳細は :det: と :apple: と :nope:"
+        ],
+        "refs": ["./logos/github.svg", "simple-icons:apple", "./det.svg", "./ops.svg", "logos:aws"]
+    },
+    {
+        "name": "タグはキーの印が先、値は書いた順。定義のないキーと対応のない値は何も足さない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    a: ./a.svg",
+            "    b: set:b",
+            "    c: set:c",
+            "    k: ./k.svg",
+            "    smile: \"😀\"",
+            "  tags:",
+            "    keys:",
+            "      tool:",
+            "        multiple: true",
+            "        icon: k",
+            "        icons: { x: c, y: b, z: smile, w: nope }",
+            "---",
+            "# R",
+            "## A #tool:y,x,z,w,v #other:x",
+            "## B :a:"
+        ],
+        "refs": ["./k.svg", "set:b", "set:c", "./a.svg"]
+    },
+    {
+        "name": "グループは alias を表で引き、なければ : を含む名前を set:name とみなす。絵文字の alias と表にない alias は入れない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    aws: logos:aws",
+            "    smile: \"😀\"",
+            "  groups:",
+            "    a: { icon: aws }",
+            "    b: { icon: logos:google-cloud }",
+            "    c: { icon: smile }",
+            "    d: { icon: azure }",
+            "    e: { label: E }",
+            "---",
+            "# R",
+            "## A %a %b %c %d %e"
+        ],
+        "refs": ["logos:aws", "logos:google-cloud"]
+    },
+    {
+        "name": "markdag.icons を書いていない文書は本文を印にしないが、グループの set:name は入る",
+        "source": [
+            "---",
+            "markdag:",
+            "  groups:",
+            "    a: { icon: logos:aws }",
+            "---",
+            "# R",
+            "## :gh: A %a"
+        ],
+        "refs": ["logos:aws"]
+    },
+    {
+        "name": "$ref の中身の alias も表に入り、同じ alias は文書の定義が勝つ",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    $ref: ./team.yaml",
+            "    gh: ./own-github.svg",
+            "---",
+            "# R",
+            "## :k8s: :gh: :nope: A"
+        ],
+        "provided": { "./team.yaml": { "k8s": "simple-icons:kubernetes", "gh": "simple-icons:github" } },
+        "refs": ["simple-icons:kubernetes", "./own-github.svg"]
+    },
+    {
+        "name": "$ref を渡していなければその中の alias は引けない",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    $ref: ./team.yaml",
+            "---",
+            "# R",
+            "## :k8s: A"
+        ],
+        "refs": []
+    }
+]

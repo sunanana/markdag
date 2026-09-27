@@ -1,10 +1,11 @@
-// 単体の HTML に埋め込んだ素材 (解析結果か原文、型定義、フックのソース、表示の指定、開閉の状態) から、要素の中に図を組み立てる。
+// 単体の HTML に埋め込んだ素材 (解析結果か原文、型定義、フックのソース、表示の指定、開閉の状態、解決済みのロゴ) から、要素の中に図を組み立てる。
 // 書き出した HTML の script から呼ぶためのものだが、アプリが書き出す前の確認に同じ素材で呼んでもよい。
 // 解析結果を受けたときはモデルの組み立てだけを行い、原文だけのときは解析から行う (どちらも Rust (wasm) を呼ぶので、先に init を待つ)。
 // タスクの切り替えは、書き換えた原文の保存先がないので既定では受け付けない。scratch を選ぶとページの中だけで切り替わる
 // (解析結果の上で状態と記号を差し替えて描き直す。開き直すと書き出したときの状態に戻る)。
 import { createHookBridge } from '../bridge';
 import type { HookModule } from '../model/hooks';
+import type { IconResolver } from '../view/icon-resolver';
 import { buildModel, renderDocument, type Diagnostic, type GraphModel } from '../model/model';
 import { replaceLeadingMark, toggleTask, type OutlineNode, type ParsedDocument, type TaskMark, type TransformerLike } from '../parse/document';
 import { nextTaskMark, taskMarkOf, taskStateOf } from '../parse/task';
@@ -38,6 +39,11 @@ export interface StandaloneData {
     state?: StandaloneState;
     // 既定は readonly
     tasks?: StandaloneTasks;
+    // markdag.icons.$ref の解決結果 (書かれたパスをキーにした、YAML を読んだ値)。types と同じ形
+    iconAliases?: Record<string, unknown>;
+    // 解決済みのロゴ。ref (set:name か相対パス) → SVG の文字列。開いたときに同期の resolver として使い、ネットワークには出ない。
+    // ここにない ref は書いたとおりの文字のまま。描画の側が入れるときに sanitizeSvg を通す
+    icons?: Record<string, string>;
 }
 
 export interface StandaloneDiagram {
@@ -97,6 +103,12 @@ function toggleParsedTask(parsed: ParsedDocument, id: number, cycle: readonly Ta
     return { ...parsed, nodes: parsed.nodes.map((node) => (node.id === id ? toggled : node)) };
 }
 
+// 焼き込んだロゴの表を同期の resolver にする。表にない ref (と Object の組み込みの名前) は null で、文字のまま残る
+export function bakedIconResolver(icons: Record<string, string> | undefined): IconResolver | undefined {
+    if (!icons) return undefined;
+    return (ref) => (Object.hasOwn(icons, ref) && typeof icons[ref] === 'string' ? icons[ref] : null);
+}
+
 export async function mountStandalone(container: HTMLElement, data: StandaloneData, options: MountOptions = {}): Promise<StandaloneDiagram> {
     const fromSource = data.parsed === undefined;
     if (fromSource && data.source === undefined) throw new Error('parsed か source のどちらかが要ります');
@@ -138,9 +150,10 @@ export async function mountStandalone(container: HTMLElement, data: StandaloneDa
               }
             : undefined,
         viewHooks,
+        resolveIcon: bakedIconResolver(data.icons),
     });
 
-    const extra = { types: data.types, hookRefs };
+    const extra = { types: data.types, hookRefs, icons: data.iconAliases };
     const draw = (fit: boolean): void => {
         let current: ParsedDocument;
         let model: GraphModel;

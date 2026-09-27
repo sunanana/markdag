@@ -1,0 +1,23 @@
+kind: 正常
+checks: >-
+    タグの値 → alias の対応 (tagKeys[].icons)、キーの印 (tagKeys[].icon、boolean のキー)、両方を書いたキー、グループの icon (alias と set:name)
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics: []
+    tagKeys:
+        tool: { icons: { grafana: grafana, sentry: sentry } }
+        oncall: { icon: pagerduty }
+        alert: { icon: pagerduty, icons: { sentry: sentry } }
+    groups:
+        ops: grafana
+        design: "simple-icons:figma"
+    nodes:
+        # 対応表にない値 (jira) も値としては残る。ロゴが付くかは描画の側で引く
+        - refText: 例外
+          tags:
+              - { key: tool, values: [grafana, sentry, jira] }
+              - { key: oncall, values: [] }
+              - { key: alert, values: [sentry] }

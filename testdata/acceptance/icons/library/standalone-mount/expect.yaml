@@ -1,0 +1,12 @@
+kind: 正常
+checks: >-
+    単体 HTML を開くと、焼き込んだロゴは同期で描かれ、焼き込んでいない set:name は文字のまま (診断なし)。ネットワークに出ない
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md, icons }) の HTML をブラウザで開く (中で mountStandalone が動く)
+    icons:
+        ./logo.svg: ../../assets/circle.svg
+expect:
+    body_marks: { logo: svg, gh: ":gh:", rocket: "🚀" }
+    # ページ自身の読み込みのほかに要求がない
+    requests: 0

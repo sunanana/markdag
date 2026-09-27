@@ -26,6 +26,7 @@ fn model_of(corpus: &Path, name: &str, source: &str) -> Result<Value, String> {
         &ModelOptions {
             types: Some(types),
             hook_refs,
+            icons: None,
         },
     );
     let boundary = serde_json::to_value(&model).map_err(|error| error.to_string())?;

@@ -1,0 +1,26 @@
+kind: 境界
+checks: >-
+    印になる所とならない所。かなや句読点やかぎかっこに続けても印、エスケープ・時刻・URL・英数字に挟まれたもの・インラインのコードは文字のまま
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics: []
+    nodes:
+        - refText: 詳細はで見る
+          marks: [grafana]
+        # 句読点の後の空白は残る
+        - refText: 通知は、 Slack に流す
+          marks: [slack]
+        - refText: 「」と書く
+          marks: [github]
+        - refText: ":github: はエスケープ"
+          marks: []
+        - refText: 時刻 10:30:00 と https://example.com:8080/
+          marks: []
+        - refText: a:github:b は英数字に挟まれる
+          marks: []
+        - refText: ":github: はインラインのコード"
+          marks: []
+          html_has: "<code>:github:</code>"

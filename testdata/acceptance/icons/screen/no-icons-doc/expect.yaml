@@ -1,0 +1,13 @@
+kind: 境界
+checks: >-
+    markdag.icons もロゴの対応もない文書は、ロゴの処理を通らず今までどおり。:gh: は文字、タグは文字だけ、枠のラベルの位置も変わらない
+render:
+    options: {}
+    resolver:
+        "*": ../../assets/circle.svg
+expect:
+    diagnostics: []
+    icon_elements: 0          # .mdag-icon と .mdag-frame-icon
+    tags: ["#tool:grafana"]   # .mdag-tags の innerHTML がそのまま文字
+    node_text_has: [":gh: は文字"]
+    frame_label_dx: 6

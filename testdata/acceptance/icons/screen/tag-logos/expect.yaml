@@ -1,0 +1,25 @@
+kind: 正常
+checks: >-
+    タグの中のロゴ。キーの印 → 値の順の値のロゴ → 書いたとおりの文字 (#key:value) の並び。表にない値と対応のないキーは文字だけ。ロゴは 14px でツールチップなし
+render:
+    options: {}
+    resolver:
+        "simple-icons:grafana": ../../assets/triangle.svg
+        "simple-icons:sentry": ../../assets/square.svg
+        "simple-icons:pagerduty": ../../assets/circle.svg
+expect:
+    diagnostics: []
+    # 各ノードの .mdag-tags。logos は並んだロゴの alias、text は文字の部分
+    tags:
+        - { logos: [grafana, sentry], text: "#tool:grafana,sentry,jira" }
+        - { logos: [], text: "#tool:datadog" }
+        - { logos: [pager], text: "#oncall" }
+        # icon と icons を両方書いたキーは両方並べる (キーが先)
+        - { logos: [pager, sentry], text: "#alert:sentry" }
+        - { logos: [], text: "#owner:suna" }
+    tag_logo:
+        size: 14px
+        color: mono
+        title: null
+look:
+    - タグのロゴは薄い文字色 (--markdag-muted) の 1 色で、ロゴとロゴ、ロゴと文字の間に 3px

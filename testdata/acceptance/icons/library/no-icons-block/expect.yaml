@@ -1,0 +1,18 @@
+kind: 境界
+checks: >-
+    markdag.icons を書いていない文書では :word: を印にせず、icon-unknown も出さない。表は空で色は mono
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics: []
+    icons:
+        color: mono
+        aliases: {}
+    nodes:
+        - refText: ":github: Push"
+          marks: []
+          html_has: ":github: Push"
+        - refText: 時刻 10:30:00
+          marks: []

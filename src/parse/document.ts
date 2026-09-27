@@ -28,9 +28,10 @@ export interface OutlineNode {
     parent: number | null;
     // ルートが 1
     depth: number;
-    // ノードの内容。詳細の引用ブロックは、書かれた位置に印 (クラス mdag-details) を付けて残してある
+    // ノードの内容。詳細の引用ブロックは、書かれた位置に印 (クラス mdag-details) を付けて残してある。
+    // markdag.icons を書いた文書では、本文の `:alias:` を印の要素 (ICON_MARK) で包んである
     html: string;
-    // relations と groups から参照するときに照合する文字列 (1 行目の、装飾を除いた文字)
+    // relations と groups から参照するときに照合する文字列 (1 行目の、装飾と `:alias:` の印を除いた文字)
     refText: string;
     refId: string | null;
     // 1 行目の末尾に `%名前` で付けた、そのノード自身のグループ (配下への継承は model 層が解決する)
@@ -60,6 +61,10 @@ export interface ParsedDocument {
     // 原文を解析し直さずに記号だけを差し替える場面 (単体の HTML でのタスクの切り替え) で使う
     taskIcons: TaskIcons | null;
 }
+
+// 本文の `:alias:` の印の要素。markdag.icons を書いた文書だけで作られ、中身は書いたとおりの `:alias:` (1 番の組が alias)。
+// 定義のある alias をロゴに差し替えるのは描画の側で、差し替えなければ文字のまま見える。定義のない alias は model の icon-unknown
+export const ICON_MARK = /<span class="mdag-icon" data-icon="([a-z][a-z0-9_-]*)">:\1:<\/span>/g;
 
 // Markdown をノードの木にする変換器の形。Rust 化の前は parseDocument に渡していた。今は使わない (型を import している利用者のために残す)
 /** @deprecated 解析は Rust で行うので、変換器は使いません */

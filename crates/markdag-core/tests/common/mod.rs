@@ -169,6 +169,7 @@ pub fn build_with_types(nodes: &[OutlineNode], frontmatter: Value, types: Value)
         &ModelOptions {
             types: Some(types),
             hook_refs: None,
+            icons: None,
         },
     )
 }

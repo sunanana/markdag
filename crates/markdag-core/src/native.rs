@@ -1,6 +1,6 @@
 // ネイティブの入口 (CLI と MCP サーバー) が共有する、文書 1 つ分の検査と JSON の組み立て。
 // wasm の境界は通らず、JS の包み (parseDocument の公開の形への直し) と Node の check の集め方をここで写す。
-// ファイルは読まない: markdag.types.$ref の中身は呼び出し側が読むか引数で受けて types に渡す。
+// ファイルは読まない: markdag.types.$ref と markdag.icons.$ref の中身は呼び出し側が読むか引数で受けて渡す。
 // markdag.hooks.$ref は常に読まない扱い (hookRefs を渡さないので、ライブラリが hooks-unresolved を知らせる)。
 // フックがないので transformSource による差し替えは起きず、1 回の解析と組み立てで足りる。
 
@@ -45,12 +45,24 @@ pub fn public_parsed(parsed: &ParsedDocument) -> JsValue {
 }
 
 /// Node の check (--hooks なし) と同じ診断を集める: 解析と組み立ての診断に、markdag のキーがない文書の not-extracted を足す。
-/// types は $ref に書いた文字列をキーにした型のファイルの中身 (ないキーは「渡していない」で types-unresolved になる)
+/// types は $ref に書いた文字列をキーにした型のファイルの中身 (ないキーは「渡していない」で types-unresolved になる)。
 pub fn diagnose(markdown: &str, types: IndexMap<String, JsValue>) -> Vec<Diagnostic> {
+    // MCP は markdag.icons.$ref の中身を受け取らない (icons を渡さないので icons-unresolved になる)。
+    // CLI は diagnose_with_icons で文書からの相対で読んで渡す
+    diagnose_with_icons(markdown, types, None)
+}
+
+/// diagnose に markdag.icons.$ref の中身 (types と同じ形) を足したもの。None は渡していない (icons.$ref を書いた文書では icons-unresolved になる)
+pub fn diagnose_with_icons(
+    markdown: &str,
+    types: IndexMap<String, JsValue>,
+    icons: Option<IndexMap<String, JsValue>>,
+) -> Vec<Diagnostic> {
     let parsed = parse_document(markdown);
     let options = ModelOptions {
         types: Some(types),
         hook_refs: None,
+        icons,
     };
     let model = build_model(&parsed.nodes, &parsed.frontmatter, Some(markdown), &options);
     let mut diagnostics = model.diagnostics;
@@ -76,10 +88,20 @@ pub fn has_error(diagnostics: &[Diagnostic]) -> bool {
 /// 解析の結果とグラフのモデルを `{ "parsed": 公開の ParsedDocument, "model": GraphModel のデータ部分 }` にする。
 /// model の groupsOf と tagsOf は `[[ノードの id, 値], ...]` の組の配列、hooks は `{ declared, options, rules }`
 pub fn parse_and_model(markdown: &str, types: IndexMap<String, JsValue>) -> JsValue {
+    parse_and_model_with_icons(markdown, types, None)
+}
+
+/// parse_and_model に markdag.icons.$ref の中身を足したもの (diagnose_with_icons と同じ)
+pub fn parse_and_model_with_icons(
+    markdown: &str,
+    types: IndexMap<String, JsValue>,
+    icons: Option<IndexMap<String, JsValue>>,
+) -> JsValue {
     let parsed = parse_document(markdown);
     let options = ModelOptions {
         types: Some(types),
         hook_refs: None,
+        icons,
     };
     let model = build_model(&parsed.nodes, &parsed.frontmatter, Some(markdown), &options);
     let mut envelope = IndexMap::new();

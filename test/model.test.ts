@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeTag, OutlineNode } from '../src/parse/document';
-import { buildModel, checkFrontmatter, renderDocument } from '../src/model/model';
-import { parseDocument } from '../src/parse/document';
+import { buildModel, checkFrontmatter, iconDefOf, renderDocument } from '../src/model/model';
+import { ICON_MARK, parseDocument } from '../src/parse/document';
 import { suggestTagKeys, suggestTagValues } from '../src/model/tags';
 
 // [参照用のテキスト, 親の位置 (0 始まり。ルートは null), グループ, $id, タグ]
@@ -1058,5 +1058,151 @@ describe('parseDocument → buildModel の経路の groups の並び (A-215 (4))
         // 別に組んだ (解析の結果でない) オブジェクトも、そのオブジェクトの並びのまま
         const copied = JSON.parse(JSON.stringify(parsed.frontmatter)) as Record<string, unknown>;
         expect(buildModel(parsed.nodes, copied, source).groups.map((group) => group.id)).toEqual(['1', '7', '2024', 'b', 'a', 'z']);
+    });
+});
+
+// markdag.icons の alias の定義。$ref のファイルは types と同じく呼び出し側が読んで渡す
+describe('markdag.icons の alias の表', () => {
+    const icons = (frontmatter: Record<string, unknown>, extra = {}) => buildModel(outline([['R', null]]), { markdag: { icons: frontmatter } }, undefined, extra);
+    const codes = (frontmatter: Record<string, unknown>): string[] => icons(frontmatter).diagnostics.map((item) => item.code);
+
+    it('set:name、SVG の相対パス、絵文字、オブジェクト形を正規化する', () => {
+        const model = icons({ color: 'original', github: 'simple-icons:github', logo: './images/logo.svg', fire: '🔥', vm: { ref: './azure/vm.svg', color: 'mono' } });
+        expect(model.diagnostics).toEqual([]);
+        expect(model.icons.color).toBe('original');
+        expect([...model.icons.aliases.entries()]).toEqual([
+            ['github', { kind: 'set', ref: 'simple-icons:github' }],
+            ['logo', { kind: 'path', ref: './images/logo.svg' }],
+            ['fire', { kind: 'emoji', ref: '🔥' }],
+            ['vm', { kind: 'path', ref: './azure/vm.svg', color: 'mono' }],
+        ]);
+    });
+
+    it('icons を書かなければ空の表で、色は mono', () => {
+        const model = buildModel(outline([['R', null]]), {});
+        expect(model.icons).toEqual({ color: 'mono', aliases: new Map() });
+    });
+
+    it('予約語の color に alias を書くと、予約語だと知らせる', () => {
+        const [first] = icons({ color: 'simple-icons:github' }).diagnostics;
+        expect(first).toMatchObject({ code: 'option-invalid', message: 'markdag.icons.color に指定できるのは mono, original です ("simple-icons:github")' });
+        expect(first?.hint).toMatch(/予約語|alias にできません/);
+    });
+
+    it('SVG でない画像、読めない値、不正な名前は使わずに知らせる', () => {
+        expect(codes({ shot: './shot.png', bare: 'github', Bad: 'logos:aws', empty: null, obj: { ref: 'logos:aws', colour: 'mono' } })).toEqual(['icon-invalid', 'icon-invalid', 'icon-invalid', 'icon-invalid', 'icon-invalid']);
+        expect(icons({ shot: './shot.png' }).icons.aliases.size).toBe(0);
+        expect(codes({ vm: { ref: './vm.svg', color: 'full' } })).toEqual(['option-invalid']);
+    });
+
+    it('$ref は後のものが勝ち、文書の定義が最優先。渡していないものと読めなかったものは icons-unresolved', () => {
+        const model = icons(
+            { $ref: ['./a.yaml', './b.yaml', './broken.yaml', './missing.yaml'], k8s: './k8s.svg' },
+            { icons: { './a.yaml': { github: 'simple-icons:github', k8s: 'simple-icons:kubernetes' }, './b.yaml': { github: 'logos:github-icon' }, './broken.yaml': null } },
+        );
+        expect(model.diagnostics.map((item) => item.code)).toEqual(['icons-unresolved', 'icons-unresolved']);
+        expect([...model.icons.aliases.entries()].map(([name, def]) => [name, def.ref])).toEqual([
+            ['github', 'logos:github-icon'],
+            ['k8s', './k8s.svg'],
+        ]);
+        // renderDocument の経路でも同じ表を受け取る
+        const source = ['---', 'markdag:', '    icons:', '        $ref: ./a.yaml', '---', '', '# R'].join('\n');
+        expect(renderDocument(source, { icons: { './a.yaml': { aws: 'logos:aws' } } }).model.icons.aliases.get('aws')).toEqual({ kind: 'set', ref: 'logos:aws' });
+    });
+});
+
+// 本文の :alias:。markdag.icons を書いた文書だけで印の要素にし、ノードの名前からは除く
+describe('本文の :alias: の印', () => {
+    const head = ['---', 'markdag:', '    icons:', '        github: simple-icons:github'];
+    const aliasesOf = (html: string): string[] => [...html.matchAll(ICON_MARK)].map((match) => match[1] ?? '');
+
+    it('見出し、項目、詳細の印を包み、名前から除く。relations は印を除いた名前で参照できる', () => {
+        const source = [...head, '    relations:', '        depends:', '            - Push --> Deploy', '---', '# R', '## :github: Push', '- 通知は、:slack: Slack に', '    > :grafana: 5xx を見る', '## Deploy'].join('\n');
+        const { parsed, model } = renderDocument(source);
+        const [, push, notice] = parsed.nodes;
+        expect(push?.refText).toBe('Push');
+        expect(aliasesOf(push?.html ?? '')).toEqual(['github']);
+        expect(notice?.refText).toBe('通知は、 Slack に');
+        expect(aliasesOf(notice?.details ?? '')).toEqual(['grafana']);
+        expect(model.relations).toHaveLength(1);
+        expect(model.diagnostics.filter((item) => item.code === 'icon-unknown').map((item) => [item.severity, item.message, item.at])).toEqual([
+            ['warning', '「:slack:」は markdag.icons にない alias です', { line: 11, column: 7, length: 7 }],
+            ['warning', '「:grafana:」は markdag.icons にない alias です', { line: 12, column: 7, length: 9 }],
+        ]);
+    });
+
+    it('時刻、URL、エスケープ、インラインのコードは印にしない', () => {
+        const source = [...head, '---', '# R', '- 10:30:00 と https://example.com/a:b:c', '- \\:github: は文字', '- `:github:` はコード'].join('\n');
+        const { parsed, model } = renderDocument(source);
+        expect(parsed.nodes.slice(1).map((node) => [node.refText, aliasesOf(node.html)])).toEqual([
+            ['10:30:00 と https://example.com/a:b:c', []],
+            [':github: は文字', []],
+            [':github: はコード', []],
+        ]);
+        expect(model.diagnostics).toEqual([]);
+    });
+
+    it('icons を書いていない文書では文字のままで、icon-unknown も出さない', () => {
+        const { parsed, model } = renderDocument(['---', 'markdag: {}', '---', '# R', '## :github: Push'].join('\n'));
+        expect(parsed.nodes[1]?.refText).toBe(':github: Push');
+        expect(parsed.nodes[1]?.html).toBe(':github: Push');
+        expect(model.diagnostics).toEqual([]);
+    });
+});
+
+// タグの値とグループのロゴ。対応はモデルのタグの定義とグループの定義に載り、描画の側が iconDefOf で alias の定義に引く
+describe('タグの値とグループのロゴ', () => {
+    const source = [
+        '---',
+        'markdag:',
+        '    icons:',
+        '        grafana: simple-icons:grafana',
+        '        sentry: simple-icons:sentry',
+        '    tags:',
+        '        keys:',
+        '            tool:',
+        '                multiple: true',
+        '                icons: { grafana: grafana, sentry: sentry }',
+        '            oncall:',
+        '                type: boolean',
+        '                icon: sentry',
+        '    groups:',
+        '        aws:',
+        '            boundary: true',
+        '            icon: logos:aws',
+        '        ops:',
+        '            icon: grafana',
+        '---',
+        '# R',
+        '## A #tool:grafana,sentry,jira #oncall %aws %ops',
+    ].join('\n');
+
+    it('複数の値は値の順に引け、対応表にない値は null。キーの印と グループの alias / set:name も引ける', () => {
+        const { model } = renderDocument(source);
+        expect(model.diagnostics).toEqual([]);
+        const tool = model.tagKeys.find((def) => def.key === 'tool');
+        const [tag] = model.tagsOf.get(2) ?? [];
+        expect(tag?.values.map((value) => tool?.icons?.[value] ?? null)).toEqual(['grafana', 'sentry', null]);
+        expect(model.tagKeys.find((def) => def.key === 'oncall')?.icon).toBe('sentry');
+        expect(model.groups.map((group) => [group.id, group.icon === undefined ? null : iconDefOf(model.icons, group.icon)])).toEqual([
+            ['aws', { kind: 'set', ref: 'logos:aws' }],
+            ['ops', { kind: 'set', ref: 'simple-icons:grafana' }],
+        ]);
+    });
+
+    it('表にない alias は icon-unknown。ロゴを書いていない文書のタグの定義とグループには欄がない', () => {
+        const unknown = renderDocument(source.replace('icon: logos:aws', 'icon: aws')).model;
+        expect(unknown.diagnostics.map((item) => [item.code, item.message, item.at])).toEqual([
+            ['icon-unknown', 'markdag.groups.aws.icon の「aws」は markdag.icons にない alias です', { line: 17, column: 19, length: 3 }],
+        ]);
+        expect(iconDefOf(unknown.icons, 'aws')).toBeNull();
+        const plain = renderDocument(['---', 'markdag:', '    tags: { keys: { tool: { multiple: true } } }', '    groups: { aws: { label: AWS } }', '---', '# R', '## A #tool:x %aws'].join('\n')).model;
+        expect(Object.keys(plain.tagKeys[0] ?? {})).not.toContain('icons');
+        expect(Object.keys(plain.groups[0] ?? {})).not.toContain('icon');
+    });
+
+    it('groups の icon を足しても、知らないキーの一覧の文は変わらない', () => {
+        const [item] = checkFrontmatter({ markdag: { groups: { a: { colour: 'red' } } } });
+        expect(item?.message).toBe('markdag.groups.a のキー「colour」は使えません (label, color, boundary, members)');
     });
 });

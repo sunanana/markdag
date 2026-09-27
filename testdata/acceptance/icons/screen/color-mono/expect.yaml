@@ -1,0 +1,21 @@
+kind: 正常
+checks: >-
+    既定の mono。多色のロゴ (青い円に白いチェック) も 1 色で塗る。本文は文字色、タグと凡例は薄い文字色、枠はグループの色。alias ごとの color original はそのロゴだけ元の色
+render:
+    options: {}
+    resolver:
+        ./two-tone.svg: ../../assets/two-tone.svg
+        ./two-tone-fixed.svg: ../../assets/two-tone.svg
+expect:
+    # 円の fill とチェックの stroke の計算値
+    body:
+        - { icon: tone, color: mono, circle_fill: "rgb(51, 51, 51)", check_stroke: "rgb(51, 51, 51)" }
+        - { icon: fixed, color: original, circle_fill: "rgb(47, 128, 237)", check_stroke: "rgb(255, 255, 255)" }
+    tag:
+        - { icon: tone, color: mono, circle_fill: "rgb(91, 104, 117)", check_stroke: "rgb(91, 104, 117)" }
+    frame:
+        - { color: mono, circle_fill: "rgb(47, 158, 68)", check_stroke: "rgb(47, 158, 68)" }
+    legend:
+        - { color: mono, circle_fill: "rgb(91, 104, 117)", check_stroke: "rgb(91, 104, 117)" }
+look:
+    - mono の tone はチェックが消えて塗りつぶしの円に見える (決めたとおり)

@@ -133,6 +133,8 @@ Options:
 | `animate` | `boolean` | `true` | Animate fold and relayout |
 | `injectStyle` | `boolean` | `true` | Add the stylesheet to `<head>` |
 | `types` | `Record<string, unknown>` | none | The files referenced by `markdag.types.$ref`, keyed by the path exactly as written in the document, each parsed from YAML (`null` when it could not be read). markdag does not read files; see [Tag types from other files](#tag-types-from-other-files) |
+| `icons` | `Record<string, unknown>` | none | The files referenced by `markdag.icons.$ref`, in the same shape as `types`. See [Logo aliases from other files](#logo-aliases-from-other-files) |
+| `resolveIcon` | `IconResolver` | none | Returns the SVG of a logo the document names. Without it, logos stay as text. See [Logos](#logos) |
 | `onChange` | `(markdown: string) => void` | none | Called when the reader clicks a task (`- [ ]` or `## [ ]`) and the source text changes |
 | `onFoldChange` | `(folded: number[], byUser: boolean) => void` | none | Called when the fold state changes (see [View callbacks](#view-callbacks)) |
 | `onTransform` | `(transform: { x, y, k }, byUser: boolean) => void` | none | Called when pan or zoom changes (see [View callbacks](#view-callbacks)) |
@@ -252,6 +254,20 @@ const model = buildModel(parsed.nodes, parsed.frontmatter, source, {
 `render` takes the same `types` option. A path that is missing from the object, or whose value is `null`, is reported as `types-unresolved`, and keys that refer to a named type are not checked. When `$ref` is a list, later files override earlier ones, and the document's own entries override all of them. Pass the same object to every call that checks the document (rendering and validation), so both report the same diagnostics.
 - CRLF documents are parsed the same as LF documents.
 
+### Logo aliases from other files
+
+`markdag.icons.$ref` names YAML files of logo aliases (see `icons` in the [writing guide](writing-guide.md)). They are passed the same way as `markdag.types.$ref`: the application reads and parses each file (relative to the document) and passes the result as the `icons` option of `buildModel` or `render`, keyed by the path exactly as written:
+
+```ts
+const model = buildModel(parsed.nodes, parsed.frontmatter, source, {
+    icons: { './team-icons.yaml': parseYaml(await readTextFile(resolve(documentDir, './team-icons.yaml'))) },
+});
+```
+
+- A path that is missing from the object, or whose value is `null`, is reported as `icons-unresolved`. While it is missing, `:alias:` marks in the body are not reported as `icon-unknown`.
+- The result is `GraphModel.icons` (`IconTable`): `color` (`mono` or `original`) and `aliases`, a `Map` from the alias name to an `IconDef` (`{ kind, ref, color? }`; `kind` is `set`, `path` or `emoji`). It holds the names only; the SVG is supplied by `resolveIcon` (see [Logos](#logos)).
+- A relative path inside such a file is relative to the document, not to the file, so `IconDef.ref` can be resolved against the document in every case.
+
 ### Limits on the input
 
 - Markdown nested deeper than 500 levels (lists, blockquotes, and inline containers such as emphasis and links) is cut at that depth: the deeper part is not drawn, and `buildModel` reports `nesting-too-deep` (error) when it is given the source.
@@ -276,6 +292,7 @@ Methods of `MarkdagView` (also reachable as `diagram.view`):
 | `expandAll()` / `resetFold()` | Open every node / go back to the document's initial fold state (`markdag.initialExpandLevel`) |
 | `contentBounds()` | The rectangle the content occupies, in diagram coordinates: the same range `fit()` uses, including group frames and their labels. `null` when nothing is drawn. During an animation it answers with the final layout |
 | `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`) |
+| `setIconSvg(ref, svg)` | Store the SVG of a logo (`null`: it could not be resolved, the logo stays as text) and redraw only the places that use `ref`. See [Logos](#logos) |
 | `destroy()` | Remove the diagram and its listeners |
 
 ### View callbacks
@@ -296,6 +313,54 @@ These are passed to the `MarkdagView` constructor. `render` forwards `onFoldChan
 | `onLayout(snapshot)` | A layout pass finished. Also called from `setDocument` and after images load, so it does not tell you that the reader folded a branch |
 
 Several diagrams can live on one page. SVG marker ids are prefixed per instance, so each diagram's arrowheads keep their own colors.
+
+## Logos
+
+A document names logos in `markdag.icons` (see `icons` in the [writing guide](writing-guide.md)): a `set:name` in the style of Iconify, or the path of an SVG file relative to the document. markdag has no default resolver: it never fetches an icon set and never reads a file. The application supplies the SVG through `resolveIcon`, an option of `render` and of `createHookBridge`:
+
+```ts
+type IconResolver = (ref: string) => string | null | Promise<string | null>;
+```
+
+- `ref` is the value written in the document (`simple-icons:github`, `./images/our-logo.svg`), after aliases are resolved. Emoji aliases are drawn as characters and never passed.
+- A string returned synchronously is in the diagram from the first draw.
+- A `Promise` is drawn as the text `:alias:` first. When it resolves, only the places that use that logo are redrawn (node text, details, tags, group frames, legend).
+- `null` (returned or resolved), or anything that is not a string, means the logo is not available: it stays as the text written, without a diagnostic. Return `null` for a known miss such as a 404.
+- A resolver that throws or rejects leaves the logo as text too, and is reported as `icon-unresolved` (severity `info`, no position) through `onDiagnostic`. It is not added to `diagnostics` or the return value of `update`. The other logos carry on.
+- Each `ref` is asked once per diagram: several places that use it, `update`, and a redraw after a task click do not ask again, including for a `ref` that failed. Only refs that a new version of the document adds are asked.
+
+A resolver that takes `set:name` from the Iconify API and reads a relative path from where the document lives:
+
+```ts
+import { init, render, type IconResolver } from 'markdag';
+
+const resolveIcon: IconResolver = async (ref) => {
+    const url = ref.includes(':')
+        ? `https://api.iconify.design/${ref.replace(':', '/')}.svg`
+        : new URL(ref, documentUrl);
+    const response = await fetch(url);
+    return response.ok ? response.text() : null;
+};
+
+await init();
+render(container, markdown, { resolveIcon, onDiagnostic: (diagnostic) => console.info(diagnostic) });
+```
+
+### What markdag does with the SVG
+
+- The SVG is sanitized before it is inserted, whatever it comes from. Only an allowlist of SVG elements and attributes is written back; everything else is dropped (`<script>`, `on*` attributes, `<foreignObject>`, HTML elements, comments), and so is anything that would load from outside: `href` and `xlink:href` are kept only when they start with `#`, `url(...)` only when it points to `#...`, and values with character references or `\` are dropped. A string that cannot be read as an SVG document (one `<svg>` root and nothing after it) stays as text, without a diagnostic.
+- The SVG is inserted inline, not as an `<img>`, so `currentColor` works. With `color: mono` (the default), the stylesheet paints the logo in the current text color, overriding the `fill` and `stroke` attributes of a multi-colored logo: the text color in the body, the muted color in tags and the legend, and the group's color on a frame. `color` in a `style` attribute is not overridden. With `color: original` the logo keeps its own colors.
+- The stored SVG is kept when the document changes (`update`, `setDocument`), so the same `ref` is not resolved again.
+
+### Logos without `render`
+
+An application that connects the steps itself (see [Hooks and rules without `render`](#hooks-and-rules-without-render)) passes the same `resolveIcon` to `createHookBridge`. `bridge.setDocument` asks for the refs the document uses and hands the results to the view; `icon-unresolved` goes to the bridge's `onDiagnostic`:
+
+```ts
+const bridge = createHookBridge({ source: () => source, resolveIcon, onDiagnostic: showTransient });
+```
+
+A `MarkdagView` used without the bridge does not resolve anything. Call `view.setIconSvg(ref, svg)` with each SVG; it is sanitized the same way, and only the places that use `ref` are redrawn. `null` marks the logo as unavailable (text). The refs a document can use are the `ref` of each non-emoji entry in `model.icons.aliases`, plus a `set:name` written directly as `GroupDef.icon`.
 
 ## Hooks
 
@@ -433,6 +498,8 @@ const html = buildStandaloneHtml({
 | `source` | The Markdown text. With `parsed`, it only positions diagnostics. Without `parsed`, the page parses it when opened |
 | `types` | The resolved `markdag.types.$ref` files, keyed by the path as written. Plain objects, embedded as JSON |
 | `hookScripts` | The source text of the modules named by `markdag.hooks.$ref`, keyed by the path as written. They are loaded as modules when the page opens (through a blob URL), so each has to be self-contained JavaScript. Omit it and no hooks are loaded (`markdag.rules` still work). Hooks run unsandboxed in the reader's browser: include them only for trusted documents |
+| `iconAliases` | The resolved `markdag.icons.$ref` files, keyed by the path as written. The same object you pass as `icons` to `buildModel` or `render` |
+| `icons` | The resolved logos: `ref` (`set:name` or relative path, as written) to SVG string. See [Logos in standalone HTML](#logos-in-standalone-html) |
 | `view` | `theme`, `details`, `legend`, `animate`, as in the `render` options |
 | `state` | `folded`: the ids from `view.getFolded()`, applied over the document's initial fold state. `transform`: `{ x, y, k }`; when omitted the page fits the whole diagram, which is the sensible default because the transform depends on the container size |
 | `tasks` | `readonly` (default): a click on a task changes nothing. `scratch`: a click moves the task along `markdag.tasks.cycle` inside the page only, by swapping the state and the mark on the parsed document (`ParsedDocument.taskIcons`); `markdag.rules` and the hooks still decide first. Nothing is saved: reopening the file shows the exported state |
@@ -455,6 +522,28 @@ What the page does:
 The page calls `mountStandalone(container, data, options?)`, exported from `markdag` and `markdag/core`. `data` is the same object minus the page options (the `StandaloneData` type). It resolves to `{ view, diagnostics, destroy }`. It does not call `init`: await `init` first. Like `MarkdagView`, it does not add the stylesheet: the exported page embeds it, and an application that calls `mountStandalone` itself (to preview exactly what the exported page will show) loads `markdag/style.css`. Given only `source`, both entries parse it.
 
 The types are exported: `StandaloneOptions`, `StandaloneData`, `StandaloneState`, `StandaloneViewOptions`, `StandaloneRuntime` from `markdag/standalone`, and `StandaloneData`, `StandaloneDiagram`, `MountOptions` from the two entries.
+
+### Logos in standalone HTML
+
+The page has no `resolveIcon` and does not go to the network. Resolve the logos before exporting and pass them as `icons`, a plain table from `ref` to SVG; pass the `markdag.icons.$ref` files as `iconAliases`:
+
+```ts
+const refs = new Set<string>();
+for (const def of model.icons.aliases.values()) if (def.kind !== 'emoji') refs.add(def.ref);
+for (const group of model.groups) if (group.icon?.includes(':')) refs.add(group.icon);
+
+const icons: Record<string, string> = {};
+for (const ref of refs) {
+    const svg = await Promise.resolve(resolveIcon(ref)).catch(() => null);
+    if (svg !== null) icons[ref] = svg;
+}
+const html = buildStandaloneHtml({ parsed, iconAliases, icons });
+```
+
+- `buildStandaloneHtml` sanitizes each SVG before embedding it (see [What markdag does with the SVG](#what-markdag-does-with-the-svg)) and leaves out strings that are not an SVG. The page sanitizes again when it inserts them.
+- When the page opens, `icons` becomes a synchronous resolver, so the logos are there from the first draw. A `ref` that is not in the table stays as text, without a diagnostic. `mountStandalone` does the same with `data.icons` and `data.iconAliases`.
+- Without `icons` and `iconAliases`, the embedded data has no extra fields: the page is the same as one exported without logos.
+- The CLI's `markdag html` reads `markdag.icons.$ref` itself and embeds only the logos given as relative `.svg` paths that the document uses, read relative to the document. `set:name` logos stay as text in its output. A file it cannot read is reported on stderr, and the exit code stays 0. It embeds the file as read; the page sanitizes it when it opens.
 
 ## Diagnostics without rendering
 

@@ -1,0 +1,10 @@
+kind: 境界
+checks: >-
+    set:name だけの文書では markdag html は何も読まず、素材に icons の欄を足さない (開くと文字のまま)
+command: >-
+    markdag html input.md -o out.html
+expect:
+    exit: 0
+    stderr: ""
+    embedded:
+        keys_lack: [icons, iconAliases]

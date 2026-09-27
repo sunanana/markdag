@@ -1,0 +1,11 @@
+kind: 誤り
+checks: >-
+    icons.$ref のファイルが読めないと icons-unresolved (warning、終了コード 0)。そのあいだ本文の印に icon-unknown を出さない
+command: >-
+    markdag check input.md
+expect:
+    exit: 0
+    # 1 件 1 行 (重大度 コード 行:桁 文) と、その下の字下げした手がかり。確かめるのは 1 行目
+    diagnostic_lines:
+        - "warning icons-unresolved 4:15 "
+    lacks: [icon-unknown]

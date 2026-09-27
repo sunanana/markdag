@@ -1,0 +1,18 @@
+kind: 境界
+checks: >-
+    同じ ref は 1 度だけ問い合わせる。1 つの文書の中で何度使っても (本文 2 か所、タグ、枠)、update で描き直しても、失敗した ref も聞き直さない。update で増えた ref だけ新たに聞く
+call:
+    api: >-
+        render(container, input.md, { resolveIcon, onDiagnostic }) → update(input.md) → update(update.md)
+    resolver:
+        "simple-icons:github": { sync: ../../assets/circle.svg }
+        "simple-icons:kubernetes": { sync: ../../assets/square.svg }
+        "simple-icons:nosuchlogo": { reject: "404" }
+expect:
+    asked_after_render: ["simple-icons:github", "simple-icons:nosuchlogo"]
+    asked_after_update_same: ["simple-icons:github", "simple-icons:nosuchlogo"]
+    asked_after_update_new: ["simple-icons:github", "simple-icons:nosuchlogo", "simple-icons:kubernetes"]
+    after_settled:
+        body_marks: { gh: svg, bad: ":bad:", k8s: svg }
+    onDiagnostic:
+        - { code: icon-unresolved, severity: info, message_has: ["simple-icons:nosuchlogo"] }

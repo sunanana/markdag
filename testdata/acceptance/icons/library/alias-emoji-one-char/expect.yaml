@@ -1,0 +1,22 @@
+kind: 境界
+checks: >-
+    絵文字の値は見た目の 1 字だけ。国旗 (地域指示子 2 つ) と ZWJ でつないだ列は 1 字、2 字並べたものは icon-invalid で表に入らず、本文の印は icon-unknown
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: icon-invalid, severity: warning, at: "5:18+2", message_has: alias の値として読めません }
+        - { code: icon-unknown, severity: warning, at: "13:3+9" }
+    icons:
+        color: mono
+        aliases:
+            fire: { kind: emoji, ref: "🔥" }
+            flag: { kind: emoji, ref: "🇯🇵" }
+            family: { kind: emoji, ref: "👨‍👩‍👧" }
+    nodes:
+        - refText: 燃える
+          marks: [fire]
+        - refText: 二つ
+          marks: [twofire]

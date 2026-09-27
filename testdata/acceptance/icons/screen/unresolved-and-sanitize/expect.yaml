@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    引けないロゴ (null) と SVG として読めない文字列は文字のままで診断なし。script、onload、title、XML 宣言を含む SVG は取り除いてから描く
+render:
+    options: { onDiagnostic }
+    resolver:
+        "simple-icons:github": null
+        "simple-icons:broken": "not an svg"
+        ./dirty.svg: ../../assets/dirty.svg
+expect:
+    diagnostics: []
+    onDiagnostic: []
+    body_marks:
+        - { icon: gh, svg: false, text: ":gh:" }
+        - { icon: broken, svg: false, text: ":broken:" }
+        - { icon: dirty, svg: true, svg_html: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z"></path></svg>' }

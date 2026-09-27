@@ -2,7 +2,9 @@
 // JS と CLI (markdag html) で同じ HTML を出す (A-017)。ページの文字列の正本は Rust の側にある。DOM を触らないので Node でも動く (init のあと)。
 // ランタイム (script タグ 1 本で動く版) とスタイルシートをページに埋め、図の素材は JSON で埋めて、開いたときに組み立てる。
 // 外部を読みに行くものはページに入れない。画像や書体の同梱は、呼び出し側が素材 (parsed の html、css) に済ませて渡す。
+// ロゴは呼び出し側が解決した SVG を素材の icons で渡す (画像の data: URI 化と同じく、呼び出し側が済ませる)。
 import { callJson } from '../wasm/boundary';
+import { sanitizeSvg } from '../view/icons';
 import type { StandaloneData } from './mount';
 
 export interface StandaloneRuntime {
@@ -31,14 +33,28 @@ export const DATA_ID = 'markdag-data';
 // 開いたときの図の窓口を置く window の名前
 export const DIAGRAM_GLOBAL = 'markdagStandalone';
 
+// 焼き込む前にロゴを sanitizeSvg に通す。SVG として読めないものは落とす (開いたページでは文字のまま)。
+// 開いたときにも描画の側がもう一度通すので、ここは埋める中身を減らし、script などをページに持ち込まないためのもの
+// CLI の html (Rust) は埋める前に通さず、読んだ SVG をそのまま埋める (開いたときの 1 回だけ通る)。
+// そのため同じ SVG でも JS と CLI で埋める文字列が違う
+function sanitizeIcons(icons: Record<string, string> | undefined): Record<string, string> | undefined {
+    if (!icons) return undefined;
+    const sanitized: Record<string, string> = {};
+    for (const [ref, svg] of Object.entries(icons)) {
+        const clean = typeof svg === 'string' ? sanitizeSvg(svg) : null;
+        if (clean !== null) sanitized[ref] = clean;
+    }
+    return sanitized;
+}
+
 // 素材 (HTML に JSON で埋めるもの) とページの指定を分けて渡す。素材は書かれた欄の順に Rust が JSON にする。
 // 組み立てられないとき (parsed も source もない、埋め込めないランタイム) は、Rust の文面の MarkdagError (code は standalone-error) を投げる
 export function renderStandalonePage(options: StandaloneOptions, defaults: StandaloneRuntime): string {
-    const { parsed, source, types, hookScripts, view, state, tasks, title, lang, containerClass, css, head, runtime } = options;
+    const { parsed, source, types, hookScripts, view, state, tasks, iconAliases, icons, title, lang, containerClass, css, head, runtime } = options;
     return callJson<string>('standalone_page', {
         runtime: defaults.script,
         css: defaults.style,
-        data: { parsed, source, types, hookScripts, view, state, tasks },
+        data: { parsed, source, types, hookScripts, view, state, tasks, iconAliases, icons: sanitizeIcons(icons) },
         options: { title, lang, containerClass, css, head, runtime },
     });
 }

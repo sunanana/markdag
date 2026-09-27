@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    icons.color と alias ごとの color は mono か original だけ。color にロゴを書いた (予約語の衝突) ときは手がかりで「alias にできません」
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: option-invalid, severity: warning, at: "7:20+4", message_has: markdag.icons.k8s.color }
+        - { code: option-invalid, severity: warning, at: "4:16+19", hint_has: alias にできません }
+    icons:
+        # 誤った color は既定の mono のまま
+        color: mono
+        # 色の誤った alias は表に入らない
+        aliases: {}

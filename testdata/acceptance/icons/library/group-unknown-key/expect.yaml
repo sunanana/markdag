@@ -1,0 +1,12 @@
+kind: 境界
+checks: >-
+    グループに知らないキーを書いたときの「使えるキー」の一覧に icon はまだ出ない (既存の文を変えないため)。icon そのものは効く
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: group-invalid, severity: warning, at: "8:13+6", message_has: "(label, color, boundary, members)", hint_has: もしかして「color」 }
+    groups:
+        ops: gh

@@ -1,0 +1,32 @@
+kind: 正常
+checks: >-
+    吹き出しの中のロゴ。details.display hover の吹き出しの詳細の :alias: は 1em で title つき、絵文字は文字。タグの行のロゴは 14px で title なし。details.display が hover なら、tags.display が click でも重ねた吹き出しにタグの行が出る
+render:
+    options: {}
+    resolver:
+        "simple-icons:github": ../../assets/circle.svg
+        "simple-icons:grafana": ../../assets/triangle.svg
+actions:
+    - hover: ビルド (250ms 待つと吹き出しが開く。離すと閉じる)
+    - hover: 詳細とタグ
+    - hover: タグの印をクリック
+    - click: タグの印をクリック の .mdag-note-mark
+expect:
+    # .mdag-popover の中。details は詳細の部分、tag_line は p.mdag-popover-tags
+    hover_ビルド:
+        details: [{ icon: gh, svg: true, size: 13px, title: ":gh:" }, { icon: memo, kind: emoji, text: "📝" }]
+        tag_line: null
+    hover_詳細とタグ:
+        details: [{ icon: grafana, svg: true, size: 13px, title: ":grafana:" }]
+        tag_line: { logos: [gh], text: "#tool:gh", logo_size: 14px, title: null }
+    hover_タグの印をクリック:
+        details: []
+        tag_line: { logos: [grafana, gh], text: "#tool:grafana,gh" }
+    after_leave:
+        popover_hidden: true
+    click_タグの印をクリック:
+        tag_line: { logos: [grafana, gh], text: "#tool:grafana,gh", logo_size: 14px }
+    # ノードの中のタグは隠れている
+    node_tags_display: none
+look:
+    - 詳細の文のロゴ (1em) とタグの行のロゴ (14px) で大きさが違う

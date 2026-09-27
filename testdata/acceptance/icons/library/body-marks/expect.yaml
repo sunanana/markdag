@@ -1,0 +1,25 @@
+kind: 正常
+checks: >-
+    本文の :alias: を印 (span.mdag-icon[data-icon]、中身は :alias: の文字) にし、名前 (refText) から除く。見出し、項目、強調、リンクの文字、詳細の引用ブロック
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics: []
+    nodes:
+        - refText: ルート
+          marks: [rocket]
+        - refText: Push
+          marks: [github]
+          html_has: '<span class="mdag-icon" data-icon="github">:github:</span> Push'
+        # 印を除いても太字 1 つなのでマイルストーンのまま
+        - refText: Release
+          milestone: true
+          marks: [rocket]
+        # 印の前後の空白は 1 つにまとまる
+        - refText: 前 後
+          marks: [github]
+        - refText: のチャンネル に を貼る
+          marks: [slack, github, slack]
+          details_marks: [slack]

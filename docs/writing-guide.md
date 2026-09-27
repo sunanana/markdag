@@ -87,6 +87,7 @@ Nodes are headings and list items. The first line of a node (the heading text, o
 | `> ...` | A blockquote inside a list item, from its second line on | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
 | `[ ]`, `[/]`, `[x]`, `[-]` | Start of a list item or a heading (`- [ ] Name`, `## [/] Name`) | A task: `[ ]` open, `[/]` in progress, `[x]` done, `[-]` canceled. `[X]` is the same as `[x]`. Clicking the label moves the task to the next mark in `tasks.cycle` (by default `[ ]` and `[x]` alternate, and `[/]` and `[-]` are changed by editing the text), and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not change the task. See `tasks` below |
+| `:alias:` | Anywhere in the text of a node or its details, when the frontmatter has `markdag.icons` | A logo defined in `markdag.icons` (see `icons` in section 4), drawn in place of the mark |
 
 Rules:
 
@@ -101,6 +102,20 @@ Rules:
 - A group is inherited by all descendants. There is no notation for putting a parent only in a group. A tag is not inherited: it belongs to the node it is written on.
 - A group with no entry in `markdag.groups` is shown as a text label (`%name`) without a color. A tag needs no definition; it is shown as written (`#owner:alice`, `#urgent`) next to the node text, unless the document changes `markdag.tags.display`.
 - Tag values are checked only for keys defined in `markdag.tags.keys` (see `types` and `tags` in section 4). Without a definition, any value is accepted.
+
+Logo marks (`:alias:`):
+
+```markdown
+## :github: Push
+- [ ] :terraform: Define the VPC and subnets
+    > Watch 5xx and latency on the :grafana: dashboard
+```
+
+- `:alias:` is read only in a document whose frontmatter has `markdag.icons`. Without it, `:github:` stays as text and nothing is reported.
+- It is a mark when the character before the first `:` is not an ASCII letter or digit (the start of the line, a space, punctuation and kana all work: `詳細は:grafana:で見る`, `通知は、:slack: Slack に`), the alias is an ASCII lowercase letter followed by lowercase letters, digits, `_` and `-`, and the character after the closing `:` is not an ASCII letter or digit. `a:github:b`, `10:30:00`, `` `:github:` `` in inline code and a `:` inside a URL (`https://example.com/:github:/x`) stay as text.
+- Write `\:alias:` to keep it as text, anywhere in the line.
+- The mark is not part of the node's name. `## :github: Push` is referenced as `Push`, and the spaces around a mark are joined into one (`前 :github: 後` is named `前 後`). `**:rocket: Release**` is still a milestone.
+- An alias that is not in `markdag.icons` is reported as `icon-unknown` (warning) and shown as the text written. It is still left out of the name.
 
 ## 4. Frontmatter
 
@@ -167,6 +182,7 @@ markdag:
 - `label` is the name shown in the legend, on the frame and in the text label of a group without a color. `color` is a CSS color. `boundary: true` draws a frame around the members.
 - `members` adds nodes by selector instead of by the `%name` mark. Membership given by `members` is inherited by descendants, the same as a mark. `(X)` cannot be used in `members`.
 - A group name made only of digits cannot be used as a mark (`%2024` is not a mark). Put such a group in `members`.
+- `icon` is a logo shown before the label of the frame (`boundary: true`) and next to the color chip in the legend. It is not shown on the member nodes. Write an alias of `markdag.icons` (`icon: aws`) or a `set:name` directly (`icon: simple-icons:figma`). An SVG path or an emoji cannot be written here directly (`icon-invalid`); define an alias for an SVG path. An alias that is not in `markdag.icons` is `icon-unknown`, also in a document without `markdag.icons`.
 
 ### types
 
@@ -239,6 +255,27 @@ markdag:
 - `lint` is the severity of those reports: `warning` (default) or `error`. With `error`, `npm run check` exits with 1. The tag still stays as written and the diagram is still drawn; unlike an error in `relations`, nothing is dropped.
 - `unknownKey` says what to do with a key that is not in `keys`: `allow` (default: the tag is free, as without any definition) or `deny` (`tag-unknown-key`, at the `lint` severity).
 - Tags are data on the node: they are not inherited, they do not draw frames or colors, and they are not in the legend. Applications read them from `GraphModel.tagsOf` and the definitions from `GraphModel.tagKeys` (see [usage.md](usage.md)).
+- A key can show logos from `markdag.icons` (see `icons` below):
+
+    ```yaml
+    markdag:
+        tags:
+            keys:
+                tool:
+                    type: string
+                    multiple: true
+                    icons:
+                        grafana: grafana
+                        sentry: sentry
+                oncall:
+                    type: boolean
+                    icon: pagerduty
+    ```
+
+- `keys.<key>.icons` maps a value of the key to an alias (`value: alias`). `#tool:grafana,sentry` shows the Grafana and Sentry logos in the order of the values, followed by the tag as written. A value that is not in the map has no logo. On an `enum` key, a value that is not in `values` is reported as `icon-invalid` and the entry is kept.
+- `keys.<key>.icon` is a logo for the key itself, for a `boolean` key written without a value (`#oncall`). Use it for the logo of a service. When a key has both, the key's logo comes first, then the logos of the values.
+- The right side of `icons` and the value of `icon` are alias names. A `set:name` there is `icon-invalid`: define it as an alias in `markdag.icons` first. An alias that is not in `markdag.icons` is `icon-unknown`, also in a document without `markdag.icons`. There is no shorthand that uses the value as the alias (`icons: values` is `icon-invalid`).
+- With `tags.display: hover` or `click`, the logos are shown on the tag line in the popover.
 
 ### rules
 
@@ -297,6 +334,33 @@ markdag:
 - The module exports functions under reserved names (`beforeTaskToggle`, `onFoldChange`, `decorateNode`, ...). See [usage.md](usage.md) for the list, what each one receives, how a `before*` hook cancels an operation, and what `transformSource` and `decorateNode` return. `docs/examples/hooks.md` is a working example.
 - When `rules` already covers what you need, use `rules` instead: it needs no code and therefore no decision from the application about whether to run it.
 
+### icons
+
+```yaml
+markdag:
+    icons:
+        $ref: ./team-icons.yaml
+        color: mono
+        github: simple-icons:github
+        k8s: simple-icons:kubernetes
+        logo: ./images/our-logo.svg
+        rocket: 🚀
+        vm:
+            ref: ./azure/vm.svg
+            color: original
+```
+
+- Every key other than `$ref` and `color` is an alias. It is used in the body as `:alias:` (see section 3), in `tags.keys.<key>.icons` and `icon`, and in `groups.<name>.icon`. An alias name is an ASCII lowercase letter followed by lowercase letters, digits, `_` and `-`. `GitHub` is `icon-invalid`. `$ref` and `color` are reserved and cannot be aliases.
+- The value of an alias is one of:
+    - `set:name`: an icon name in the style of [Iconify](https://iconify.design/), in lowercase (`simple-icons:github`, `logos:aws-lambda`).
+    - The path of an SVG file relative to the document, with the `.svg` extension (`./images/our-logo.svg`, `../logos/x.svg`).
+    - One emoji (one visible character; a flag or a sequence joined with ZWJ counts as one). It is shown as the character, and is never resolved.
+    - `{ ref, color }`: one of the above under `ref`, and a `color` for this alias only, which overrides the document's `color`.
+- Other values are `icon-invalid` and the alias is not defined: other images (`./shot.png`; only SVG is supported), a URL, an absolute path, a path without `.svg`, a bare word (`github` does not refer to another alias), two emoji, an object without `ref`. A `:alias:` in the body that uses such an alias then also reports `icon-unknown`.
+- `color` is how logos are painted: `mono` (default) paints each logo in one color, also a multi-colored one: the text color in the body, the muted color in tags and in the legend, the group's color on a frame (gray for a group without a color). `original` keeps the logo's own colors. Any other value is `option-invalid` and `mono` is used; `color: simple-icons:github` is reported with a hint that `color` cannot be an alias.
+- `$ref` loads aliases from other YAML files (`alias: value` on each line): one path or a list, relative to the document. Later files override earlier ones, and the document's own aliases override all of them. `color` and `$ref` inside such a file are reserved: they are reported as `icon-invalid` and skipped, so a file cannot set the document's color. A relative path inside the file is relative to the document, not to the file. As with `types.$ref`, markdag does not read the files: the application reads them and passes them as `icons` to `buildModel` or `render` (see [usage.md](usage.md)). `markdag check` and `npm run check` read them themselves; the MCP server's `check_markdag` does not. A file that was not passed is `icons-unresolved`, and while it is missing, `:alias:` marks in the body are not reported as `icon-unknown`.
+- markdag does not read the logos either. The document only names them. The application passes `resolveIcon` to `render` (or `createHookBridge`), which returns the SVG for a `set:name` or a path. A logo that is not resolved stays as the text `:alias:`, without a diagnostic; only a `resolveIcon` that throws or rejects is reported, as `icon-unresolved` (info) through `onDiagnostic`. A standalone page (`buildStandaloneHtml`) embeds the resolved SVGs it is given, and `markdag html` embeds only the SVG files given as relative paths: `set:name` logos stay as text there. `check` does not resolve logos.
+
 ### Display options
 
 The other keys under `markdag`:
@@ -313,6 +377,7 @@ The other keys under `markdag`:
 | `initialExpandLevel` | Integer. Nodes with children at this depth or deeper start closed (the root is depth 1, so `3` shows three levels). `-1` opens everything | `-1` |
 | `tasks.cycle` | List of marks (`' '`, `'/'`, `'x'`, `'-'`) in the order a click moves through them (see `tasks` above) | `[' ', 'x']` |
 | `tasks.dim` | List of marks to fade, or `states` with `details` and `tags` (see `tasks` above) | none |
+| `icons.color` | `mono` (one color), `original` (the logo's own colors) (see `icons` above) | `mono` |
 
 - `details`, `legend`, `tags` and `tasks` are mappings. Writing a value directly under them (`details: hover`, a list under `legend`) is reported as `option-invalid` and ignored.
 
@@ -375,6 +440,8 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - Nesting deeper than 500 levels (lists, blockquotes, emphasis). The deeper part is not drawn and `nesting-too-deep` is reported. In the frontmatter, YAML nested deeper than 100 levels is reported as `yaml-syntax` and the whole frontmatter is ignored.
 - YAML 1.1 tags such as `!!timestamp`, `!!binary` and `!!set`. The value is read as the plain string or collection written after the tag.
 - Only the first YAML syntax error is reported. Fix it and check again to see the next one.
+- Logos from image files other than SVG (PNG and so on) and from URLs. Such an alias value is `icon-invalid`. Convert the image to SVG and put it next to the document, or use a `set:name`.
+- Choosing how a tag with a logo is shown. It is always the logos followed by the tag as written.
 
 ## 8. Guidelines for a readable diagram
 
@@ -387,6 +454,12 @@ When the frontmatter fails to parse as YAML, all of it is ignored, including eve
 - Use `%name` marks for membership that follows the structure of the outline, and `members` for membership that cuts across it.
 - In a checklist that is mostly done, set `tasks.dim` to `states: ['x', '-']` with `details: hover`: finished and canceled items shrink to one line and fade, and the open ones stand out. Mark what is being worked on with `[/]`, and set `tasks.cycle` to `[' ', '/', 'x']` when readers should be able to do that from the diagram.
 - Use groups for what should be visible as a unit (a team, a phase) and tags for attributes of single nodes (`#owner:alice`, `#priority:high`, `#urgent`). A tag on a heading says nothing about the items under it.
+- Use a logo to complement a sentence, not to replace it. The sentence must make sense on its own; the logo adds which product it is about. Use only logos that readers recognize at a glance (GitHub, Docker, Kubernetes, Terraform, AWS, PostgreSQL, Grafana, Figma, Slack). If some readers may not recognize a logo, write the product name in the sentence.
+- Put one logo per item, at the start of the sentence: `- [ ] :terraform: Define the VPC and subnets`.
+- Do not use generic icons (a pencil, a beaker, a server) for the kind of work, and do not turn people or priorities into icons. Text says these better, and such icons read as noise. Use `tags.keys.<key>.icon` on a `boolean` key for the logo of a service (`#oncall` with the PagerDuty logo), not for a warning sign.
+- When a unit with a boundary matters (a runtime environment such as GitHub, AWS or Cloudflare, a platform such as iOS or Android), make it a group with `boundary: true` and an `icon`. The logo appears on the frame and in the legend, which reads better than the same logo repeated on every item.
+- Keep `icons.color` at `mono`. `original` mixes with the colors of the lines; use it only in a document where the colors of the logos carry meaning. For a set whose terms forbid modifying the icons (such as the official Azure icons), give each of its aliases `color: original` (`vm: { ref: ./azure/vm.svg, color: original }`). markdag does not decide this from the set.
+- Keep the kinds of logos in one diagram to about 10.
 
 ## 9. Check the document
 

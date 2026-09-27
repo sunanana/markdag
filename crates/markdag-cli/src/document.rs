@@ -59,9 +59,24 @@ pub fn refs_of(markdown: &str, key: &str) -> Vec<String> {
 
 /// markdag.types.$ref が指すファイルを読む。読めないものと YAML として読めないものは null (ライブラリが types-unresolved にする)
 pub fn load_type_refs(file: &Path, markdown: &str) -> IndexMap<String, JsValue> {
-    let base = file.parent().unwrap_or_else(|| Path::new(""));
+    load_yaml_refs(file, markdown, "types")
+}
+
+/// markdag.icons.$ref が指す alias の表のファイルを、types と同じ規則で読む (読めなければ null で、ライブラリが icons-unresolved にする)
+pub fn load_icon_refs(file: &Path, markdown: &str) -> IndexMap<String, JsValue> {
+    load_yaml_refs(file, markdown, "icons")
+}
+
+/// $ref のパスを読む基準 (文書のあるディレクトリ)。ファイル名だけで渡した文書は作業ディレクトリ
+pub fn base_dir(file: &Path) -> &Path {
+    file.parent().unwrap_or_else(|| Path::new(""))
+}
+
+// 文書のあるディレクトリからの相対で読む。`..` で上に出るパスも絶対パスもそのまま読む (制限しない)
+fn load_yaml_refs(file: &Path, markdown: &str, key: &str) -> IndexMap<String, JsValue> {
+    let base = base_dir(file);
     let mut loaded = IndexMap::new();
-    for reference in refs_of(markdown, "types") {
+    for reference in refs_of(markdown, key) {
         let value = fs::read(base.join(&reference))
             .ok()
             .and_then(|bytes| parse_yaml(&String::from_utf8_lossy(&bytes)))

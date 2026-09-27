@@ -1,0 +1,11 @@
+kind: 境界
+checks: >-
+    icons と iconAliases を渡さなければ埋める素材の欄は増えない (icons を使わない文書の HTML は前と同じ)。空の icons は欄だけ増える
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md }) と buildStandaloneHtml({ source: input.md, icons: {} })
+expect:
+    without_icons:
+        keys: [source]
+    empty_icons:
+        keys: [source, icons]

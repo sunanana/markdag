@@ -593,6 +593,7 @@ dependencies = [
  "markdag-core",
  "predicates",
  "regex",
+ "saphyr",
  "serde_json",
  "tempfile",
 ]

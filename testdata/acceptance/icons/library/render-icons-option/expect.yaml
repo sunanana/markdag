@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    render の icons オプション (icons.$ref の中身) が解析に届き、$ref の alias がロゴになる。渡さなければ icons-unresolved (render が icons を解析に渡していなかった不具合の回帰)
+call:
+    api: >-
+        render(container, input.md, { icons, resolveIcon })
+    icons: refs/team.yaml を読み、./refs/team.yaml をキーにして渡す
+    resolver:
+        "*": { sync: ../../assets/circle.svg }
+expect:
+    with_icons:
+        diagnostics: []
+        # slack は文書の定義 (絵文字) が勝つので問い合わせない
+        asked: ["simple-icons:github"]
+        body_marks: { gh: svg, slack: "💬" }
+    without_icons:
+        # icons を渡さず resolveIcon も渡さない
+        diagnostics:
+            - { code: icons-unresolved, severity: warning, at: "4:15+16" }
+        body_marks: { gh: ":gh:", slack: "💬" }

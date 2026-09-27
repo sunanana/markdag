@@ -275,6 +275,27 @@
                     "type": "integer",
                     "description": "最初に開いておく深さ。この深さ以上の、子を持つノードを閉じて表示する。-1 ならすべて開く (既定は -1)",
                     "x-hint": "深さを整数で書きます (すべて開くなら -1)"
+                },
+                "icons": {
+                    "type": "object",
+                    "description": "本文の :alias: やタグ、グループに添えるロゴの alias の定義。キーが alias (英小文字で始め、英小文字と数字、- と _)、値がロゴの参照。$ref と color は設定の名前で、alias にできない。SVG の実体を読むのは呼び出し側",
+                    "x-hint": "icons: の下に「github: simple-icons:github」のように alias と参照を 1 行ずつ書きます",
+                    "properties": {
+                        "$ref": {
+                            "description": "alias の対応表を書いた別の YAML ファイル。文書からの相対パスを 1 つか一覧で書く。一覧はあとのものが勝ち、この文書の定義がさらに優先する",
+                            "x-hint": "「$ref: ./icons.yaml」のように文書からの相対パスを書くか、「- ./a.yaml」の形で 1 行ずつ並べます",
+                            "oneOf": [
+                                { "$ref": "#/$defs/iconsRefPath" },
+                                {
+                                    "type": "array",
+                                    "description": "読み込む順に並べたファイルの一覧",
+                                    "x-hint": "$ref: の下に、相対パスを「- ./a.yaml」の形で 1 行ずつ並べます",
+                                    "items": { "$ref": "#/$defs/iconsRefPath" }
+                                }
+                            ]
+                        }
+                    },
+                    "additionalProperties": { "$ref": "#/$defs/iconAlias" }
                 }
             },
             "additionalProperties": false
@@ -378,6 +399,14 @@
                     "x-code": "group-invalid",
                     "x-hint": "members: の下に、メンバーにするノードを「- 名前」の形で 1 行ずつ並べます",
                     "items": { "$ref": "#/$defs/groupMember" }
+                },
+                "icon": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "枠のラベルの前と凡例に出すロゴ。markdag.icons の alias か、set:name (Iconify の名前) を直接書く。形の検査はモデルの組み立てで行う",
+                    "x-code": "icon-invalid",
+                    "x-hint": "markdag.icons に定義した alias の名前 (aws) か、set:name の形 (logos:aws) を書きます",
+                    "x-unlisted": true
                 }
             },
             "additionalProperties": false
@@ -388,6 +417,56 @@
             "description": "型の定義を書いた YAML ファイルの、文書からの相対パス",
             "x-code": "type-invalid",
             "x-hint": "「./types.yaml」のように、文書からの相対パスを文字列で書きます"
+        },
+        "iconsRefPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "alias の対応表を書いた YAML ファイルの、文書からの相対パス",
+            "x-code": "icon-invalid",
+            "x-hint": "「./icons.yaml」のように、文書からの相対パスを文字列で書きます"
+        },
+        "iconAliasName": {
+            "type": "string",
+            "minLength": 1,
+            "description": "markdag.icons の alias の名前。名前の形の検査はモデルの組み立てで行う",
+            "x-code": "icon-invalid",
+            "x-hint": "markdag.icons に定義した alias の名前 (github など) を書きます。set:name は markdag.icons に alias として定義してから使います"
+        },
+        "iconAlias": {
+            "description": "alias 1 つの参照。set:name (Iconify の名前)、文書からの相対パスの SVG、絵文字 1 文字のどれかを文字列で書くか、{ ref, color } の形で alias ごとに色を固定する。color (文書全体の色) もここを通り、値は mono か original",
+            "x-code": "icon-invalid",
+            "x-hint": "「simple-icons:github」「./images/x.svg」のような文字列か、「{ ref: ./azure/vm.svg, color: original }」の形で書きます",
+            "oneOf": [
+                {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "ロゴの参照 (set:name、SVG の相対パス、絵文字 1 文字)。形の検査はモデルの組み立てで行う",
+                    "x-code": "icon-invalid",
+                    "x-hint": "set:name の形 (simple-icons:github)、./images/x.svg のような SVG の相対パス、絵文字 1 文字のどれかを書きます"
+                },
+                {
+                    "type": "object",
+                    "description": "alias ごとに色を固定する形",
+                    "x-code": "icon-invalid",
+                    "x-hint": "ref と color を字下げして書きます (color は mono か original)",
+                    "properties": {
+                        "ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "ロゴの参照 (set:name、SVG の相対パス、絵文字 1 文字)",
+                            "x-code": "icon-invalid",
+                            "x-hint": "set:name の形 (simple-icons:github)、./images/x.svg のような SVG の相対パス、絵文字 1 文字のどれかを書きます"
+                        },
+                        "color": {
+                            "type": "string",
+                            "description": "この alias の色。mono は文字の色で塗る、original はロゴの元の色のまま。書かなければ文書全体の color に従う",
+                            "x-hint": "mono か original のどちらかを書きます",
+                            "enum": ["mono", "original"]
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            ]
         },
         "hookPath": {
             "type": "string",
@@ -501,6 +580,17 @@
                     "description": "true なら、同じ値をこの文書の中の 2 つ以上のノードに書けない",
                     "x-code": "type-invalid",
                     "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                },
+                "icons": {
+                    "type": "object",
+                    "description": "タグの値ごとのロゴ。キーがタグの値、値が markdag.icons の alias。対応表にない値は文字のまま出す",
+                    "x-code": "icon-invalid",
+                    "x-hint": "icons: の下に「ios: apple」のように、タグの値と alias の組を 1 行ずつ字下げして書きます",
+                    "additionalProperties": { "$ref": "#/$defs/iconAliasName" }
+                },
+                "icon": {
+                    "$ref": "#/$defs/iconAliasName",
+                    "description": "キーそのものに添えるロゴ (値のない #sentry のようなキー向け)。markdag.icons の alias を書く"
                 }
             },
             "additionalProperties": false

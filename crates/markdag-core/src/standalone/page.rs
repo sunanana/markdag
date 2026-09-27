@@ -2,6 +2,7 @@
 // 図を「単体で開ける HTML」の文字列にする。DOM を触らない。
 // ランタイム (script タグ 1 本で動く版) とスタイルシートをページに埋め、図の素材は JSON で埋めて、開いたときに組み立てる。
 // 外部を読みに行くものはページに入れない。画像や書体の同梱は、呼び出し側が素材 (parsed の html、css) に済ませて渡す。
+// ロゴの SVG も呼び出し側が解決して素材の icons で渡す。ここは中身を見ずに埋め、開いたときに描画の側が sanitizeSvg を通す。
 // 素材 (StandaloneData) は JS の値のまま (JsValue) 受け、JSON.stringify と同じ文字列 (js_json_stringify) にして埋める。
 // JS の包み (buildStandaloneHtml) と CLI の html が同じこの関数を呼び、テンプレートを 2 か所に持たない (A-017)
 use std::fmt;
@@ -31,7 +32,7 @@ pub struct StandaloneRuntimeOverride {
 }
 
 /// 原文: StandaloneOptions のうち、素材 (StandaloneData) を除いたページの指定。
-/// 素材の欄 (parsed、source、types、hookScripts、view、state、tasks) は render_standalone_page の data で受ける
+/// 素材の欄 (parsed、source、types、hookScripts、view、state、tasks、iconAliases、icons) は render_standalone_page の data で受ける
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct StandaloneOptions {
@@ -72,8 +73,9 @@ pub const DATA_ID: &str = "markdag-data";
 // 開いたときの図の窓口を置く window の名前
 pub const DIAGRAM_GLOBAL: &str = "markdagStandalone";
 
-// 素材の JSON に入れる欄と、その順 (原文の `const data: StandaloneData = { parsed, source, types, hookScripts, view, state, tasks }`)
-const DATA_KEYS: [&str; 7] = [
+// 素材の JSON に入れる欄と、その順 (原文の `const data: StandaloneData = { parsed, source, types, hookScripts, view, state, tasks, iconAliases, icons }`)。
+// iconAliases は markdag.icons.$ref の解決結果、icons は解決済みのロゴ (ref → SVG の文字列)。開いたときに同期の resolver になる
+const DATA_KEYS: [&str; 9] = [
     "parsed",
     "source",
     "types",
@@ -81,6 +83,8 @@ const DATA_KEYS: [&str; 7] = [
     "view",
     "state",
     "tasks",
+    "iconAliases",
+    "icons",
 ];
 
 // ページの骨組みの CSS。図を置く要素が画面いっぱいになるようにする。色は図のスタイルシートと css が決める
@@ -509,6 +513,40 @@ mod tests {
             embedded(&html),
             "{\"source\":\"x\",\"types\":{\"2\":null,\"b\":0.000001,\"a\":[1e+21,null,0],\"c\":\"\\u0001\\\"\\\\/\u{007f}😀\"}}"
         );
+    }
+
+    #[test]
+    fn standalone_ロゴの表と解決済みの_svg_を素材の最後に埋め_中の_lt_を逃がす() {
+        let data = value(
+            r##"{"icons":{"./a.svg":"<svg viewBox=\"0 0 1 1\"><script>x</script></svg>"},"iconAliases":{"./team.yaml":{"gh":"./a.svg"}},"tasks":"scratch","source":"# a"}"##,
+        );
+        let html = render_standalone_page(&StandaloneOptions::default(), &data, &runtime())
+            .expect("組み立てられる");
+        let json = embedded(&html);
+        assert!(!json.contains('<'));
+        assert_eq!(
+            json,
+            r##"{"source":"# a","tasks":"scratch","iconAliases":{"./team.yaml":{"gh":"./a.svg"}},"icons":{"./a.svg":"\u003csvg viewBox=\"0 0 1 1\">\u003cscript>x\u003c/script>\u003c/svg>"}}"##
+        );
+    }
+
+    #[test]
+    fn standalone_ロゴを渡さなければ素材に欄を足さない() {
+        let html = render_standalone_page(
+            &StandaloneOptions::default(),
+            &value(r##"{"source":"# a","icons":null}"##),
+            &runtime(),
+        )
+        .expect("組み立てられる");
+        // null は JSON.stringify と同じくそのまま残り、欄がなければ足さない
+        assert_eq!(embedded(&html), r##"{"source":"# a","icons":null}"##);
+        let html = render_standalone_page(
+            &StandaloneOptions::default(),
+            &value(r##"{"source":"# a"}"##),
+            &runtime(),
+        )
+        .expect("組み立てられる");
+        assert_eq!(embedded(&html), r##"{"source":"# a"}"##);
     }
 }
 

@@ -1,0 +1,10 @@
+kind: 境界
+checks: >-
+    文書で使わない alias のファイルは読まない (ないファイルでも stderr に何も出ない)
+command: >-
+    markdag html input.md -o out.html
+expect:
+    exit: 0
+    stderr: ""
+    embedded:
+        keys_lack: [icons]

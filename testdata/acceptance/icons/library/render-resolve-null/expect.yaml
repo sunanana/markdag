@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    resolveIcon が null (同期でも Promise でも) を返したロゴは文字のままで、診断を出さない (404 にあたる)
+call:
+    api: >-
+        render(container, input.md, { resolveIcon, onDiagnostic })
+    resolver:
+        "simple-icons:github": { sync: null }
+        ./logo.svg: { promise: null }
+expect:
+    asked: ["simple-icons:github", ./logo.svg]
+    after_settled:
+        body_marks: { gh: ":gh:", logo: ":logo:" }
+    diagnostics: []
+    onDiagnostic: []

@@ -15,6 +15,7 @@ use saphyr_parser::{Event as YamlEvent, Parser, ScalarStyle};
 use unicode_normalization::UnicodeNormalization;
 
 use super::html::{MARKED, UNMARKED};
+use super::icon_marks::{ICON_ATTRIBUTE, IconMark};
 use super::outline::{BlockTag, ContentPart, OutlineTree, build_outline};
 use super::task::{TaskLineKind, task_mark_at, task_mark_of, task_state_of};
 use crate::model::locator::SaphyrInput;
@@ -1845,6 +1846,11 @@ enum TopNode {
 // ブロックの境目。文字のあとの改行、文字のあとの Markdown のブロック (data-lines を持つ要素)、最初の Markdown のブロックの
 // あとの要素で refText を切る。milestone は旧実装のまま (最初の <br> までの意味のある子を数える)
 fn describe_first_line(html: &str) -> DescribeFirstLineResult {
+    describe_first_line_with(html, true)
+}
+
+// icon_marks は、印の要素を名前に数えないか (markdag の記法を読む文書だけ真)
+fn describe_first_line_with(html: &str, icon_marks: bool) -> DescribeFirstLineResult {
     // body.textContent (コメントを含まない) のうち 1 行目の分
     let mut text = String::new();
     // 1 行目が終わったか
@@ -1855,7 +1861,7 @@ fn describe_first_line(html: &str) -> DescribeFirstLineResult {
     // DOM は CR を LF にするが、refText では空白と LF は同じ 1 つの空白になるので空白に置き換えてよい
     let html = html.replace("\r\n", "\n").replace('\r', " ");
     let mut top: Vec<TopNode> = Vec::new();
-    let mut open = OpenElements::default();
+    let mut open = OpenElements::new(icon_marks);
     // 原文は `<body>${html}</body>` を読むので、閉じの `</body>` までを字句に分ける (`a </` の `</` はその `<` とつながってコメントになる)
     for token in read_html(&format!("{html}</body>")) {
         match token {
@@ -2042,7 +2048,7 @@ fn trim_serialized(text: &str) -> &str {
 // 台帳 107 行の写し先 (AST の BlockQuote) に、この判定を足している
 // (台帳 107 行、A-138 (2)、A-145)
 fn is_top_level_after(html: &str) -> bool {
-    let mut open = OpenElements::default();
+    let mut open = OpenElements::new(true);
     for token in read_html(html) {
         match token {
             HtmlToken::Start {
@@ -2218,7 +2224,7 @@ fn visit(
             details: None,
         }
     };
-    let first_line = describe_first_line(&plain);
+    let first_line = describe_first_line_with(&plain, scope.extracted);
     // 規則 2.1 の `a || b`: 1 行目の文字が空ならルートだけ title で補う。名前を持たないノード (1 行目が空の項目など。A-219) は
     // 内容の最初の行の文字を使わない
     let ref_text = if node.named && !first_line.ref_text.is_empty() {
@@ -2260,6 +2266,19 @@ fn visit(
 /// 原文を前処理 (大文字の記号、注釈) してから木にし、先行順にノードの列にする。原文の変換器の引数はない (DESIGN (c))。
 /// styleUrls は返さず、数式とコードの有無 (features) を返す。URL は TS の包みが作る (決定 12 (a))
 pub fn parse_document(original: &str) -> ParsedDocument {
+    parse_with_icon_marks(original).0
+}
+
+/// 本文から印として取り出した `:alias:` と、その原文での位置 (文書順、同じ位置は 1 つ)。
+/// 解析の結果は診断を持たないので、model 層が原文を受けたときに読み直して icon-unknown を出すのに使う
+pub(crate) fn body_icon_marks(original: &str) -> Vec<IconMark> {
+    let mut marks = parse_with_icon_marks(original).1;
+    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    marks.retain(|mark| seen.insert((mark.at.line, mark.at.column)));
+    marks
+}
+
+fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>) {
     // 行と桁は変えないので、このあとの行番号は原文のものとしてそのまま使える
     let source = normalize_task_marks(original);
     let ProbeFrontmatterResult {
@@ -2310,13 +2329,16 @@ pub fn parse_document(original: &str) -> ParsedDocument {
     let mut nodes: Vec<OutlineNode> = Vec::new();
     visit(&outline.root, None, 1, &mut nodes, &scope);
 
-    ParsedDocument {
-        nodes,
-        frontmatter,
-        extracted,
-        task_icons: Some(icons),
-        features: outline.features,
-    }
+    (
+        ParsedDocument {
+            nodes,
+            frontmatter,
+            extracted,
+            task_icons: Some(icons),
+            features: outline.features,
+        },
+        outline.icon_marks,
+    )
 }
 
 // ---- 書き出した HTML を DOM と同じ順で読む (describeFirstLine と splitDetails の DOMParser の代わり) ----
@@ -2478,11 +2500,13 @@ enum Namespace {
     MathMl,
 }
 
-// 開いている要素 1 つ。名前は ASCII の小文字 (svg の foreignObject は foreignobject)
+// 開いている要素 1 つ。名前は ASCII の小文字 (svg の foreignObject は foreignobject)。
+// removed は describeFirstLine が中身ごと数えない要素 (svg と、本文の `:alias:` の印の要素)
 #[derive(Debug, Clone, PartialEq)]
 struct OpenElement {
     name: String,
     namespace: Namespace,
+    removed: bool,
 }
 
 impl OpenElement {
@@ -2534,12 +2558,22 @@ enum Placement {
 }
 
 // 開いている要素の列 (HTML の仕様の stack of open elements のうち body より内側)
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct OpenElements {
     stack: Vec<OpenElement>,
+    // 印の要素 (span にクラスと data-icon) を svg と同じく名前に数えないか。印を書くのは markdag の記法を読む文書だけなので、
+    // 読まない文書では書き手の HTML をそのまま数える
+    icon_marks: bool,
 }
 
 impl OpenElements {
+    fn new(icon_marks: bool) -> Self {
+        OpenElements {
+            stack: Vec::new(),
+            icon_marks,
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.stack.is_empty()
     }
@@ -2595,15 +2629,15 @@ impl OpenElements {
         namespace: Namespace,
         closed: bool,
         parent: usize,
+        attributes: &[String],
     ) -> Placement {
-        let removed = name == "svg"
-            || self.stack[..parent]
-                .iter()
-                .any(|element| element.name == "svg");
+        let own = name == "svg" || (self.icon_marks && is_icon_mark(name, attributes));
+        let removed = own || self.stack[..parent].iter().any(|element| element.removed);
         if !closed {
             self.stack.push(OpenElement {
                 name: name.to_string(),
                 namespace,
+                removed: own,
             });
         }
         Placement::Inserted {
@@ -2620,7 +2654,7 @@ impl OpenElements {
                     .stack
                     .last()
                     .map_or(Namespace::Html, |current| current.namespace);
-                return self.insert(name, namespace, self_closing, self.stack.len());
+                return self.insert(name, namespace, self_closing, self.stack.len(), attributes);
             }
             self.break_out_of_foreign();
         }
@@ -2666,7 +2700,7 @@ impl OpenElements {
         } else {
             self_closing
         };
-        self.insert(name, namespace, closed, parent)
+        self.insert(name, namespace, closed, parent, attributes)
     }
 
     fn close_p_in_button_scope(&mut self) {
@@ -2706,14 +2740,23 @@ impl OpenElements {
             Some(table) if !text.chars().all(is_html_space) => table,
             _ => self.stack.len(),
         };
-        let removed = self.stack[..parent]
-            .iter()
-            .any(|element| element.name == "svg");
+        let removed = self.stack[..parent].iter().any(|element| element.removed);
         Placement::Inserted {
             top_level: parent == 0,
             removed,
         }
     }
+}
+
+// 本文の `:alias:` の印の要素 (span にクラスと alias の属性)。ノードの名前 (refText) に数えない。
+// 1 行目の生の HTML は文字として読むので、書き手の HTML がここに当たるのは markdag の記法を読まない文書だけ。
+// その文書では当てない (OpenElements の icon_marks)
+fn is_icon_mark(name: &str, attributes: &[String]) -> bool {
+    name == "span"
+        && attributes.iter().any(|attribute| attribute == "class")
+        && attributes
+            .iter()
+            .any(|attribute| attribute == ICON_ATTRIBUTE)
 }
 
 // HTML の仕様の空白 (タブ、改行、改頁、復帰、空白)
@@ -5730,6 +5773,157 @@ mod tests {
             serde_json::json!({ "id": 1, "parent": null, "depth": 1, "html": "a", "refText": "a", "refId": null, "groups": [], "tags": [],
                     "milestone": false, "foldHint": 0, "lines": { "start": 0, "end": 1 }, "task": null, "details": null })
         );
+    }
+
+    // 本文の :alias: (ロゴの印)。markdag.icons を書いた文書だけで読む
+    const ICONS_HEAD: &str =
+        "---\nmarkdag:\n    icons:\n        github: simple-icons:github\n---\n";
+
+    #[test]
+    fn document_icon_marks_in_heading_item_and_details() {
+        let source = format!(
+            "{ICONS_HEAD}## :github: Push\n\n- [x] :terraform: VPC を定義する\n    > :grafana: 5xx を見る。ログは、:cloudwatch: CloudWatch\n"
+        );
+        let parsed = parse_document(&source);
+        let heading = &parsed.nodes[0];
+        assert_eq!(heading.ref_text, "Push");
+        assert_eq!(
+            heading.html,
+            "<span class=\"mdag-icon\" data-icon=\"github\">:github:</span> Push"
+        );
+        let item = &parsed.nodes[1];
+        assert_eq!(item.ref_text, "VPC を定義する");
+        assert!(
+            item.html.contains(
+                "<span class=\"mdag-icon\" data-icon=\"terraform\">:terraform:</span> VPC"
+            )
+        );
+        let details = item.details.as_deref().unwrap_or_default();
+        assert!(
+            details
+                .contains("<span class=\"mdag-icon\" data-icon=\"grafana\">:grafana:</span> 5xx")
+        );
+        assert!(details.contains("ログは、<span class=\"mdag-icon\" data-icon=\"cloudwatch\">:cloudwatch:</span> CloudWatch"));
+        let marks: Vec<(String, u32, u32, u32)> = body_icon_marks(&source)
+            .into_iter()
+            .map(|mark| (mark.alias, mark.at.line, mark.at.column, mark.at.length))
+            .collect();
+        assert_eq!(
+            marks,
+            [
+                ("github".to_string(), 6, 4, 8),
+                ("terraform".to_string(), 8, 7, 11),
+                ("grafana".to_string(), 9, 7, 9),
+                ("cloudwatch".to_string(), 9, 29, 12),
+            ]
+        );
+    }
+
+    #[test]
+    fn document_icon_marks_leave_text_that_is_not_a_mark() {
+        let source = format!(
+            "{ICONS_HEAD}# R\n\n- 10:30:00 に https://example.com/a:b:c\n- \\:github: は文字\n- `:github:` はコード\n- 前 :github: 後\n- **:github: Release**\n"
+        );
+        let parsed = parse_document(&source);
+        let rows: Vec<(&str, &str)> = parsed.nodes[1..]
+            .iter()
+            .map(|node| (node.ref_text.as_str(), node.html.as_str()))
+            .collect();
+        assert_eq!(
+            rows[0],
+            (
+                "10:30:00 に https://example.com/a:b:c",
+                "10:30:00 に https://example.com/a:b:c"
+            )
+        );
+        // エスケープの `\` は消え、印にならない
+        assert_eq!(rows[1], (":github: は文字", ":github: は文字"));
+        assert_eq!(
+            rows[2],
+            (":github: はコード", "<code>:github:</code> はコード")
+        );
+        // 印を除いたあとの空白は 1 つにまとまる
+        assert_eq!(rows[3].0, "前 後");
+        // 太字の中の印も名前から除き、マイルストーンのまま
+        assert_eq!(rows[4].0, "Release");
+        assert!(parsed.nodes[5].milestone);
+        let aliases: Vec<String> = body_icon_marks(&source)
+            .into_iter()
+            .map(|mark| mark.alias)
+            .collect();
+        assert_eq!(aliases, ["github", "github"]);
+    }
+
+    // URL の中の `/:name:/` は、裸の URL でも自動リンク (`<...>`) でも文字のまま。名前も書いたとおりで、印として数えない
+    #[test]
+    fn document_icon_marks_leave_urls_as_text() {
+        let source = format!(
+            "{ICONS_HEAD}# R\n\n- 自動 https://example.com/:gitub:/x\n- 角 <https://example.com/:gitub:/y>\n- www.example.com/:gitub:\n"
+        );
+        let parsed = parse_document(&source);
+        let rows: Vec<(&str, &str)> = parsed.nodes[1..]
+            .iter()
+            .map(|node| (node.ref_text.as_str(), node.html.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                (
+                    "自動 https://example.com/:gitub:/x",
+                    "自動 https://example.com/:gitub:/x"
+                ),
+                (
+                    "角 https://example.com/:gitub:/y",
+                    "角 <a href=\"https://example.com/:gitub:/y\">https://example.com/:gitub:/y</a>"
+                ),
+                ("www.example.com/:gitub:", "www.example.com/:gitub:"),
+            ]
+        );
+        assert!(body_icon_marks(&source).is_empty());
+    }
+
+    // markdag の記法を読まない文書では、書き手の生の HTML の span (class と data-icon を持つもの) も名前に数える (アイコン機能の前と同じ)
+    #[test]
+    fn document_raw_span_with_data_icon_counts_in_names_without_markdag() {
+        let parsed = parse_document(
+            "# R\n- <span class=\"note\" data-icon=\"x\">名前</span> です\n- <span class=\"a\">残る</span> 比較\n",
+        );
+        let names: Vec<&str> = parsed.nodes[1..]
+            .iter()
+            .map(|node| node.ref_text.as_str())
+            .collect();
+        assert_eq!(names, ["名前 です", "残る 比較"]);
+    }
+
+    #[test]
+    fn document_icon_marks_need_markdag_icons() {
+        // icons を書いていない文書では :word: は文字のまま (HTML も refText も変えない)
+        for source in [
+            "## :github: Push\n",
+            "---\nmarkdag:\n    tags: {}\n---\n## :github: Push\n",
+        ] {
+            let parsed = parse_document(source);
+            let heading = parsed.nodes.last().expect("見出し");
+            assert_eq!(heading.ref_text, ":github: Push", "{source}");
+            assert!(!heading.html.contains("mdag-icon"), "{source}");
+            assert!(body_icon_marks(source).is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn document_icon_marks_in_table_cells() {
+        let source = format!(
+            "{ICONS_HEAD}# R\n\n- A\n\n  | a | b |\n  | - | - |\n  |  :github:  | x:y:z |\n"
+        );
+        let parsed = parse_document(&source);
+        assert!(
+            parsed.nodes[1].html.contains(
+                "<td><span class=\"mdag-icon\" data-icon=\"github\">:github:</span></td>"
+            )
+        );
+        let marks = body_icon_marks(&source);
+        assert_eq!(marks.len(), 1);
+        assert_eq!((marks[0].at.line, marks[0].at.column), (12, 6));
     }
 }
 

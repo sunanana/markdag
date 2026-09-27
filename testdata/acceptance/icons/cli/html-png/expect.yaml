@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    PNG の alias は読まず焼き込まない (画像は SVG だけ)。check では alias の icon-invalid と、本文の印の icon-unknown が並ぶ
+commands:
+    - command: markdag html input.md -o out.html
+      expect:
+          exit: 0
+          stderr: ""
+          embedded:
+              keys_lack: [icons, iconAliases]
+    - command: markdag check input.md
+      expect:
+          exit: 0
+          diagnostic_lines:
+              - "warning icon-invalid 4:15 "
+              - "warning icon-unknown 9:4 "

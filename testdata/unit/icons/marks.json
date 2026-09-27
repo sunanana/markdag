@@ -1,0 +1,23 @@
+{
+    "source": [
+        "---",
+        "markdag:",
+        "  icons:",
+        "    a: ./a.svg",
+        "---",
+        "# R",
+        "## :a: :aws-lambda_2: :x9: :a-: :a_: :9a: :A: :a b: x:a: :a:x",
+        "- B",
+        "  > :z: (:y:)"
+    ],
+    "marks": [
+        { "alias": "a", "html": "<span class=\"mdag-icon\" data-icon=\"a\">:a:</span>" },
+        { "alias": "aws-lambda_2", "html": "<span class=\"mdag-icon\" data-icon=\"aws-lambda_2\">:aws-lambda_2:</span>" },
+        { "alias": "x9", "html": "<span class=\"mdag-icon\" data-icon=\"x9\">:x9:</span>" },
+        { "alias": "a-", "html": "<span class=\"mdag-icon\" data-icon=\"a-\">:a-:</span>" },
+        { "alias": "a_", "html": "<span class=\"mdag-icon\" data-icon=\"a_\">:a_:</span>" },
+        { "alias": "z", "html": "<span class=\"mdag-icon\" data-icon=\"z\">:z:</span>" },
+        { "alias": "y", "html": "<span class=\"mdag-icon\" data-icon=\"y\">:y:</span>" }
+    ],
+    "texts": [":9a:", ":A:", ":a b:", "x:a:", ":a:x"]
+}

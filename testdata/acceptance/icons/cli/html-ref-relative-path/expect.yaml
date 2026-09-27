@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    $ref のファイルに書いた相対パスも文書の場所から読む (doc/logos/mark.svg を読み、doc/refs/logos/mark.svg は読まない)。.. で文書のディレクトリの外も読む
+command: >-
+    markdag html doc/input.md -o out.html
+expect:
+    exit: 0
+    stderr: ""
+    embedded:
+        icons_keys: [./logos/mark.svg, ../shared/triangle.svg]
+        # doc/logos/mark.svg は円、doc/refs/logos/mark.svg は四角
+        icons_contain:
+            ./logos/mark.svg: "<circle"
+            ../shared/triangle.svg: "<path"

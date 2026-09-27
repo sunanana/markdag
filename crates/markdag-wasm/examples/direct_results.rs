@@ -127,6 +127,7 @@ fn main() {
         &ModelOptions {
             types: None,
             hook_refs: Some(spec.clone()),
+            icons: None,
         },
     );
     cases.push(case(
@@ -152,6 +153,7 @@ fn main() {
         &ModelOptions {
             types: None,
             hook_refs: Some(spec.clone()),
+            icons: None,
         },
     );
     cases.push(case(
@@ -217,6 +219,7 @@ fn main() {
         let extra = ModelOptions {
             types: Some(types.clone()),
             hook_refs: Some(hooks.clone()),
+            icons: None,
         };
         let marks_model = build_model(
             &marks_parsed.nodes,

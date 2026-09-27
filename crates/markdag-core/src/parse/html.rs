@@ -5,12 +5,15 @@
 // アウトラインの組み立ては、ノードごとにこの列の区間を書き出して内容にする (DOM の要素の outerHTML の代わり)。
 // リンクの href は markdown-it の normalizeLink (mdurl の parse / format / encode と punycode の toASCII) で直し、validateLink が
 // 拒む URL (javascript: など) はリンクにせず原文の文字のまま書く。
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use comrak::nodes::{AstNode, LineColumn, ListType, NodeValue, TableAlignment};
 
+use super::icon_marks::{IconMark, Piece, render_icon_mark, split_icon_marks};
 use super::inline_marks;
-use crate::model::util::{JS_WHITESPACE, js_trim};
+use crate::model::util::{JS_WHITESPACE, js_trim, to_u32};
+use crate::types::SourcePosition;
 
 // markmap-lib の checkbox プラグインが `[ ] ` と `[x] ` の代わりに書く絵の位置に置く、自前で描いた絵 (A-151)。
 // 大きさと viewBox は markmap の絵と同じにして、ノードの測った寸法を変えない。枠は viewBox の 4〜20 の角丸の正方形。
@@ -115,21 +118,45 @@ pub(super) struct Tokens<'a, 's> {
     /// 本文の行 (frontmatter を除いたもの。comrak の sourcepos の行はこの添字 + 1)
     lines: Vec<&'s str>,
     frontmatter_lines: usize,
+    /// 本文の `:alias:` を印にするか (文書が markdag.icons を書いているとき)。印にしたものを書き出した順に集める
+    icon_marks: Option<RefCell<Vec<IconMark>>>,
 }
 
 impl<'a, 's> Tokens<'a, 's> {
     /// 文書の最上位のブロックを順にトークンにする (markdown-it の parse の結果にあたる)
-    pub(super) fn build(root: &'a AstNode<'a>, body: &'s str, frontmatter_lines: usize) -> Self {
+    pub(super) fn build(
+        root: &'a AstNode<'a>,
+        body: &'s str,
+        frontmatter_lines: usize,
+        icons: bool,
+    ) -> Self {
         let mut tokens = Tokens {
             toks: Vec::new(),
             ranges: HashMap::new(),
             lines: split_lines(body),
             frontmatter_lines,
+            icon_marks: icons.then(|| RefCell::new(Vec::new())),
         };
         for child in root.children() {
             tokens.block(child, false);
         }
         tokens
+    }
+
+    /// 書き出しで印にした `:alias:` (書き出した順)。印にしない文書では空
+    pub(super) fn take_icon_marks(&self) -> Vec<IconMark> {
+        self.icon_marks
+            .as_ref()
+            .map(|marks| marks.take())
+            .unwrap_or_default()
+    }
+
+    fn writer(&self) -> Writer<'_, 's> {
+        Writer::new(
+            &self.lines,
+            self.icon_marks.as_ref(),
+            self.frontmatter_lines,
+        )
     }
 
     pub(super) fn range_of(&self, node: &'a AstNode<'a>) -> Option<(usize, usize)> {
@@ -190,12 +217,9 @@ impl<'a, 's> Tokens<'a, 's> {
                 // checkbox プラグインは「項目の最初の段落」だけを見る (直前が paragraph_open、その前が list_item_open)
                 let first_in_item = in_item && node.previous_sibling().is_none();
                 let mut comments = Vec::new();
-                let html = Writer::new(&self.lines).block_inline(
-                    node,
-                    tight,
-                    first_in_item,
-                    &mut comments,
-                );
+                let html = self
+                    .writer()
+                    .block_inline(node, tight, first_in_item, &mut comments);
                 self.inline_tok(html, comments);
                 let close = self.close("p", tight);
                 self.ranges.insert(key_of(node), (open, close));
@@ -205,7 +229,7 @@ impl<'a, 's> Tokens<'a, 's> {
                 let map = self.map_of(node);
                 let open = self.open(tag, Some(map), false);
                 let mut comments = Vec::new();
-                let html = Writer::new(&self.lines).block_inline(node, true, true, &mut comments);
+                let html = self.writer().block_inline(node, true, true, &mut comments);
                 self.inline_tok(html, comments);
                 let close = self.close(tag, false);
                 self.ranges.insert(key_of(node), (open, close));
@@ -397,7 +421,9 @@ impl<'a, 's> Tokens<'a, 's> {
                 open.attrs.push(("style", format!("text-align:{align}")));
             }
             self.push(open);
-            let html = Writer::for_row(&self.lines, columns).table_cell(cell);
+            let mut writer = self.writer();
+            writer.columns = columns;
+            let html = writer.table_cell(cell);
             self.inline_tok(html, Vec::new());
             self.close(cell_tag, false);
         }
@@ -540,7 +566,7 @@ impl<'a, 's> Tokens<'a, 's> {
     /// 段落の中身を書き出す (画像だけの段落の img のノードの内容)
     pub(super) fn render_inline(&self, node: &'a AstNode<'a>) -> String {
         let mut out = String::new();
-        Writer::new(&self.lines).inline(node, &mut out);
+        self.writer().inline(node, &mut out);
         out
     }
 
@@ -602,18 +628,73 @@ struct Writer<'l, 's> {
     lines: &'l [&'s str],
     /// 表の本体の行の桁の直し (comrak が付けた開始の桁, 本当の開始の桁)。表の外は (0, 0)
     columns: (usize, usize),
+    /// 本文の `:alias:` を印にするなら、印にしたものを集める先
+    icon_marks: Option<&'l RefCell<Vec<IconMark>>>,
+    /// 原文の行番号に直すために足す行数 (frontmatter の行数)
+    frontmatter_lines: usize,
 }
 
 impl<'l, 's> Writer<'l, 's> {
-    fn new(lines: &'l [&'s str]) -> Self {
+    fn new(
+        lines: &'l [&'s str],
+        icon_marks: Option<&'l RefCell<Vec<IconMark>>>,
+        frontmatter_lines: usize,
+    ) -> Self {
         Writer {
             lines,
             columns: (0, 0),
+            icon_marks,
+            frontmatter_lines,
         }
     }
 
-    fn for_row(lines: &'l [&'s str], columns: (usize, usize)) -> Self {
-        Writer { lines, columns }
+    /// 文字のノードを書く。印を読む文書では `:alias:` を印の要素にする。lead と trail は前と後ろから削る字の数 (表のセルの端の空白)
+    fn text<'a>(
+        &self,
+        node: &'a AstNode<'a>,
+        text: &str,
+        lead: usize,
+        trail: usize,
+        out: &mut String,
+    ) {
+        let Some(marks) = self.icon_marks else {
+            let kept: String = text.chars().skip(lead).collect();
+            let keep = kept.chars().count().saturating_sub(trail);
+            out.push_str(&escape_html(&kept.chars().take(keep).collect::<String>()));
+            return;
+        };
+        let sourcepos = node.data().sourcepos;
+        // 文字のノードは 1 行に収まる (段落の中の改行は別のノード)。収まらなければ原文と突き合わせない
+        let source = (sourcepos.start.line == sourcepos.end.line)
+            .then(|| self.source_between(sourcepos.start, sourcepos.end));
+        let line = self
+            .lines
+            .get(sourcepos.start.line.saturating_sub(1))
+            .copied()
+            .unwrap_or("");
+        let start = self.column(sourcepos.start.column).saturating_sub(1);
+        // comrak は、エスケープで始まる文字のノードの区間を `\` のあとから始める。直前の `\` の数が奇数ならエスケープ
+        let escaped_start = line
+            .get(..start)
+            .is_some_and(|before| before.chars().rev().take_while(|c| *c == '\\').count() % 2 == 1);
+        for piece in split_icon_marks(text, source.as_deref(), escaped_start, lead, trail) {
+            match piece {
+                Piece::Text(plain) => out.push_str(&escape_html(&plain)),
+                Piece::Mark { alias, offset } => {
+                    let byte = start + offset;
+                    let column = line.get(..byte).map_or(0, |before| before.chars().count()) + 1;
+                    marks.borrow_mut().push(IconMark {
+                        at: SourcePosition {
+                            line: to_u32(sourcepos.start.line + self.frontmatter_lines),
+                            column: to_u32(column),
+                            length: to_u32(alias.chars().count() + 2),
+                        },
+                        alias: alias.clone(),
+                    });
+                    out.push_str(&render_icon_mark(&alias));
+                }
+            }
+        }
     }
 
     // comrak の桁を原文の桁に直す
@@ -781,10 +862,7 @@ impl<'l, 's> Writer<'l, 's> {
             } else {
                 0
             };
-            let kept: String = text.chars().skip(lead).collect();
-            let keep = kept.chars().count().saturating_sub(trail);
-            let trimmed: String = kept.chars().take(keep).collect();
-            out.push_str(&escape_html(&trimmed));
+            self.text(child, text, lead, trail, &mut out);
         }
         out
     }
@@ -804,7 +882,7 @@ impl<'l, 's> Writer<'l, 's> {
     fn inline<'a>(&self, node: &'a AstNode<'a>, out: &mut String) {
         let value = node.data().value.clone();
         match &value {
-            NodeValue::Text(text) => out.push_str(&escape_html(text)),
+            NodeValue::Text(text) => self.text(node, text, 0, 0, out),
             // breaks: true なので段落の中の改行も `<br>` になる
             NodeValue::SoftBreak | NodeValue::LineBreak => out.push_str("<br>\n"),
             NodeValue::Code(code) => {

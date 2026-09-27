@@ -1,0 +1,21 @@
+kind: 正常
+checks: >-
+    resolveIcon が Promise を返すと、最初の描画は文字のままで、解決したらそのロゴを使う所 (本文、タグ、枠、凡例) だけ描き直す
+call:
+    api: >-
+        render(container, input.md, { resolveIcon, onDiagnostic })
+    resolver:
+        "simple-icons:github": { promise: ../../assets/circle.svg, delay_ms: 100 }
+        ./logo.svg: { promise: ../../assets/square.svg, delay_ms: 100 }
+expect:
+    asked: ["simple-icons:github", ./logo.svg]
+    right_after_render:
+        body_marks: { gh: ":gh:", logo: ":logo:", rocket: "🚀" }
+        tag_logos: 0
+        frame_logos: 0
+    after_settled:
+        body_marks: { gh: svg, logo: svg, rocket: "🚀" }
+        tag_logos: 1
+        frame_logos: 1
+        legend_logos: 1
+    onDiagnostic: []

@@ -1,0 +1,11 @@
+kind: 誤り
+checks: >-
+    markdag check が色の誤り (option-invalid)、PNG の alias (icon-invalid)、本文の未定義の alias (icon-unknown) を出す。どれも warning で終了コード 0
+command: >-
+    markdag check input.md
+expect:
+    exit: 0
+    diagnostic_lines:
+        - "warning option-invalid 4:16 "
+        - "warning icon-invalid 6:15 "
+        - "warning icon-unknown 11:4 "

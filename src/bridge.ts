@@ -7,6 +7,8 @@ import { createHookDocument, HookRunner, type HookApi, type HookDocument, type H
 import { emptyModel, type Diagnostic, type GraphModel } from './model/model';
 import type { OutlineNode, ParsedDocument } from './parse/document';
 import { nextTaskMark, taskMarkOf, taskStateOf } from './parse/task';
+import { IconResolution, type IconResolver } from './view/icon-resolver';
+import { documentIconRefs } from './view/icons';
 import type { MarkdagView, ViewHooks } from './view/view';
 
 export interface HookBridgeOptions {
@@ -16,7 +18,11 @@ export interface HookBridgeOptions {
     diagnostics?: () => readonly Diagnostic[];
     // アプリ自身のフック。文書が宣言したフック (と rules) のあとに呼ぶ
     hooks?: HookModule | HookModule[];
-    // 実行中に出る診断 (取りやめ、失敗)
+    // ロゴの SVG を引く関数 (ref は set:name か相対パス)。同期で返せば最初の描画から入り、Promise なら解決後にそのロゴを使う所だけ描き直す。
+    // null、reject、throw は引けなかった (文字のまま)。reject と throw は onDiagnostic に icon-unresolved (info) を知らせる。
+    // 同じ ref は 1 度だけ問い合わせる。省くとロゴを引かない (文字のまま)
+    resolveIcon?: IconResolver;
+    // 実行中に出る診断 (取りやめ、失敗、ロゴの解決の失敗)
     onDiagnostic?: (diagnostic: Diagnostic) => void;
     onHookError?: (error: unknown, info: { event: HookEvent; ref: string }) => void;
     // ctx.api.update の宛先。アプリが本文を差し替えて描き直す (setDocument を通す)。省略すると update は使えない
@@ -36,7 +42,7 @@ export interface HookBridge {
     transform(model: GraphModel, source: string): string;
     // 本文の差し替えの前に呼ぶ。false なら beforeUpdate が取りやめた
     beforeUpdate(next: string): boolean;
-    // 文書を描くたびに、view.setDocument の代わりに呼ぶ。フックの入れ替え、文書の写しの作り直し、onDocument の通知を行う
+    // 文書を描くたびに、view.setDocument の代わりに呼ぶ。フックの入れ替え、文書の写しの作り直し、ロゴの問い合わせ、onDocument の通知を行う
     setDocument(parsed: ParsedDocument, model: GraphModel, fit?: boolean): void;
     // onDestroy を知らせて view を片付ける
     destroy(): void;
@@ -80,6 +86,10 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
     };
     const runner = new HookRunner({ doc: () => doc, api, onDiagnostic: options.onDiagnostic, onError: options.onHookError });
     const setHooks = (model: GraphModel): void => runner.setHooks([...model.hooks.hooks, ...ownHooks], model.hooks.options);
+    // 結果は view の置き場へ入れる。view を付ける前に済んだものは attach で入れ直す
+    const icons = options.resolveIcon
+        ? new IconResolution({ resolve: options.resolveIcon, deliver: (ref, svg) => view?.setIconSvg(ref, svg), onDiagnostic: options.onDiagnostic })
+        : null;
 
     // 図の内部の線とグループを、フックに渡す形に直す。端点が今の文書にないものは渡さない
     const hookEdge = (placed: PlacedEdge | null): HookEdge | null => {
@@ -190,6 +200,7 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
         viewHooks,
         attach: (target) => {
             view = target;
+            for (const [ref, svg] of icons?.settled() ?? []) target.setIconSvg(ref, svg);
         },
         transform: (model, text) => {
             setHooks(model);
@@ -211,10 +222,13 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
                 folded: () => view?.getFolded() ?? [],
                 diagnostics: () => options.diagnostics?.() ?? model.diagnostics,
             });
+            // 同期で返ったロゴは、ここで置き場に入るので最初の描画から入る
+            icons?.request(documentIconRefs(parsed.nodes, model));
             view?.setDocument(parsed, model, fit);
             runner.emit('onDocument', {});
         },
         destroy: () => {
+            icons?.dispose();
             runner.emit('onDestroy', {});
             view?.destroy();
             view = null;

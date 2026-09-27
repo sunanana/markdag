@@ -1,0 +1,20 @@
+kind: 誤り
+checks: >-
+    alias の値と名前の誤り。PNG、URL、絶対パス、裸の語、拡張子なし、大文字の名前、ref のないオブジェクト形は icon-invalid で、表に入らない
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: icon-invalid, severity: warning, at: "5:15+10", message_has: ".png は使えません" }
+        - { code: icon-invalid, severity: warning, at: "6:17+28", message_has: URL は書けません }
+        - { code: icon-invalid, severity: warning, at: "7:14+19", message_has: 文書からの相対パスで書きます }
+        - { code: icon-invalid, severity: warning, at: "8:15+6", message_has: alias の値として読めません }
+        - { code: icon-invalid, severity: warning, at: "9:16+13", message_has: 拡張子 .svg まで書きます }
+        - { code: icon-invalid, severity: warning, at: "10:9+6", hint_has: もしかして「github」 }
+        - { code: icon-invalid, severity: warning, at: "11:9+7", message_has: ref がありません }
+    icons:
+        color: mono
+        aliases:
+            ok: { kind: set, ref: "simple-icons:github" }

@@ -2,6 +2,8 @@
 // 診断つきのグラフ (GraphModel) を組み立てる。
 
 pub mod hooks_decl;
+pub mod icon_uses;
+pub mod icons;
 pub mod locator;
 // 写し先の名前は manifest の表どおり (model.ts → model/model.rs)
 #[allow(clippy::module_inception)]

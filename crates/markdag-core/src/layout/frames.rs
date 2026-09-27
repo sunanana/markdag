@@ -412,6 +412,7 @@ mod tests {
             color: Some("#888".to_string()),
             boundary: true,
             defined: true,
+            icon: None,
         }
     }
 

@@ -409,8 +409,19 @@ fn check<'v>(
                 // 規則 2.6 (A-022): ownersOf の既定の引数 into は、呼び出し側が空の値を作って渡す
                 let mut owners = IndexMap::new();
                 owners_of(schema, &[], &mut owners);
+                // x-unlisted の付いたキーは、知っているキーの一覧 (と近い名前の候補) に出さない。
+                // 案内にまだ載せていない指定 (groups.<name>.icon) を足しても、使っていない文書の診断の文が変わらないようにするため
+                // TODO(spec): アイコン機能を案内に載せるときに x-unlisted を外し、一覧に出すか決める
                 let known = properties
-                    .map(|properties| properties.keys().cloned().collect())
+                    .map(|properties| {
+                        properties
+                            .iter()
+                            .filter(|(_, sub)| {
+                                !matches!(sub, JsValue::Object(sub) if *field(sub, "x-unlisted") == JsValue::Bool(true))
+                            })
+                            .map(|(name, _)| name.clone())
+                            .collect()
+                    })
                     .unwrap_or_default();
                 let unknown = SchemaIssueUnknown {
                     key: key.clone(),

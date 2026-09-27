@@ -1,0 +1,72 @@
+[
+    {
+        "name": "markdag.icons を書いていない文書は欄ごと省く",
+        "source": ["---", "markdag:", "  tags: {}", "---", "# R"],
+        "icons": null
+    },
+    {
+        "name": "空の markdag.icons は既定の表と同じなので省く",
+        "source": ["---", "markdag:", "  icons: {}", "---", "# R"],
+        "icons": null
+    },
+    {
+        "name": "色だけを書いた表は出す",
+        "source": ["---", "markdag:", "  icons:", "    color: original", "---", "# R"],
+        "icons": { "color": "original", "aliases": [] }
+    },
+    {
+        "name": "aliases は $ref の順に重ね、文書の定義を最後に重ねる (同じ alias は位置を保って上書き)。color は書いたときだけ",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    $ref: ./team.yaml",
+            "    fire: \"🔥\"",
+            "    gh: ./github.svg",
+            "    vm: { ref: ./azure/vm.svg, color: original }",
+            "---",
+            "# R"
+        ],
+        "provided": { "./team.yaml": { "gh": "simple-icons:github", "k8s": { "ref": "simple-icons:kubernetes", "color": "mono" } } },
+        "icons": {
+            "color": "mono",
+            "aliases": [
+                ["gh", { "kind": "path", "ref": "./github.svg" }],
+                ["k8s", { "kind": "set", "ref": "simple-icons:kubernetes", "color": "mono" }],
+                ["fire", { "kind": "emoji", "ref": "🔥" }],
+                ["vm", { "kind": "path", "ref": "./azure/vm.svg", "color": "original" }]
+            ]
+        }
+    },
+    {
+        "name": "タグのキーの icons (オブジェクト) と icon、グループの icon は書いたときだけ欄がある",
+        "source": [
+            "---",
+            "markdag:",
+            "  icons:",
+            "    gh: simple-icons:github",
+            "  tags:",
+            "    keys:",
+            "      tool:",
+            "        icons: { git: gh }",
+            "      oncall:",
+            "        icon: gh",
+            "      plain:",
+            "        type: string",
+            "  groups:",
+            "    a: { icon: gh }",
+            "    b: { icon: logos:aws }",
+            "    c: { label: C }",
+            "---",
+            "# R",
+            "## A %a %b %c"
+        ],
+        "icons": { "color": "mono", "aliases": [["gh", { "kind": "set", "ref": "simple-icons:github" }]] },
+        "tagKeys": {
+            "tool": { "icons": { "git": "gh" }, "icon": null },
+            "oncall": { "icons": null, "icon": "gh" },
+            "plain": { "icons": null, "icon": null }
+        },
+        "groups": { "a": "gh", "b": "logos:aws", "c": null }
+    }
+]

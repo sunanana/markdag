@@ -82,6 +82,24 @@
 .mdag-content table, .mdag-content th, .mdag-content td { border-collapse: collapse; border: var(--markmap-table-border); }
 .mdag-content img { display: inline-block; }
 .mdag-content svg { fill: currentColor; }
+/* ロゴ (markdag.icons)。本文の :alias: とタグに、呼び出し側が解決した SVG を inline で置く。引けなかったものは文字のまま (この規則は当たらない)。
+   大きさは本文で 1em、タグと凡例で 14px。枠のラベルの前のロゴ (.mdag-frame-icon) は入れ子の svg で、位置と大きさは描画の側が属性で、
+   mono の色 (グループの色) は color で付ける。凡例の mono は薄い色。mono は文字の色 (currentColor) で塗り、書かれた色も上書きする。original は書かれた色のまま。
+   薄く表示するノード (data-dimmed) ではノードごと薄くなるので、ロゴに別の規則は要らない */
+.mdag-icon[data-icon-color] { display: inline-block; line-height: 0; vertical-align: -0.18em; }
+.mdag-icon[data-icon-color] > svg { width: 1em; height: 1em; }
+.mdag-content .mdag-icon[data-icon-color] { margin-right: 0.15em; }
+/* 吹き出しのタグの行は .mdag-content の中にあるので、本文のロゴの余白 (0.15em) を同じ強さの規則で後から 3px に戻す */
+.mdag-tags .mdag-icon[data-icon-color], .mdag-popover-tags .mdag-icon[data-icon-color] { vertical-align: -3px; }
+.mdag-tags .mdag-icon[data-icon-color] > svg, .mdag-popover-tags .mdag-icon[data-icon-color] > svg { width: 14px; height: 14px; }
+.mdag-tags .mdag-icon, .mdag-popover-tags .mdag-icon, .mdag-popover-tags .mdag-icon[data-icon-color] { margin-right: 3px; }
+.mdag-legend .mdag-icon[data-icon-color] > svg { width: 14px; height: 14px; }
+.mdag-legend .mdag-icon[data-icon-color="mono"] { color: var(--markdag-muted); }
+.mdag-icon[data-icon-color="mono"] > svg, .mdag-frame-icon[data-icon-color="mono"] > svg { fill: currentColor; }
+.mdag-icon[data-icon-color="mono"] svg [fill]:not([fill="none"]), .mdag-frame-icon[data-icon-color="mono"] svg [fill]:not([fill="none"]) { fill: currentColor; }
+.mdag-icon[data-icon-color="mono"] svg [stroke]:not([stroke="none"]), .mdag-frame-icon[data-icon-color="mono"] svg [stroke]:not([stroke="none"]) { stroke: currentColor; }
+/* TODO(spec): mono で上書きするのは fill と stroke の属性だけ。style 属性に書いた色 (style="fill:#f00") は残る */
+.mdag-icon[data-icon-color="original"] > svg, .mdag-frame-icon[data-icon-color="original"] > svg { fill: initial; }
 
 /* 線と矢印の色は、描画の側が枝の色から決めて直接付ける (関係の線は出発ノードの色、木の線は子ノードの色) */
 .mdag-edge { fill: none; stroke-width: 1.6; }
@@ -96,7 +114,7 @@
 .mdag-frame { fill-opacity: 0.07; stroke-width: 1.2; stroke-dasharray: 4 3; }
 .mdag-frame-label { font: 11px sans-serif; }
 /* グループのクリックを受ける。枠の層は最も下なので、重なったところではノードと線が優先される */
-.mdag-frame[data-group], .mdag-frame-label[data-group] { pointer-events: auto; cursor: pointer; }
+.mdag-frame[data-group], .mdag-frame-label[data-group], .mdag-frame-icon[data-group] { pointer-events: auto; cursor: pointer; }
 .mdag-gap { fill: #c9bf9f; fill-opacity: 0.25; stroke: #c9bf9f; stroke-dasharray: 3 3; }
 
 /* 凡例。グループが多い文書では項目が増えるので、高さを区切って中でスクロールさせる */

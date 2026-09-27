@@ -1,0 +1,13 @@
+kind: 誤り
+checks: >-
+    範囲から外した書き方。タグの icons: values の略記は icon-invalid、表示の形の設定 iconDisplay は知らないキー (option-unknown)。どちらも対応を作らない
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: option-unknown, severity: warning, at: "6:9+11", message_has: iconDisplay }
+        - { code: icon-invalid, severity: warning, at: "10:24+6", message_has: キーと値の組で書きます }
+    tagKeys:
+        tool: { icons: null }

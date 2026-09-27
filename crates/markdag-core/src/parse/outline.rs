@@ -13,6 +13,7 @@ use comrak::{Arena, parse_document};
 use regex::Regex;
 
 use super::html::{Tokens, magic_comment};
+use super::icon_marks::{IconMark, icons_declared};
 use super::inline_marks::comrak_options;
 use crate::limits::MAX_NESTING;
 use crate::model::util::{JsValue, js_to_string, to_u32};
@@ -75,6 +76,8 @@ pub(super) enum ContentPart {
 pub(super) struct Outline {
     pub(super) root: OutlineTree,
     pub(super) features: ParsedFeatures,
+    /// 本文から印として取り出した `:alias:` (書き出した順)。文書が markdag.icons を書いていなければ空
+    pub(super) icon_marks: Vec<IconMark>,
 }
 
 /// markmap-lib の Transformer.transform のうち、本文 (frontmatter を切り取ったもの) から木を作る部分。
@@ -95,7 +98,9 @@ pub(super) fn build_outline<'a>(
     for node in too_deep_nodes(document) {
         node.detach();
     }
-    let tokens = Tokens::build(document, &body, frontmatter_lines);
+    // 印の規則は markdag の記法を読む文書 (first_line_rule) のうち、markdag.icons を書いたものだけに当てる
+    let icons = first_line_rule && icons_declared(frontmatter);
+    let tokens = Tokens::build(document, &body, frontmatter_lines, icons);
     let mut builder = Builder {
         tokens: &tokens,
         nodes: vec![HtmlNode {
@@ -121,6 +126,7 @@ pub(super) fn build_outline<'a>(
     Outline {
         root,
         features: features_of(document),
+        icon_marks: tokens.take_icon_marks(),
     }
 }
 

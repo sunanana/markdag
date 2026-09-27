@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    markdag.icons の alias の表。値の 4 つの形 (set:name、SVG の相対パス、絵文字 1 文字、{ ref, color }) と文書の色
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない ($ref なし)
+expect:
+    diagnostics: []
+    icons:
+        color: original
+        # 並びは書いた順
+        aliases:
+            github: { kind: set, ref: "simple-icons:github" }
+            logo: { kind: path, ref: ./images/logo.svg }
+            fire: { kind: emoji, ref: "🔥" }
+            vm: { kind: path, ref: ./azure/vm.svg, color: mono }
+    nodes:
+        - refText: Push
+          marks: [github]

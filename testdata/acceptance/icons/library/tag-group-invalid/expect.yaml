@@ -1,0 +1,26 @@
+kind: 誤り
+checks: >-
+    タグの右辺とキーの icon は alias の名前だけ (set:name は誤り)。グループの icon は alias か set:name で、SVG のパスと絵文字は直接書けない。enum の values にない左辺は警告して対応は残す
+call:
+    api: >-
+        parseDocument → buildModel(nodes, frontmatter, source)
+    icons: 渡さない
+expect:
+    diagnostics:
+        - { code: icon-invalid, severity: warning, at: "21:29+19", hint_has: alias として定義し }
+        - { code: icon-invalid, severity: warning, at: "26:21+7", message_has: values にない値 }
+        - { code: icon-invalid, severity: warning, at: "29:23+22", message_has: alias の名前として読めません }
+        - { code: icon-invalid, severity: warning, at: "9:19+10", message_has: SVG のファイルは直接書けません }
+        - { code: icon-invalid, severity: warning, at: "13:19+6", hint_has: もしかして「github」 }
+        - { code: icon-invalid, severity: warning, at: "15:19+1", message_has: 絵文字は直接書けません }
+    tagKeys:
+        # 読めない右辺は対応に入れない
+        tool: { icons: null }
+        platform: { icons: { android: github } }
+        oncall: { icon: null }
+    groups:
+        a: null
+        # 絵文字の alias を経由した icon は診断なしで残る。枠と凡例にはロゴも絵文字も出ない (扱いは決めていない)
+        b: fire
+        c: null
+        d: null

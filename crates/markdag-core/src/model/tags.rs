@@ -531,6 +531,9 @@ pub fn resolve_tag_keys(
                 Some(JsValue::String(description)) => Some(description.clone()),
                 _ => None,
             },
+            // ロゴの対応は markdag.icons の表と突き合わせるので、表を読んだあと (モデルの組み立て) で入れる
+            icons: IndexMap::new(),
+            icon: None,
         });
     }
     ResolvedTagKeys { keys, issues }

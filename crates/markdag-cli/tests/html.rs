@@ -155,3 +155,157 @@ fn a_missing_input_or_an_unwritable_output_exits_2() {
         .code(2)
         .stderr(contains("no-such-dir"));
 }
+
+#[test]
+fn relative_svg_logos_the_document_uses_are_embedded_and_nothing_else_is_read() {
+    let dir = tempfile::tempdir().expect("一時ディレクトリ");
+    let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\"><path d=\"M0 0h24v24H0z\"/></svg>\n";
+    write(dir.path(), "doc/logos/gh.svg", svg);
+    write(dir.path(), "doc/logos/ops.svg", svg);
+    write(dir.path(), "shared/up.svg", svg);
+    write(dir.path(), "doc/logos/unused.svg", svg);
+    write(dir.path(), "doc/logos/x.png", "not a png");
+    write(dir.path(), "doc/team.yaml", "team: ./logos/gh.svg\n");
+    let doc = write(
+        dir.path(),
+        "doc/doc.md",
+        concat!(
+            "---\n",
+            "markdag:\n",
+            "  icons:\n",
+            "    $ref: ./team.yaml\n",
+            "    gh: ./logos/gh.svg\n",
+            "    up: ../shared/up.svg\n",
+            "    png: ./logos/x.png\n",
+            "    k8s: simple-icons:kubernetes\n",
+            "    none: ./logos/none.svg\n",
+            "    unused: ./logos/unused.svg\n",
+            "    ops: ./logos/ops.svg\n",
+            "  groups:\n",
+            "    run:\n",
+            "      icon: ops\n",
+            "---\n",
+            "# R\n",
+            "## :gh: :team: :up: :png: :k8s: :none: Push %run\n",
+        ),
+    );
+    let output = markdag()
+        .arg("html")
+        .arg(&doc)
+        .assert()
+        .code(0)
+        .stderr(contains("./logos/none.svg").and(contains("x.png").not()))
+        .get_output()
+        .stdout
+        .clone();
+    let data = embedded_data(&String::from_utf8(output).expect("UTF-8"));
+    assert_eq!(keys(&data), ["parsed", "source", "iconAliases", "icons"]);
+    assert_eq!(
+        data["iconAliases"],
+        json!({ "./team.yaml": { "team": "./logos/gh.svg" } })
+    );
+    // 使う順 (本文、グループ)。同じパスは 1 つ。set:name、SVG 以外、読めないもの、使わない alias は入らない
+    assert_eq!(
+        data["icons"],
+        json!({ "./logos/gh.svg": svg, "../shared/up.svg": svg, "./logos/ops.svg": svg })
+    );
+}
+
+#[test]
+fn set_names_alone_add_no_icons_field() {
+    let dir = tempfile::tempdir().expect("一時ディレクトリ");
+    let doc = write(
+        dir.path(),
+        "doc.md",
+        "---\nmarkdag:\n  icons:\n    k8s: simple-icons:kubernetes\n---\n# R\n## :k8s: Deploy\n",
+    );
+    let output = markdag()
+        .arg("html")
+        .arg(&doc)
+        .assert()
+        .code(0)
+        .stderr("")
+        .get_output()
+        .stdout
+        .clone();
+    let data = embedded_data(&String::from_utf8(output).expect("UTF-8"));
+    assert_eq!(keys(&data), ["parsed", "source"]);
+}
+
+// 素材の欄の順は core の DATA_KEYS と同じ (TS と core の単体テストが読む testdata/unit/icons/data-keys.json)。
+// 文書の名前だけを渡したとき (親のディレクトリが空) も、types、hooks、icons の $ref と SVG を作業ディレクトリから読む
+#[test]
+fn every_ref_kind_is_embedded_in_the_shared_field_order_even_for_a_bare_file_name() {
+    let order: Vec<String> = serde_json::from_str(
+        &fs::read_to_string(repo_root().join("testdata/unit/icons/data-keys.json"))
+            .expect("data-keys.json を読む"),
+    )
+    .expect("欄の名前の配列");
+    let dir = tempfile::tempdir().expect("一時ディレクトリ");
+    let svg = "<svg viewBox=\"0 0 1 1\"><path d=\"M0 0\"/></svg>";
+    write(dir.path(), "logo.svg", svg);
+    write(
+        dir.path(),
+        "types.yaml",
+        "status:\n  type: enum\n  values: [a]\n",
+    );
+    write(dir.path(), "guard.hooks.js", "export default {};\n");
+    write(dir.path(), "team.yaml", "team: ./logo.svg\n");
+    write(
+        dir.path(),
+        "doc.md",
+        concat!(
+            "---\n",
+            "markdag:\n",
+            "  types:\n",
+            "    $ref: ./types.yaml\n",
+            "  hooks:\n",
+            "    $ref: ./guard.hooks.js\n",
+            "  icons:\n",
+            "    $ref: ./team.yaml\n",
+            "---\n",
+            "# R\n",
+            "## :team: A\n",
+        ),
+    );
+    let output = markdag()
+        .current_dir(dir.path())
+        .args(["html", "doc.md"])
+        .assert()
+        .code(0)
+        .get_output()
+        .stdout
+        .clone();
+    let data = embedded_data(&String::from_utf8(output).expect("UTF-8"));
+    let written = keys(&data);
+    let expected: Vec<&str> = order
+        .iter()
+        .map(String::as_str)
+        .filter(|key| written.contains(key))
+        .collect();
+    assert_eq!(written, expected);
+    assert_eq!(
+        written,
+        [
+            "parsed",
+            "source",
+            "types",
+            "hookScripts",
+            "iconAliases",
+            "icons"
+        ]
+    );
+    assert_eq!(
+        data["types"],
+        json!({ "./types.yaml": { "status": { "type": "enum", "values": ["a"] } } })
+    );
+    assert_eq!(
+        data["hookScripts"],
+        json!({ "./guard.hooks.js": "export default {};\n" })
+    );
+    assert_eq!(
+        data["iconAliases"],
+        json!({ "./team.yaml": { "team": "./logo.svg" } })
+    );
+    assert_eq!(data["icons"], json!({ "./logo.svg": svg }));
+}

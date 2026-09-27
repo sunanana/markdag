@@ -6,7 +6,7 @@ import type { RelationKind } from '../layout/input-types';
 import type { OutlineNode } from '../parse/document';
 import type { TaskState } from '../parse/task';
 import type { Diagnostic, GraphModel } from './model';
-import { isRecord } from './util';
+import { isRecord, messageOf } from './util';
 
 // 事前に呼ぶフック。false を返すと、その操作を取りやめる
 export const BEFORE_HOOKS = ['beforeUpdate', 'beforeTaskToggle', 'beforeFold', 'beforeSelectEdge', 'beforeSelectGroup', 'beforeDetailsShow'] as const;
@@ -593,5 +593,3 @@ export class HookRunner {
         this.host.onDiagnostic?.({ severity, code, message, at: null, hint });
     }
 }
-
-const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));

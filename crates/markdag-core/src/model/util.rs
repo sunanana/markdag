@@ -222,6 +222,70 @@ impl<'de> Deserialize<'de> for JsValue {
     }
 }
 
+// JS の境界のレイヤー (replaceMarks) は、どの深さのどのオブジェクトにも「undefined でない欄が 1 つで、キーが $number、
+// $object、$undefined のどれかなら `{ "$object": [[キー, 値]] }` に包む」をかける。`{ "$undefined": true }` の印を付けるのは
+// 包みが指定した JsValue の位置 (frontmatter と types の値) だけ (A-197)。Rust で JSON のオブジェクトを読む位置は 3 種類ある:
+//   (1) derive した構造体と enum: 欄の名前は固定で、`$number` / `$object` / `$undefined` の欄を持つ型はない (js_f64 の印を除く) ので包まれない
+//   (2) JsValue::Object: JsValue の Deserialize が包みを外す
+//   (3) 文字列キーの写像 (IndexMap<String, _>): キーは利用者が書くので包まれうる。入力の types と hooks と icons、
+//       候補の問い合わせで戻るタグのキーの icons (TagKeyDef.icons)
+// (3) をこのモジュールで読み、JsValue と同じ判定で包みを外す。出力の側には (3) がない (Map は配列の組、利用者の値は JsValue)
+pub mod marked_map {
+    use indexmap::IndexMap;
+    use serde::de::{DeserializeOwned, Error};
+    use serde::{Deserialize, Deserializer};
+    use serde_json::Value;
+
+    const OBJECT_MARK: &str = "$object";
+
+    // 欄が `$object` だけで、値が `[キー, 値]` の組の配列なら包み (JsValue の object_from_pairs と同じ判定)
+    fn unwrap_pairs(raw: &IndexMap<String, Value>) -> Option<Vec<(String, Value)>> {
+        if raw.len() != 1 {
+            return None;
+        }
+        let Some(Value::Array(pairs)) = raw.get(OBJECT_MARK) else {
+            return None;
+        };
+        pairs
+            .iter()
+            .map(|pair| match pair.as_array().map(Vec::as_slice) {
+                Some([Value::String(key), value]) => Some((key.clone(), value.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `Option<IndexMap<String, V>>` の欄 (`#[serde(default, deserialize_with = "marked_map::deserialize")]`)。
+    /// 欄がないか null なら None。同じキーが 2 度あれば最初の位置に最後の値を入れる (JS のオブジェクトと同じ)
+    pub fn deserialize<'de, V, D>(deserializer: D) -> Result<Option<IndexMap<String, V>>, D::Error>
+    where
+        V: DeserializeOwned,
+        D: Deserializer<'de>,
+    {
+        let Some(raw) = Option::<IndexMap<String, Value>>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        let entries = match unwrap_pairs(&raw) {
+            Some(pairs) => pairs,
+            None => raw.into_iter().collect(),
+        };
+        let mut map = IndexMap::with_capacity(entries.len());
+        for (key, value) in entries {
+            map.insert(key, V::deserialize(value).map_err(D::Error::custom)?);
+        }
+        Ok(Some(map))
+    }
+
+    /// 欄がないか null なら空の写像にする形 (`#[serde(default, deserialize_with = "marked_map::or_empty")]`)
+    pub fn or_empty<'de, V, D>(deserializer: D) -> Result<IndexMap<String, V>, D::Error>
+    where
+        V: DeserializeOwned,
+        D: Deserializer<'de>,
+    {
+        Ok(deserialize(deserializer)?.unwrap_or_default())
+    }
+}
+
 /// JS の Map を境界の JSON で配列の組 `[[k, v], ...]` にする (`#[serde(with = "crate::model::util::pairs")]`)。
 /// 読むときに同じキーが 2 度あれば、最初の位置に最後の値を入れる (JS の `new Map(entries)` と同じ)
 pub mod pairs {
@@ -2170,6 +2234,33 @@ mod tests {
             scalar_value("yes", ScalarStyle::Plain, Some(&core_tag("bool"))),
             JsValue::String("yes".to_string())
         );
+    }
+
+    // 境界の包み `{ "$object": [[キー, 値]] }` を外して、利用者が書いたキー ($object など) の写像に戻す。包みでない写像はそのまま
+    #[test]
+    fn util_marked_map_unwraps_boundary_marks() {
+        use crate::types::TagKeyDef;
+        let def = |icons: serde_json::Value| -> TagKeyDef {
+            serde_json::from_value(json!({
+                "key": "tool", "alternatives": [], "multiple": false, "unique": false, "description": null, "icons": icons
+            }))
+            .unwrap()
+        };
+        for mark in ["$object", "$number", "$undefined"] {
+            let icons = def(json!({ "$object": [[mark, "gh"]] })).icons;
+            assert_eq!(
+                icons.into_iter().collect::<Vec<_>>(),
+                vec![(mark.to_string(), "gh".to_string())]
+            );
+        }
+        let plain = def(json!({ "git": "gh", "svn": "sv" })).icons;
+        assert_eq!(plain.keys().collect::<Vec<_>>(), vec!["git", "svn"]);
+        assert!(def(serde_json::Value::Null).icons.is_empty());
+        let missing: TagKeyDef = serde_json::from_value(json!({
+            "key": "tool", "alternatives": [], "multiple": false, "unique": false, "description": null
+        }))
+        .unwrap();
+        assert!(missing.icons.is_empty());
     }
 
     fn core_tag(suffix: &str) -> Tag {

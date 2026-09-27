@@ -1,0 +1,16 @@
+kind: 正常
+checks: >-
+    icons.color original。本文・タグ・枠・凡例のどこでも SVG に書かれた色のまま
+render:
+    options: {}
+    resolver:
+        ./two-tone.svg: ../../assets/two-tone.svg
+expect:
+    body:
+        - { icon: tone, color: original, circle_fill: "rgb(47, 128, 237)", check_stroke: "rgb(255, 255, 255)" }
+    tag:
+        - { icon: tone, color: original, circle_fill: "rgb(47, 128, 237)", check_stroke: "rgb(255, 255, 255)" }
+    frame:
+        - { color: original, circle_fill: "rgb(47, 128, 237)", check_stroke: "rgb(255, 255, 255)" }
+    legend:
+        - { color: original, circle_fill: "rgb(47, 128, 237)", check_stroke: "rgb(255, 255, 255)" }
