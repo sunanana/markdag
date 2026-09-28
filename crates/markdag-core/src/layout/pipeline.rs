@@ -1,25 +1,33 @@
 // 原文: src/view/view.ts (2026-09-24) の update の配置の流れ (944-978 行)。出力の形は scripts/judge/harness.ts の layoutFor
 // view の配置の流れを 1 関数にしたもの (DESIGN (d)。やり直しの単位で、manifest の表の外。規則書 4 章のモジュールの木にある。A-171)。
-// 射影 → 枠のまとまり → 配置の繰り返しを行う。枠の上下の端はメンバーの子の列の広がりで決まるので、1 回目の配置では
-// 隣のメンバーでないノードが枠の矩形に入り込むことがある。2 回目からは前回の結果の張り出しのぶんだけ間隔を空け、
-// 入り込みが 0 になるか回数の上限に達したら打ち切る。
-// 間隔を空けても入り込みが減らず、図の高さが 1 回で STALL_GROWTH 倍以上に伸びた回が来たら、そこで打ち切って前の回の配置を採る。
-// 枠のメンバーとメンバーでないノードが兄弟の並びで交互に挟まると、空けた間隔のぶんだけ枠も伸びるので、入り込みは減らないまま
-// 図の高さが回ごとにほぼ倍になる (docs/examples/notation.md では 340 → 682 → 1406 → 2842)。
-// 入り込みが 1 回足踏みしてから減る文書もある (large-project.md を閉じた状態では 2 → 2 → 1 → 0、高さは +24%、+12%、+7%) ので、
-// 入り込みが減らないことだけでは打ち切らない。旧実装どおりに上限まで回す layout_document_exact も残す。
+// 射影 → 枠のまとまり → 配置の繰り返しを行う。
+// layout_document は、枠をできるだけ 1 つの矩形のまとまりとして配置する (layout/blocks.rs):
+// (1) 配置上の親を選ぶとき、枠の外のノードを枠の中のノードの下に付けない (project_framed)。
+// (2) メンバーが配置の木で閉じている枠は、中だけで配置してから、余白とラベルを足した矩形として外側に置く (frame_blocks)。
+//     その枠の矩形には、メンバーでないノードも別の枠も入り込まない (入れ子の枠は外側の枠の中に収まる)。
+// (3) 閉じていない枠 (メンバーの間にメンバーでないノードが挟まる) だけ、旧実装の繰り返しで間隔を空ける。
+//     1 回目の配置では隣のメンバーでないノードが枠の矩形に入り込むことがあるので、2 回目からは前回の結果の張り出しのぶんだけ
+//     間隔を空け、入り込みが 0 になるか回数の上限に達したら打ち切る。間隔を空けても入り込みが減らず、図の高さが 1 回で
+//     STALL_GROWTH 倍以上に伸びた回が来たら、そこで打ち切って前の回の配置を採る。メンバーとメンバーでないノードが兄弟の並びで
+//     交互に挟まると、空けた間隔のぶんだけ枠も伸びるので、入り込みは減らないまま図の高さが回ごとにほぼ倍になるため
+//     (旧実装での docs/examples/notation.md は 340 → 682 → 1406 → 2842)。入り込みが 1 回足踏みしてから減る文書もある
+//     (large-project.md を閉じた状態では 2 → 2 → 1 → 0、高さは +24%、+12%、+7%) ので、入り込みが減らないことだけでは打ち切らない。
+// layout_document_exact は旧実装 (view の update) の流れそのまま: 配置上の親は枠を見ずに選び、すべての枠を繰り返しで扱い、
+// 上限まで回す。回ごとの値を旧実装の記録と比べる試験が使う。
 // 枠の余白は LayoutOptions の extra_spacing (枠と前回の矩形の値) で layout_graph に渡し、FrameSpacing は layout_graph が
 // 1 回の配置につき 1 度作る (A-019、A-039。ここでは frame_spacing を呼ばない)。
 // layoutOverride (利用者の関数) の経路と、折りたたみの状態 (initialFold、visibleIds) は JS の view に残る (DESIGN (d))。
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::layout::frames::{Frame, compute_frames, count_intruders, frame_outline};
+use crate::layout::frames::{
+    Frame, FrameBlock, compute_frames, count_intruders, frame_blocks, frame_outline,
+};
 use crate::layout::layout::{
     ExtraSpacing, LayoutOptions, LayoutResult, MARKMAP_DEFAULTS, PlacedEdge, SpacingCall,
-    check_layout_options, layout_children_of, layout_graph,
+    check_layout_options, layout_children_of, layout_graph_blocked,
 };
-use crate::layout::project::{VisibleGraph, project};
+use crate::layout::project::{VisibleGraph, project, project_framed};
 use crate::types::{GroupDef, LayoutError, LayoutInput, Rect};
 
 /// 原文: view.ts の MAX_LAYOUT_PASSES (審判の harness も同じ値)
@@ -64,8 +72,8 @@ pub struct LayoutDocumentResult {
     pub spacing: Vec<SpacingCall>,
 }
 
-/// 原文: view.ts の update のうち layoutOverride が null の経路 (944-978 行)。
-/// 入り込みが前の回より減らず、高さが STALL_GROWTH 倍以上に伸びたら、その回で打ち切って前の回の配置を返す (旧実装にない打ち切り。冒頭のコメント)。
+/// 原文: view.ts の update のうち layoutOverride が null の経路 (944-978 行) に、枠のまとまりを足したもの (冒頭のコメント)。
+/// 枠のない文書では layout_document_exact と同じ結果になる。
 /// options の extra_spacing は使わず、回ごとに枠と前回の矩形から作り直す (view の `{ ...MARKMAP_DEFAULTS, extraSpacing }` と同じく上書き)。
 /// options が None なら MARKMAP_DEFAULTS、max_passes が None なら MAX_LAYOUT_PASSES (規則 2.6 の既定の引数)
 pub fn layout_document(
@@ -75,7 +83,7 @@ pub fn layout_document(
     options: Option<LayoutOptions>,
     max_passes: Option<usize>,
 ) -> Result<LayoutDocumentResult, LayoutError> {
-    run_passes(input, groups, groups_of, options, max_passes, true)
+    run_passes(input, groups, groups_of, options, max_passes, Mode::Framed)
 }
 
 /// 旧実装どおり、入り込みが 0 になるか回数の上限に達するまで配置をやり直す (入り込みが減らなくても続ける)。
@@ -88,7 +96,20 @@ pub fn layout_document_exact(
     options: Option<LayoutOptions>,
     max_passes: Option<usize>,
 ) -> Result<LayoutDocumentResult, LayoutError> {
-    run_passes(input, groups, groups_of, options, max_passes, false)
+    run_passes(input, groups, groups_of, options, max_passes, Mode::Exact)
+}
+
+/// 繰り返しを打ち切るか: 前の回と今の回の (入り込みの数, 図の高さ) で、入り込みが減らず、高さが STALL_GROWTH 倍以上に伸びた。
+/// 打ち切ったら前の回の配置を採る (冒頭のコメント)
+pub fn stalled(previous: (usize, f64), current: (usize, f64)) -> bool {
+    current.0 >= previous.0 && current.1 >= previous.1 * STALL_GROWTH
+}
+
+// Framed: 枠をまとまりにする流れ (layout_document)。Exact: 旧実装の流れ (layout_document_exact)
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+    Framed,
+    Exact,
 }
 
 // 1 回の配置の結果と、その矩形、入り込みの数、何回目か
@@ -105,7 +126,7 @@ fn run_passes(
     groups_of: &IndexMap<u32, Vec<String>>,
     options: Option<LayoutOptions>,
     max_passes: Option<usize>,
-    stop_on_stall: bool,
+    mode: Mode,
 ) -> Result<LayoutDocumentResult, LayoutError> {
     let mut options = options.unwrap_or(MARKMAP_DEFAULTS);
     options.extra_spacing = None;
@@ -113,22 +134,39 @@ fn run_passes(
     // 入口の検査 (A-156 の (b))。大きさは project が、指定の数はここで、枠の余白より前に弾く
     check_layout_options(&options)?;
 
-    let graph = project(input)?;
+    let graph = match mode {
+        Mode::Framed => project_framed(input, groups, groups_of)?,
+        Mode::Exact => project(input)?,
+    };
     // 兄弟の縦の並びは配置の前に決まっているので、枠のまとまりを先に作り、枠の余白が入るだけ間隔を空ける
-    let frames = compute_frames(&graph, groups, groups_of, &layout_children_of(&graph));
+    let children_of = layout_children_of(&graph);
+    let frames = compute_frames(&graph, groups, groups_of, &children_of);
+    // まとまりにした枠は矩形ごと配置されるので、繰り返しで間隔を空けるのは残りの枠だけ
+    let (blocks, loose): (Vec<FrameBlock>, Vec<Frame>) = match mode {
+        Mode::Framed => {
+            let (blocks, loose) = frame_blocks(&graph, &frames, &children_of);
+            let loose = loose
+                .into_iter()
+                .filter_map(|index| frames.get(index).cloned())
+                .collect();
+            (blocks, loose)
+        }
+        Mode::Exact => (Vec::new(), frames.clone()),
+    };
     let mut previous: Option<Pass> = None;
     let mut pass: usize = 1;
     loop {
         // PERF(port): ExtraSpacing が frames と rects を所有するので回ごとに frames と前回の矩形を写す。借用の形にすれば写しは要らない
-        let result = layout_graph(
+        let result = layout_graph_blocked(
             &graph,
             Some(LayoutOptions {
                 extra_spacing: Some(ExtraSpacing {
-                    frames: frames.clone(),
+                    frames: loose.clone(),
                     rects: previous.as_ref().map(|kept| kept.targets.clone()),
                 }),
                 ..options.clone()
             }),
+            &blocks,
         )?;
         let targets: IndexMap<u32, Rect> = result
             .nodes
@@ -142,10 +180,13 @@ fn run_passes(
             intruders,
             pass,
         };
-        if stop_on_stall {
+        if mode == Mode::Framed {
             let height = current.result.bounds.height;
             if let Some(kept) = previous.take_if(|kept| {
-                intruders >= kept.intruders && height >= kept.result.bounds.height * STALL_GROWTH
+                stalled(
+                    (kept.intruders, kept.result.bounds.height),
+                    (intruders, height),
+                )
             }) {
                 return Ok(finish(graph, frames, kept));
             }
@@ -194,6 +235,7 @@ fn finish(graph: VisibleGraph, frames: Vec<Frame>, adopted: Pass) -> LayoutDocum
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layout::layout::layout_graph;
     use crate::types::{LayoutInputEdge, LayoutInputNode};
 
     fn group(id: &str) -> GroupDef {
@@ -319,6 +361,126 @@ mod tests {
             },
             back
         );
+    }
+
+    // docs/examples/notation.md を縮めたもの。1 root / 2 要件 / 3 設計 %d (4 画面、5 API) / 6 実装 %b (7 FE (8、9、10)、11 BE (12、13)) /
+    // 14 検証 (15、16)。要件 --> 設計/*、設計 --> 実装 --> 検証、10 & 13 --> 検証、12 --> 9
+    fn notation_like() -> (LayoutInput, Vec<GroupDef>, IndexMap<u32, Vec<String>>) {
+        use crate::types::{LayoutInputRelation, RelationKind::*};
+        let parents: [(u32, u32); 15] = [
+            (1, 2),
+            (1, 3),
+            (3, 4),
+            (3, 5),
+            (1, 6),
+            (6, 7),
+            (7, 8),
+            (7, 9),
+            (7, 10),
+            (6, 11),
+            (11, 12),
+            (11, 13),
+            (1, 14),
+            (14, 15),
+            (14, 16),
+        ];
+        let relation = |kind, source, target| LayoutInputRelation {
+            source,
+            target,
+            kind,
+            origin: format!("{source} --> {target}"),
+        };
+        let input = LayoutInput {
+            name: "notation-like".to_string(),
+            nodes: (1..=16)
+                .map(|id| LayoutInputNode {
+                    id,
+                    label: format!("n{id}"),
+                    width: 60.0,
+                    height: 20.0,
+                    groups: Vec::new(),
+                })
+                .collect(),
+            tree_edges: parents
+                .iter()
+                .map(|&(source, target)| LayoutInputEdge { source, target })
+                .collect(),
+            relations: vec![
+                relation(Fork, 2, 4),
+                relation(Fork, 2, 5),
+                relation(Chain, 3, 6),
+                relation(Chain, 6, 14),
+                relation(Join, 10, 14),
+                relation(Join, 13, 14),
+                relation(Depends, 12, 9),
+            ],
+            suppress_root_line: vec![6, 14],
+            folded: Vec::new(),
+        };
+        let groups_of = (1..=16)
+            .map(|id| {
+                let list = match id {
+                    3..=5 => vec!["d".to_string()],
+                    6..=13 => vec!["b".to_string()],
+                    _ => Vec::new(),
+                };
+                (id, list)
+            })
+            .collect();
+        (input, vec![group("d"), group("b")], groups_of)
+    }
+
+    // 枠 (上のラベルの行を含む) どうしが重なる組と、枠に入り込むメンバーでないノードの数
+    fn frame_collisions(result: &LayoutDocumentResult) -> (usize, usize) {
+        let overlaps = |a: &Rect, b: &Rect| {
+            a.x < b.x + b.width
+                && b.x < a.x + a.width
+                && a.y < b.y + b.height
+                && b.y < a.y + a.height
+        };
+        let area = |frame: &LayoutDocumentFrame| {
+            frame.outline.map(|outline| Rect {
+                y: outline.y - crate::layout::frames::LABEL_HEIGHT,
+                height: outline.height + crate::layout::frames::LABEL_HEIGHT,
+                ..outline
+            })
+        };
+        let mut pairs = 0;
+        for (index, a) in result.frames.iter().enumerate() {
+            for b in &result.frames[index + 1..] {
+                if let (Some(ra), Some(rb)) = (area(a), area(b))
+                    && overlaps(&ra, &rb)
+                {
+                    pairs += 1;
+                }
+            }
+        }
+        let frames: Vec<Frame> = result
+            .frames
+            .iter()
+            .map(|frame| frame.frame.clone())
+            .collect();
+        (pairs, count_intruders(&frames, &result.rects))
+    }
+
+    #[test]
+    fn pipeline_blocks_keep_frames_apart_where_the_old_flow_overlaps() {
+        let (input, groups, groups_of) = notation_like();
+        let old = layout_document_exact(&input, &groups, &groups_of, None, None).unwrap();
+        let (old_pairs, old_intruders) = frame_collisions(&old);
+        assert!(
+            old_pairs + old_intruders > 0,
+            "旧実装の流れでは枠が重なるか、入り込みがある"
+        );
+
+        let new = layout_document(&input, &groups, &groups_of, None, None).unwrap();
+        assert_eq!(frame_collisions(&new), (0, 0));
+        assert_eq!(new.passes, 1);
+        // 実装 (6) と検証 (14) は、枠 d と枠 b のメンバーの下に付けず、ルートの下に置く
+        assert_eq!(new.graph.layout_parent.get(&6), Some(&1));
+        assert_eq!(new.graph.layout_parent.get(&14), Some(&1));
+        // 横位置は relations の向きで決まるので変わらない
+        assert_eq!(new.planned_x, old.planned_x);
     }
 
     #[test]

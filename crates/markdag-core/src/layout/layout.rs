@@ -10,8 +10,9 @@ use std::collections::HashMap;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-use crate::layout::flextree::FlexTree;
-use crate::layout::frames::{Frame, frame_spacing};
+use crate::layout::blocks::layout_with_blocks;
+use crate::layout::flextree::{FlexTree, Placed};
+use crate::layout::frames::{Frame, FrameBlock, frame_padding, frame_spacing};
 use crate::layout::project::{VisibleEdge, VisibleEdgeKind, VisibleGraph, VisibleNode};
 use crate::limits::check_layout_number;
 use crate::model::util::{js_max, js_min};
@@ -161,13 +162,50 @@ pub fn layout_graph(
     layout_graph_with_extra_spacing(graph, Some(options), Some(&mut between))
 }
 
+/// layout_graph と同じ配置を、blocks の枠をそれぞれ 1 つの矩形のまとまりにして行う (layout/blocks.rs)。
+/// blocks は frame_blocks の順 (内側から)。blocks が空なら layout_graph と同じ結果になる。
+/// options.extra_spacing の枠 (まとまりにできなかった枠) には、layout_graph と同じく前回の張り出しのぶんの間隔を足す
+pub fn layout_graph_blocked(
+    graph: &VisibleGraph,
+    options: Option<LayoutOptions>,
+    blocks: &[FrameBlock],
+) -> Result<LayoutResult, LayoutError> {
+    let mut options = options.unwrap_or(MARKMAP_DEFAULTS);
+    let Some(extra) = options.extra_spacing.take() else {
+        return layout_graph_core(graph, Some(options), None, blocks);
+    };
+    let spacing = frame_spacing(&extra.frames, extra.rects.as_ref());
+    let mut between = |upper: u32, lower: u32| spacing.between(upper, lower);
+    layout_graph_core(graph, Some(options), Some(&mut between), blocks)
+}
+
+// flextree の座標 (縦型) から、横型のノードの矩形を作る。gap は本体の左の余白 (深さの方向の size に含めてある)
+fn rect_from_placed(placed: &Placed, gap: f64, spacing_horizontal: f64) -> Rect {
+    Rect {
+        x: placed.y + gap,
+        y: placed.x - placed.x_size / 2.0,
+        width: placed.y_size - gap - spacing_horizontal,
+        height: placed.x_size,
+    }
+}
+
 /// 原文: layoutGraph の本体。extra_spacing は原文の `options.extraSpacing` (兄弟方向の間隔に足す値。
 /// 上に置かれるノード、下に置かれるノードの順で受ける)。None なら足す値は 0 (`?? 0`)。
 /// options.extra_spacing (値の形) は読まない (値から関数を作るのは layout_graph。A-163)
 pub fn layout_graph_with_extra_spacing(
     graph: &VisibleGraph,
     options: Option<LayoutOptions>,
+    extra_spacing: Option<&mut dyn FnMut(u32, u32) -> f64>,
+) -> Result<LayoutResult, LayoutError> {
+    layout_graph_core(graph, options, extra_spacing, &[])
+}
+
+// layout_graph_with_extra_spacing の本体。blocks が空なら原文の layoutGraph と同じ流れ
+fn layout_graph_core(
+    graph: &VisibleGraph,
+    options: Option<LayoutOptions>,
     mut extra_spacing: Option<&mut dyn FnMut(u32, u32) -> f64>,
+    blocks: &[FrameBlock],
 ) -> Result<LayoutResult, LayoutError> {
     let options = options.unwrap_or(MARKMAP_DEFAULTS);
     // 反復しない Map (A-008)。同じ id が 2 度あれば後勝ち (new Map と同じ)
@@ -213,7 +251,30 @@ pub fn layout_graph_with_extra_spacing(
             list.push(edge.source);
         }
     }
-    let planned_x = longest_path_x(graph, &predecessors, &mut |id| Ok(ext(get(id)?)))?;
+    // まとまりにした枠の左の辺は、根の本体より余白のぶん左に出る。余白が兄弟の間隔 (spacing_horizontal) より広いと、
+    // 左の辺が配置上の親の本体に食い込むので、根を親から余白と間隔の差だけ離す (入れ子の段が深い枠か、間隔の狭い配置で起きる)
+    let mut root_extra: HashMap<u32, f64> = HashMap::new();
+    for block in blocks {
+        let extra = frame_padding(block.level).side - options.spacing_horizontal;
+        if extra > 0.0 {
+            for &root in &block.roots {
+                let entry = root_extra.entry(root).or_insert(0.0);
+                *entry = js_max(*entry, extra);
+            }
+        }
+    }
+    let edge_extra = |source: u32, target: u32| -> f64 {
+        match root_extra.get(&target) {
+            Some(&extra) if graph.layout_parent.get(&target) == Some(&source) => extra,
+            _ => 0.0,
+        }
+    };
+    let planned_x = longest_path_x(
+        graph,
+        &predecessors,
+        &mut |id| Ok(ext(get(id)?)),
+        &edge_extra,
+    )?;
 
     let mut gap_of: HashMap<u32, f64> = HashMap::new();
     for node in &graph.nodes {
@@ -263,7 +324,25 @@ pub fn layout_graph_with_extra_spacing(
         Ok(value)
     };
 
-    let tree = FlexTree::layout(graph.root_id, &children_of, &node_size, &mut spacing)?;
+    let tree = if blocks.is_empty() {
+        FlexTree::layout(graph.root_id, &children_of, &node_size, &mut spacing)?
+    } else {
+        let rect_of = |id: u32, placed: &Placed| {
+            rect_from_placed(
+                placed,
+                gap_of.get(&id).copied().unwrap_or(0.0),
+                options.spacing_horizontal,
+            )
+        };
+        layout_with_blocks(
+            graph.root_id,
+            &children_of,
+            &node_size,
+            blocks,
+            &rect_of,
+            &mut spacing,
+        )?
+    };
 
     // flextree は縦型 (x が兄弟方向、y が深さ方向) なので、markmap と同じく入れ替えて横型にする
     let mut nodes: IndexMap<u32, PlacedNode> = IndexMap::new();
@@ -276,12 +355,7 @@ pub fn layout_graph_with_extra_spacing(
                 node: node.clone(),
                 gap,
                 layout_parent: graph.layout_parent.get(&node.id).copied(),
-                rect: Rect {
-                    x: flex_node.y + gap,
-                    y: flex_node.x - flex_node.x_size / 2.0,
-                    width: flex_node.y_size - gap - options.spacing_horizontal,
-                    height: flex_node.x_size,
-                },
+                rect: rect_from_placed(flex_node, gap, options.spacing_horizontal),
             },
         );
     }
@@ -377,10 +451,12 @@ pub fn layout_children_of(graph: &VisibleGraph) -> IndexMap<u32, Vec<u32>> {
 
 // 原文: longestPathX。x(v) = max(x(u) + ext(u))。u は v の先行ノードすべて。先行ノードのないノード (ルート) は 0。
 // ext は get が投げうるので Result を返す関数で受ける (原文では ready に入るのは見えているノードだけなので Err は届かない)
+// edge_extra は辺 (source → target) ごとに x(u) + ext(u) へ足す値 (まとまりにした枠の根の余白。原文にはない)。0 なら足さない
 fn longest_path_x(
     graph: &VisibleGraph,
     predecessors: &IndexMap<u32, Vec<u32>>,
     ext: &mut dyn FnMut(u32) -> Result<f64, LayoutError>,
+    edge_extra: &dyn Fn(u32, u32) -> f64,
 ) -> Result<IndexMap<u32, f64>, LayoutError> {
     let mut successors: IndexMap<u32, Vec<u32>> = graph
         .nodes
@@ -410,7 +486,10 @@ fn longest_path_x(
     while let Some(id) = ready.pop() {
         let right = x.get(&id).copied().unwrap_or(0.0) + ext(id)?;
         for &next in successors.get(&id).map(Vec::as_slice).unwrap_or(&[]) {
-            x.insert(next, js_max(x.get(&next).copied().unwrap_or(0.0), right));
+            // 足す値がないときは原文と同じ値のまま比べる (0 を足すと -0 の符号が変わる)
+            let extra = edge_extra(id, next);
+            let reach = if extra > 0.0 { right + extra } else { right };
+            x.insert(next, js_max(x.get(&next).copied().unwrap_or(0.0), reach));
             let left = remaining.get(&next).copied().unwrap_or(0) - 1;
             remaining.insert(next, left);
             if left == 0 {

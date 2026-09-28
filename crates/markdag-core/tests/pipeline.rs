@@ -1,10 +1,8 @@
-// 配置の流れ (layout/pipeline.rs の layout_document_exact) が、旧実装の view の配置の流れ (src/view/view.ts の update) と同じ結果を出すかの確かめ。
-// layout_document は同じ回を回し、入り込みが前の回より減らずに高さが STALL_GROWTH 倍以上に伸びた回が来たら前の回を採る。
-// 採る回は記録の countIntruders と bounds から決め、
-// その回の layout_document_exact の結果と同じになることを確かめる。
+// 配置の流れ (layout/pipeline.rs) の確かめ。
+// (1)〜(3) は layout_document_exact が、旧実装の view の配置の流れ (src/view/view.ts の update) と同じ結果を出すか。
 // f64 は to_bits で比べる (許容なし、-0 の符号まで)。
 // (1) 審判のコーパス (tests/fixtures/judge/expected/*.json) の layout と layoutFolded の 62 件。入力は期待値の parsed と model から
-//     harness と同じ規則 (tests/judge_harness.rs) で組み、layout_document の出力を judge_shape で期待値の形にして、
+//     harness と同じ規則 (tests/judge_harness.rs) で組み、layout_document_exact の出力を judge_shape で期待値の形にして、
 //     folded、graph、frames (outline つき)、rects、gaps、edges、bounds、plannedX、nodeSize、passes を比べる。
 // (2) 同じ 62 件の回ごとの値を、旧実装で view の繰り返しを回した記録 (tests/fixtures/pipeline/corpus.json。
 //     scripts/migration/fixtures/pipeline.ts が書く) と比べる。回 k の配置は max_passes を k にした layout_document_exact の結果
@@ -12,6 +10,10 @@
 //     spacing の組の順と合計、枠の余白 (前回の矩形から作った FrameSpacing の between) の値、countIntruders
 // (3) 乱数の入力 (tests/fixtures/pipeline/random.json、options と ignoreProxiedDepends と回数の上限を変える) で (2) と同じもの。
 //     件数を増やした突き合わせは #[ignore] のテストで、環境変数 MARKDAG_PIPELINE_CASES の JSON を読む
+// (4) 同じ入力で layout_document (枠を矩形のまとまりにする流れ) を回す。枠のない入力では layout_document_exact と同じ結果になり、
+//     枠のある入力では、まとまりにした枠の矩形 (上のラベルの行を含む) にメンバーでないノードが入らず、まとまりの枠どうしは
+//     交わらないか、内側の枠 (ラベルの行を含む) が外側の枠の矩形に収まる (frame_clear)
+// (5) 繰り返しの打ち切り (stalled) を記録の回に当てると、打ち切るのは記法の例だけ
 #[path = "judge_harness.rs"]
 mod judge_harness;
 #[path = "judge_shape.rs"]
@@ -21,10 +23,12 @@ use std::fs;
 use std::path::Path;
 
 use indexmap::{IndexMap, IndexSet};
-use markdag_core::layout::frames::{Frame, count_intruders, frame_spacing};
-use markdag_core::layout::layout::{LayoutOptions, MARKMAP_DEFAULTS};
+use markdag_core::layout::frames::{
+    Frame, LABEL_HEIGHT, count_intruders, frame_blocks, frame_spacing,
+};
+use markdag_core::layout::layout::{LayoutOptions, MARKMAP_DEFAULTS, layout_children_of};
 use markdag_core::layout::pipeline::{
-    LayoutDocumentResult, MAX_LAYOUT_PASSES, STALL_GROWTH, layout_document, layout_document_exact,
+    LayoutDocumentResult, MAX_LAYOUT_PASSES, layout_document, layout_document_exact, stalled,
 };
 use markdag_core::types::{GroupDef, LayoutInput, LayoutInputRelation, ParsedDocument, Rect};
 use serde_json::{Value, json};
@@ -204,33 +208,102 @@ fn check_passes(case: &Case, expected_passes: &[Value]) -> (LayoutDocumentResult
         calls += result.spacing.len();
         previous = Some(result);
     }
-    // layout_document が採る回: 入り込みが前の回より減らず、高さが STALL_GROWTH 倍以上に伸びた最初の回の、1 つ前。
-    // そういう回がなければ最後の回
-    let intruders: Vec<u64> = expected_passes
-        .iter()
-        .map(|pass| pass["intruders"].as_u64().unwrap())
-        .collect();
-    let heights: Vec<f64> = expected_passes
-        .iter()
-        .map(|pass| pass["bounds"][3].as_f64().unwrap())
-        .collect();
-    let adopted = (1..intruders.len())
-        .find(|&index| {
-            intruders[index] >= intruders[index - 1]
-                && heights[index] >= heights[index - 1] * STALL_GROWTH
-        })
-        .unwrap_or(intruders.len());
-    let chosen = layout_document(
-        case.input,
-        case.groups,
-        case.groups_of,
-        Some(case.options.clone()),
-        Some(case.max_passes),
-    )
-    .unwrap();
-    assert_eq!(chosen.passes, adopted, "{name}: 採った回");
-    assert_eq!(chosen, run(adopted), "{name}: 採った回の配置");
     (full, calls)
+}
+
+// 面積のある重なり (辺が接するだけなら重ならない。count_intruders と同じ)
+fn overlaps(a: &Rect, b: &Rect) -> bool {
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+}
+
+fn contains(outer: &Rect, inner: &Rect) -> bool {
+    outer.x <= inner.x
+        && outer.y <= inner.y
+        && inner.x + inner.width <= outer.x + outer.width
+        && inner.y + inner.height <= outer.y + outer.height
+}
+
+// 枠の矩形に、上の辺の上に置くラベルの行を足したもの
+fn with_label(outline: &Rect) -> Rect {
+    Rect {
+        x: outline.x,
+        y: outline.y - LABEL_HEIGHT,
+        width: outline.width,
+        height: outline.height + LABEL_HEIGHT,
+    }
+}
+
+// (4) の確かめ。まとまりにした枠の数と、まとまりにできなかった枠の数を返す
+fn frame_clear(name: &str, result: &LayoutDocumentResult) -> (usize, usize) {
+    let frames: Vec<Frame> = result
+        .frames
+        .iter()
+        .map(|frame| frame.frame.clone())
+        .collect();
+    let (blocks, loose) = frame_blocks(&result.graph, &frames, &layout_children_of(&result.graph));
+    let framed: Vec<usize> = blocks.iter().map(|block| block.frame).collect();
+    let outline = |index: usize| {
+        result.frames[index]
+            .outline
+            .expect("まとまりの枠には矩形がある")
+    };
+    for &index in &framed {
+        let frame = &result.frames[index].frame;
+        let area = with_label(&outline(index));
+        for (id, rect) in &result.rects {
+            if rect.width <= 0.0 || rect.height <= 0.0 || frame.members.contains(id) {
+                continue;
+            }
+            assert!(
+                !overlaps(rect, &area),
+                "{name}: ノード {id} が枠 {} {:?} に入っている",
+                frame.group.id,
+                frame.members
+            );
+        }
+    }
+    for (position, &a) in framed.iter().enumerate() {
+        for &b in &framed[position + 1..] {
+            let (frame_a, frame_b) = (&result.frames[a].frame, &result.frames[b].frame);
+            let a_in_b = frame_a
+                .members
+                .iter()
+                .all(|id| frame_b.members.contains(id));
+            let b_in_a = frame_b
+                .members
+                .iter()
+                .all(|id| frame_a.members.contains(id));
+            let path = format!("{name}: 枠 {} と {}", frame_a.group.id, frame_b.group.id);
+            if a_in_b && b_in_a && frame_a.level == frame_b.level {
+                // 同じ id のグループが 2 つある入力では、同じメンバーの枠がどちらも段 0 になり、同じ矩形に重ねて描く
+                assert_eq!(outline(a), outline(b), "{path}: 同じメンバーの枠");
+            } else if a_in_b || b_in_a {
+                // 入れ子: 段の低い枠がラベルの行ごと、段の高い枠の矩形に収まる
+                let (inner, outer) = if frame_a.level < frame_b.level {
+                    (a, b)
+                } else {
+                    (b, a)
+                };
+                assert!(
+                    contains(&outline(outer), &with_label(&outline(inner))),
+                    "{path}: 内側の枠が外側の枠からはみ出している"
+                );
+            } else {
+                assert!(
+                    frame_a
+                        .members
+                        .iter()
+                        .all(|id| !frame_b.members.contains(id)),
+                    "{path}: 一部だけメンバーが重なる枠を、両方ともまとまりにした"
+                );
+                assert!(
+                    !overlaps(&with_label(&outline(a)), &with_label(&outline(b))),
+                    "{path}: 交わらない枠の矩形が重なっている"
+                );
+            }
+        }
+    }
+    (framed.len(), loose.len())
 }
 
 #[test]
@@ -246,7 +319,7 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
     assert_eq!(files.len(), 57);
     let (mut compared, mut with_frames, mut frame_count, mut calls) = (0, 0, 0, 0);
     let mut pass_counts: IndexMap<usize, usize> = IndexMap::new();
-    let mut stopped: Vec<String> = Vec::new();
+    let (mut framed_blocks, mut framed_loose) = (0, 0);
     for path in files {
         let doc = read_json(&path);
         let file = path.file_name().unwrap().to_str().unwrap();
@@ -301,14 +374,18 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
                 result,
                 "{name}: 既定の引数"
             );
-            let adopted = layout_document(&input, &groups, &groups_of, None, None).unwrap();
-            if adopted.passes < result.passes {
-                // 途中で打ち切った配置は、最後まで回した配置より高くならない
-                assert!(
-                    adopted.bounds.height <= result.bounds.height,
-                    "{name}: 打ち切った配置の高さ"
-                );
-                stopped.push(name.clone());
+            // (4) 枠をまとまりにする流れ
+            let framed = layout_document(&input, &groups, &groups_of, None, None).unwrap();
+            if result.frames.is_empty() {
+                assert_eq!(framed, result, "{name}: 枠のない文書は旧実装と同じ");
+            } else {
+                let (blocks, loose) = frame_clear(&name, &framed);
+                framed_blocks += blocks;
+                framed_loose += loose;
+                // まとまりにした枠には入り込みがないので、1 回で終わる
+                assert_eq!(framed.passes, 1, "{name}: 回数");
+                // 横位置は relations の向きだけで決まり、配置上の親を付け替えても変わらない
+                assert_eq!(framed.planned_x, result.planned_x, "{name}: 横位置");
             }
 
             let folded: Vec<u32> = folded.into_iter().collect();
@@ -329,14 +406,46 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
     assert_eq!(pass_counts.get(&1).copied(), Some(57));
     assert_eq!(pass_counts.get(&2).copied(), Some(2));
     assert_eq!(pass_counts.get(&4).copied(), Some(3));
-    // 打ち切るのは記法の例だけ (枠のメンバーとメンバーでないノードが兄弟の並びで交互に挟まり、高さが回ごとに倍になる)。
-    // large-project の閉じた状態は入り込みが 2 → 2 → 1 → 0 と 1 回足踏みするが、高さの伸びが小さいので最後まで回す
-    assert_eq!(stopped, vec!["ex-notation.json:layout".to_string()]);
+    // コーパスの枠は、どれもまとまりにできる
+    assert_eq!((framed_blocks, framed_loose), (FRAMED_BLOCKS, 0));
     assert!(calls > 0);
 }
 
-fn check_random(cases: &Value) -> (usize, usize) {
+const FRAMED_BLOCKS: usize = 27;
+
+// (5) 打ち切りの規則を記録の回に当てる。記法の例は入り込みが減らないまま高さが倍になっていくので 2 回目で打ち切る (1 回目を採る)。
+// large-project の閉じた状態は入り込みが 2 → 2 → 1 → 0 と 1 回足踏みするが、高さの伸びが小さいので最後まで回す
+#[test]
+fn pipeline_stall_rule_stops_only_the_diverging_record() {
+    let recorded = fixture("corpus.json");
+    let mut stopped: Vec<(String, usize)> = Vec::new();
+    for (name, record) in recorded.as_object().unwrap() {
+        let passes: Vec<(usize, f64)> = record["passes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|pass| {
+                (
+                    usize::try_from(pass["intruders"].as_u64().unwrap()).unwrap(),
+                    pass["bounds"][3].as_f64().unwrap(),
+                )
+            })
+            .collect();
+        if let Some(index) =
+            (1..passes.len()).find(|&index| stalled(passes[index - 1], passes[index]))
+        {
+            stopped.push((name.clone(), index));
+        }
+    }
+    assert_eq!(stopped, vec![("ex-notation.json:layout".to_string(), 1)]);
+    assert!(stalled((6, 340.0), (6, 682.0)));
+    assert!(!stalled((2, 703.0), (2, 875.0)));
+    assert!(!stalled((5, 1406.0), (4, 2842.0)));
+}
+
+fn check_random(cases: &Value) -> (usize, usize, FrameCounts) {
     let (mut compared, mut failed) = (0, 0);
+    let mut counts = FrameCounts::default();
     for case in cases.as_array().unwrap() {
         let input: LayoutInput = serde_json::from_value(case["input"].clone()).unwrap();
         let name = input.name.clone();
@@ -350,10 +459,17 @@ fn check_random(cases: &Value) -> (usize, usize) {
         let options: LayoutOptions = serde_json::from_value(case["options"].clone()).unwrap();
         let max_passes = usize::try_from(case["maxPasses"].as_u64().unwrap()).unwrap();
         if let Some(message) = case.get("error") {
-            let error =
-                layout_document(&input, &groups, &groups_of, Some(options), Some(max_passes))
-                    .unwrap_err();
-            assert_eq!(json!(error.message), *message, "{name}");
+            for run in [layout_document, layout_document_exact] {
+                let error = run(
+                    &input,
+                    &groups,
+                    &groups_of,
+                    Some(options.clone()),
+                    Some(max_passes),
+                )
+                .unwrap_err();
+                assert_eq!(json!(error.message), *message, "{name}");
+            }
             failed += 1;
             continue;
         }
@@ -388,22 +504,51 @@ fn check_random(cases: &Value) -> (usize, usize) {
             })
             .collect();
         assert_same(&case["frames"], &json!(frames), &format!("{name}/frames"));
+        // (4) 枠をまとまりにする流れ
+        let framed = layout_document(
+            &input,
+            &groups,
+            &groups_of,
+            Some(options.clone()),
+            Some(max_passes),
+        )
+        .unwrap();
+        if result.frames.is_empty() {
+            assert_eq!(framed, result, "{name}: 枠のない入力は旧実装と同じ");
+        } else {
+            let (blocks, loose) = frame_clear(&name, &framed);
+            counts.blocks += blocks;
+            counts.loose += loose;
+        }
         compared += 1;
     }
-    (compared, failed)
+    (compared, failed, counts)
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct FrameCounts {
+    blocks: usize,
+    loose: usize,
 }
 
 #[test]
 fn pipeline_random_cases_match_the_old_view_flow() {
-    let (compared, failed) = check_random(&fixture("random.json"));
+    let (compared, failed, counts) = check_random(&fixture("random.json"));
     assert_eq!((compared, failed), (150, 0));
+    assert_eq!(counts, RANDOM_FRAME_COUNTS);
 }
+
+// 乱数の入力はグループのメンバーを部分木に関係なく選ぶので、メンバーの間にメンバーでないノードが挟まる枠 (まとまりにできない) が多い
+const RANDOM_FRAME_COUNTS: FrameCounts = FrameCounts {
+    blocks: 54,
+    loose: 78,
+};
 
 #[test]
 #[ignore = "MARKDAG_PIPELINE_CASES に scripts/migration/fixtures/pipeline.ts が書いた random.json のパスを渡す"]
 fn pipeline_random_cases_from_env_match_the_old_view_flow() {
     let path = std::env::var("MARKDAG_PIPELINE_CASES").expect("MARKDAG_PIPELINE_CASES");
-    let (compared, failed) = check_random(&read_json(Path::new(&path)));
-    eprintln!("compared {compared}, errors {failed}");
+    let (compared, failed, counts) = check_random(&read_json(Path::new(&path)));
+    eprintln!("compared {compared}, errors {failed}, frames {counts:?}");
     assert!(compared > 0);
 }

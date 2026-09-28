@@ -1,7 +1,8 @@
 // 図の描画と操作。渡された要素の中に、HTML の絶対配置 (ノード) と SVG (線、枠、開閉の円) で図を組み立てる。
 // ノードの実測のサイズを射影と配置に渡し、結果を補間しながら反映する。折りたたみ、ズームとパン、全体表示、
 // 詳細の吹き出し、線とグループの強調、凡例を受け持つ。見た目は同梱のスタイルシートが持つ。
-// グループの枠は簡易版で、メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
+// グループの枠は、メンバーが部分木で閉じていれば 1 つの矩形のまとまりとして配置する (Rust の layout/blocks.rs)。閉じていない枠だけ、
+// メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
 import { select } from 'd3-selection';
 import { zoom, zoomIdentity, zoomTransform, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import type { LayoutInput } from '../layout/input-types';
@@ -1018,6 +1019,7 @@ export class MarkdagView {
         if (override === null) {
             // 射影、枠のまとまり、枠の余白を入れた配置の繰り返しは Rust が 1 回の呼び出しで行う。枠の上下の端はメンバーの子の列の広がりで
             // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す。
+            // メンバーが部分木で閉じている枠は、矩形のまとまりとして 1 回で置く。繰り返すのはそれ以外の枠だけで、
             // 入り込みが減らずに高さだけが大きく伸びた回が来たら、前の回の配置を採る
             const result = layoutDocument(input, model, { ignoreProxiedDepends: this.options.ignoreProxiedDepends });
             graph = result.graph;

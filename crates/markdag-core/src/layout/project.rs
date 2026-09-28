@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::limits::check_layout_number;
 use crate::model::util::JsValue;
-use crate::types::{LayoutError, LayoutInput, RelationKind};
+use crate::types::{GroupDef, LayoutError, LayoutInput, RelationKind};
 
 /// 見えているノード。原文は LayoutInputNode を展開 (`...node`) して欄を足すので、欄の順は入力の欄のあとに depth、treeParent、folded
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -190,6 +190,115 @@ fn order_from_center<T: Clone>(candidates: &[T], node_of: impl Fn(&T) -> u32) ->
 
 /// 原文: project
 pub fn project(input: &LayoutInput) -> Result<VisibleGraph, LayoutError> {
+    project_with(input, None)
+}
+
+/// project と同じ射影を行い、配置上の親を選ぶときに枠 (boundary のグループ) を見る。
+/// relations の始点が、このノードの入っていない枠の中に描かれるノードなら、その始点を配置上の親にしない
+/// (付けると、このノードとその配下が枠の矩形の中に入り込むため)。候補がすべてそうなら、ツリーの親を配置上の親にし、
+/// ルートからの線は抑制したままにする (線を戻すのは、候補が閉路で外れたときだけ)
+pub fn project_framed(
+    input: &LayoutInput,
+    groups: &[GroupDef],
+    groups_of: &IndexMap<u32, Vec<String>>,
+) -> Result<VisibleGraph, LayoutError> {
+    project_with(input, Some((groups, groups_of)))
+}
+
+// 枠を持つグループの所属。ノードごとの所属と、同じグループのノードがツリーの親、子、兄弟にいて枠の中に描かれるグループ
+struct Framing {
+    groups_of: HashMap<u32, HashSet<String>>,
+    framed_of: HashMap<u32, HashSet<String>>,
+}
+
+impl Framing {
+    // 見えているノードだけで作る。枠のまとまりは、ツリーの線でつながるか、同じ配置上の親の下で縦に隣り合うメンバーで作られる
+    // (compute_frames)。配置上の親はまだ決まっていないので、兄弟はツリーの親で見る
+    fn new(
+        nodes: &[VisibleNode],
+        groups: &[GroupDef],
+        groups_of: &IndexMap<u32, Vec<String>>,
+    ) -> Self {
+        let boundary: HashSet<&str> = groups
+            .iter()
+            .filter(|group| group.boundary)
+            .map(|group| group.id.as_str())
+            .collect();
+        let own: HashMap<u32, HashSet<String>> = nodes
+            .iter()
+            .map(|node| {
+                let set = groups_of
+                    .get(&node.id)
+                    .map(|list| {
+                        list.iter()
+                            .filter(|id| boundary.contains(id.as_str()))
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                (node.id, set)
+            })
+            .collect();
+        let empty = HashSet::new();
+        let own_of = |id: u32| own.get(&id).unwrap_or(&empty);
+        // (ツリーの親, グループ) ごとの、そのグループに入っている子の数と、子にそのグループがいる親
+        let mut siblings: HashMap<(u32, &str), usize> = HashMap::new();
+        let mut parent_of_member: HashSet<(u32, &str)> = HashSet::new();
+        for node in nodes {
+            let Some(parent) = node.tree_parent else {
+                continue;
+            };
+            for group in own_of(node.id) {
+                *siblings.entry((parent, group.as_str())).or_default() += 1;
+                parent_of_member.insert((parent, group.as_str()));
+            }
+        }
+        let framed_of = nodes
+            .iter()
+            .map(|node| {
+                let framed: HashSet<String> = own_of(node.id)
+                    .iter()
+                    .filter(|group| {
+                        let group = group.as_str();
+                        let with_parent = node
+                            .tree_parent
+                            .is_some_and(|parent| own_of(parent).contains(group));
+                        let with_child = parent_of_member.contains(&(node.id, group));
+                        let with_sibling = node.tree_parent.is_some_and(|parent| {
+                            siblings.get(&(parent, group)).copied().unwrap_or(0) >= 2
+                        });
+                        with_parent || with_child || with_sibling
+                    })
+                    .cloned()
+                    .collect();
+                (node.id, framed)
+            })
+            .collect();
+        Framing {
+            groups_of: own,
+            framed_of,
+        }
+    }
+
+    // candidate の下に node を付けてよいか: candidate が枠の中に描かれるグループに、node もすべて入っている
+    fn accepts(&self, node: u32, candidate: u32) -> bool {
+        let Some(framed) = self.framed_of.get(&candidate) else {
+            return true;
+        };
+        let own = self.groups_of.get(&node);
+        framed
+            .iter()
+            .all(|group| own.is_some_and(|set| set.contains(group)))
+    }
+}
+
+// 枠を見るときに渡す、グループの定義とノードごとの所属
+type FrameGroups<'a> = (&'a [GroupDef], &'a IndexMap<u32, Vec<String>>);
+
+fn project_with(
+    input: &LayoutInput,
+    frames: Option<FrameGroups>,
+) -> Result<VisibleGraph, LayoutError> {
     let Some(root_id) = input.nodes.first().map(|node| node.id) else {
         return Err(LayoutError {
             message: "入力にノードがない".to_string(),
@@ -317,6 +426,7 @@ pub fn project(input: &LayoutInput) -> Result<VisibleGraph, LayoutError> {
             edge_of_relation.insert(relation_index, edge_index);
         }
     }
+    let framing = frames.map(|(groups, groups_of)| Framing::new(&nodes, groups, groups_of));
     let mut layout_parent: IndexMap<u32, u32> = IndexMap::new();
     let mut suppressed: HashSet<u32> = HashSet::new();
     for node in &nodes {
@@ -325,16 +435,24 @@ pub fn project(input: &LayoutInput) -> Result<VisibleGraph, LayoutError> {
         };
         // 原文の `edge !== undefined && !edge.excludedFromLayout`
         // relation_edges.get(edge_index) の None (閉路の判定のあとには届かない) は原文の undefined の側 (偽) に合流させる (規則 2.5、A-160 (3))
-        let adopted = hints.get(&node.id).and_then(|candidates| {
-            candidates.iter().find(|candidate| {
-                edge_of_relation
-                    .get(&candidate.relation_index)
-                    .and_then(|&edge_index| relation_edges.get(edge_index))
-                    .is_some_and(|edge| !edge.excluded_from_layout)
-            })
+        let in_layout = |candidate: &&LayoutParentCandidate| {
+            edge_of_relation
+                .get(&candidate.relation_index)
+                .and_then(|&edge_index| relation_edges.get(edge_index))
+                .is_some_and(|edge| !edge.excluded_from_layout)
+        };
+        let candidates = hints.get(&node.id).map(Vec::as_slice).unwrap_or(&[]);
+        let adopted = candidates.iter().filter(in_layout).find(|candidate| {
+            framing
+                .as_ref()
+                .is_none_or(|framing| framing.accepts(node.id, rep(candidate.node)))
         });
         if let Some(adopted) = adopted {
             layout_parent.insert(node.id, rep(adopted.node));
+            suppressed.insert(node.id);
+        } else if framing.is_some() && candidates.iter().any(|candidate| in_layout(&candidate)) {
+            // 候補はあるが、どれも枠の外のノードを枠の中に入れてしまう。ツリーの親の下に置き、線は relations に任せる
+            layout_parent.insert(node.id, tree_parent);
             suppressed.insert(node.id);
         } else {
             layout_parent.insert(node.id, tree_parent);
@@ -556,6 +674,100 @@ mod tests {
         // ツリーのエッジが閉路を持つ入力 (view は渡さない) では、閉路の除外は relations だけを見るので layoutParent も閉路になる
         let graph = project(&input(&[1, 2, 3], &[(1, 2), (2, 3), (3, 2)], &[], &[], &[])).unwrap();
         assert_eq!(pairs(&graph.layout_parent), vec![(2, 3), (3, 2)]);
+    }
+
+    fn boundary_group(id: &str) -> GroupDef {
+        GroupDef {
+            id: id.to_string(),
+            label: id.to_string(),
+            color: None,
+            boundary: true,
+            defined: true,
+            icon: None,
+        }
+    }
+
+    #[test]
+    fn project_framed_keeps_nodes_out_of_other_frames() {
+        use RelationKind::*;
+        // 1 root / 2 A %d / 3 a1 (d) / 4 B %b / 5 b1 (b) / 6 C / 7 D / 8 E %x (x はこのノードだけ) / 9 F
+        // A --> B、a1 --> C、C --> D、E --> F。B、C、D、F はルートからの線を抑制する
+        let input = input(
+            &[1, 2, 3, 4, 5, 6, 7, 8, 9],
+            &[
+                (1, 2),
+                (2, 3),
+                (1, 4),
+                (4, 5),
+                (1, 6),
+                (1, 7),
+                (1, 8),
+                (1, 9),
+            ],
+            &[(Chain, 2, 4), (Join, 3, 6), (Chain, 6, 7), (Chain, 8, 9)],
+            &[4, 6, 7, 9],
+            &[],
+        );
+        let groups_of: IndexMap<u32, Vec<String>> = [
+            (2, vec!["d"]),
+            (3, vec!["d"]),
+            (4, vec!["b"]),
+            (5, vec!["b"]),
+            (8, vec!["x"]),
+        ]
+        .into_iter()
+        .map(|(id, list)| (id, list.into_iter().map(String::from).collect()))
+        .collect();
+        let groups = [
+            boundary_group("d"),
+            boundary_group("b"),
+            boundary_group("x"),
+        ];
+
+        // 枠を見ない射影では、B は A の下、C は a1 の下に付く (枠 d の矩形に入り込む)
+        let plain = project(&input).unwrap();
+        assert_eq!(
+            pairs(&plain.layout_parent),
+            vec![
+                (2, 1),
+                (3, 2),
+                (4, 2),
+                (5, 4),
+                (6, 3),
+                (7, 6),
+                (8, 1),
+                (9, 8)
+            ]
+        );
+        // 枠を見る射影では、枠 d のメンバーの下に付けず、ツリーの親 (ルート) に置く。
+        // C は枠の外なので D はその下のまま。E は枠 x のメンバーだが、同じグループのノードが周りにいない (枠にならない) ので F はその下
+        let framed = project_framed(&input, &groups, &groups_of).unwrap();
+        assert_eq!(
+            pairs(&framed.layout_parent),
+            vec![
+                (2, 1),
+                (3, 2),
+                (4, 1),
+                (5, 4),
+                (6, 1),
+                (7, 6),
+                (8, 1),
+                (9, 8)
+            ]
+        );
+        // ルートからの線は抑制したまま (relations の線でつながる)
+        let tree: Vec<(u32, u32)> = framed
+            .edges
+            .iter()
+            .filter(|edge| edge.kind == VisibleEdgeKind::Tree)
+            .map(|edge| (edge.source, edge.target))
+            .collect();
+        assert_eq!(tree, vec![(1, 2), (2, 3), (4, 5), (1, 8)]);
+        // 枠のない文書では project と同じ
+        assert_eq!(
+            project_framed(&input, &[], &IndexMap::new()).unwrap(),
+            plain
+        );
     }
 
     #[test]

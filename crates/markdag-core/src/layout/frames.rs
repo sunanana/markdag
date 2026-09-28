@@ -1,9 +1,10 @@
 // 原文: src/view/frames.ts (2026-09-24)
-// グループの枠の計算 (簡易版)。枠を持つグループごとに、見えているメンバーのまとまりを作り、入れ子の深さを決める。
+// グループの枠の計算。枠を持つグループごとに、見えているメンバーのまとまりを作り、入れ子の深さを決める。
+// メンバーが配置の木で閉じている枠は、1 つの矩形のまとまりとして配置する (frame_blocks と layout/blocks.rs)。
 // ラベルは枠の外側 (上の辺のすぐ上) に、左の角にそろえて置く。
 // 入れ子の外側の枠は、内側の枠より一回り大きくして、枠の線とラベルが重ならないようにする。
-// 枠の中に見えてよいのはメンバーだけにする。枠はメンバーの子の列の広がりで上下に張り出すので、隣のメンバーでないノード
-// (閉じた枝など) がその下に入り込まないよう、張り出しのぶんだけ間隔を空ける。張り出しは配置の結果で決まるので、配置は 2 回以上行う。
+// 枠の中に見えてよいのはメンバーだけにする。まとまりにできない枠は、メンバーの子の列の広がりで上下に張り出すので、隣のメンバーでない
+// ノード (閉じた枝など) がその下に入り込まないよう、張り出しのぶんだけ間隔を空ける。張り出しは配置の結果で決まるので、配置は 2 回以上行う。
 // 原文の frameSpacing (関数を返す) は、framesOf と outlines を前計算した FrameSpacing と between にした (規則 2.6、A-039)
 use std::collections::{HashMap, HashSet};
 
@@ -227,6 +228,163 @@ pub fn compute_frames(
     // 外側の枠から先に描く (安定な sort。規則 2.3)
     frames.sort_by(|a, b| b.level.cmp(&a.level));
     frames
+}
+
+/// 1 つの矩形のまとまりとして配置する枠 (layout/blocks.rs)。roots は同じ配置上の親 parent の下で縦に隣り合う子 (上から順) で、
+/// 枠のメンバーは roots とその配置上の配下のちょうど全体。根が配置の木の根なら parent は None
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrameBlock {
+    pub parent: Option<u32>,
+    pub roots: Vec<u32>,
+    pub level: u32,
+    /// frames の中の添字
+    pub frame: usize,
+}
+
+// まとまりにできそうな枠: 枠の添字、根の親、上から順の根、親の子の並びでの根の範囲
+struct BlockCandidate {
+    frame: usize,
+    parent: Option<u32>,
+    roots: Vec<u32>,
+    range: (usize, usize),
+}
+
+/// 枠を、1 つの矩形のまとまりとして配置できるもの (内側から配置する順) と、できないもの (frames の添字) に分ける。
+/// まとまりにできるのは、メンバーが配置の木で閉じていて (根の配下がすべてメンバー)、根が同じ親の下で縦に隣り合い、
+/// 同じ親の下のほかのまとまりと入れ子か交わらないもの。親の違うまとまりどうしは、閉じているので入れ子か交わらないかのどちらか。
+/// children_of は layout_children_of の結果 (配置上の親ごとの子の並び)
+pub fn frame_blocks(
+    graph: &VisibleGraph,
+    frames: &[Frame],
+    children_of: &IndexMap<u32, Vec<u32>>,
+) -> (Vec<FrameBlock>, Vec<usize>) {
+    // 配置の木の部分木の大きさ。根から幅優先に並べ、逆順に足し上げる (木の深さでスタックを使わない)。
+    // 閉路のある入力 (壊れた入力) でも終わるよう、同じノードは 1 度だけ並べる (そのときの大きさは使われない: 配置が誤りになる)
+    let mut order: Vec<u32> = vec![graph.root_id];
+    let mut listed: HashSet<u32> = HashSet::from([graph.root_id]);
+    let mut index = 0;
+    while let Some(&id) = order.get(index) {
+        for &child in children_of.get(&id).map(Vec::as_slice).unwrap_or(&[]) {
+            if listed.insert(child) {
+                order.push(child);
+            }
+        }
+        index += 1;
+    }
+    let mut size: HashMap<u32, usize> = HashMap::new();
+    for &id in order.iter().rev() {
+        let below: usize = children_of
+            .get(&id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .map(|child| size.get(child).copied().unwrap_or(1))
+            .sum();
+        size.insert(id, below + 1);
+    }
+    let position_of = |parent: u32, id: u32| {
+        children_of
+            .get(&parent)
+            .and_then(|list| list.iter().position(|&child| child == id))
+    };
+
+    let mut candidates: Vec<BlockCandidate> = Vec::new();
+    let mut loose: Vec<usize> = Vec::new();
+    for (frame_index, frame) in frames.iter().enumerate() {
+        let members: HashSet<u32> = frame.members.iter().copied().collect();
+        let roots: Vec<u32> = frame
+            .members
+            .iter()
+            .copied()
+            .filter(|id| {
+                graph
+                    .layout_parent
+                    .get(id)
+                    .is_none_or(|parent| !members.contains(parent))
+            })
+            .collect();
+        let parent = roots
+            .first()
+            .and_then(|root| graph.layout_parent.get(root).copied());
+        let same_parent = roots
+            .iter()
+            .all(|root| graph.layout_parent.get(root).copied() == parent);
+        // 根の部分木が互いに交わらず、メンバーでないノードを含まないときだけ、大きさの和がメンバーの数に等しい
+        let closed = roots
+            .iter()
+            .map(|root| size.get(root).copied().unwrap_or(usize::MAX))
+            .fold(0usize, usize::saturating_add)
+            == members.len();
+        let placed = match parent {
+            None => (roots.len() == 1 && roots.first() == Some(&graph.root_id)).then_some((0, 0)),
+            Some(parent) => {
+                let mut positions: Vec<usize> = roots
+                    .iter()
+                    .filter_map(|&root| position_of(parent, root))
+                    .collect();
+                positions.sort_unstable();
+                match (positions.first(), positions.last()) {
+                    (Some(&first), Some(&last))
+                        if positions.len() == roots.len() && last - first + 1 == roots.len() =>
+                    {
+                        Some((first, last))
+                    }
+                    _ => None,
+                }
+            }
+        };
+        match placed {
+            Some(range) if same_parent && closed => {
+                let mut ordered = roots;
+                if let Some(parent) = parent {
+                    ordered.sort_by_key(|&root| position_of(parent, root));
+                }
+                candidates.push(BlockCandidate {
+                    frame: frame_index,
+                    parent,
+                    roots: ordered,
+                    range,
+                });
+            }
+            _ => loose.push(frame_index),
+        }
+    }
+    // 内側から: メンバーの少ない順、同じメンバーなら段の低い順 (安定な sort)
+    candidates.sort_by_key(|candidate| {
+        let frame = &frames[candidate.frame];
+        (frame.members.len(), frame.level)
+    });
+    let mut accepted_ranges: HashMap<Option<u32>, Vec<(usize, usize)>> = HashMap::new();
+    let mut blocks: Vec<FrameBlock> = Vec::new();
+    for BlockCandidate {
+        frame: frame_index,
+        parent,
+        roots,
+        range: (start, end),
+    } in candidates
+    {
+        let ranges = accepted_ranges.entry(parent).or_default();
+        // 同じ親の下では、範囲が入れ子か交わらないときだけ (一部だけ重なる 2 つの枠は、どちらかしか矩形にできない)
+        let laminar = ranges.iter().all(|&(other_start, other_end)| {
+            end < other_start
+                || other_end < start
+                || (start <= other_start && other_end <= end)
+                || (other_start <= start && end <= other_end)
+        });
+        if !laminar {
+            loose.push(frame_index);
+            continue;
+        }
+        ranges.push((start, end));
+        blocks.push(FrameBlock {
+            parent,
+            roots,
+            level: frames[frame_index].level,
+            frame: frame_index,
+        });
+    }
+    loose.sort_unstable();
+    (blocks, loose)
 }
 
 /// 原文: frameOutline。
@@ -667,6 +825,94 @@ mod tests {
         assert_eq!(levels.len(), count as usize);
         assert_eq!(levels.first(), Some(&("g0".to_string(), count - 1)));
         assert_eq!(levels.last(), Some(&(format!("g{}", count - 1), 0)));
+    }
+
+    // まとまりにした枠 (グループ、根の親、根) と、まとまりにできなかった枠のグループ
+    type BlockRows = (Vec<(String, Option<u32>, Vec<u32>)>, Vec<String>);
+
+    // 枠をまとまりにできるか: 閉じていて、根が同じ親の下で縦に隣り合い、同じ親の下のまとまりと一部だけ重ならない
+    fn blocks_of(graph: &VisibleGraph, frames: &[Frame]) -> BlockRows {
+        let (blocks, loose) = frame_blocks(graph, frames, &layout_children_of(graph));
+        (
+            blocks
+                .iter()
+                .map(|block| {
+                    (
+                        frames[block.frame].group.id.clone(),
+                        block.parent,
+                        block.roots.clone(),
+                    )
+                })
+                .collect(),
+            loose
+                .iter()
+                .map(|&index| frames[index].group.id.clone())
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn frame_blocks_take_closed_subtrees_from_the_inside() {
+        let (graph, frames) = frames();
+        let (blocks, loose) = blocks_of(&graph, &frames);
+        // 内側の枠 (メンバーの少ない順) から、外側の開発の枠へ
+        assert_eq!(
+            blocks,
+            vec![
+                ("backend".to_string(), Some(2), vec![6]),
+                ("frontend".to_string(), Some(2), vec![3]),
+                ("dev".to_string(), Some(1), vec![2]),
+            ]
+        );
+        assert!(loose.is_empty());
+    }
+
+    #[test]
+    fn frame_blocks_leave_frames_with_non_members_inside_to_the_spacing() {
+        let graph = project(&input()).unwrap();
+        // 画面開発 (3) と、その子のうち 4 だけ。3 の配下の 5 はメンバーでないので、矩形のまとまりにできない。
+        // 5 の兄弟の葉 7 と 8 (API開発の子) は、同じ親の下で縦に隣り合う 2 つの根のまとまりになる
+        let groups = vec![group("screen"), group("leaves")];
+        let groups_of = groups_of(&[
+            (3, &["screen"]),
+            (4, &["screen"]),
+            (7, &["leaves"]),
+            (8, &["leaves"]),
+        ]);
+        let frames = compute_frames(&graph, &groups, &groups_of, &layout_children_of(&graph));
+        let (blocks, loose) = blocks_of(&graph, &frames);
+        assert_eq!(blocks, vec![("leaves".to_string(), Some(6), vec![7, 8])]);
+        assert_eq!(loose, vec!["screen".to_string()]);
+    }
+
+    #[test]
+    fn frame_blocks_keep_only_one_of_two_partly_overlapping_runs() {
+        // 1 root の下に葉 2、3、4。枠 p は 2 と 3、枠 q は 3 と 4 (3 を共有する)
+        let flat = LayoutInput {
+            name: "overlap".to_string(),
+            nodes: (1..=4)
+                .map(|id| LayoutInputNode {
+                    id,
+                    label: format!("n{id}"),
+                    width: 40.0,
+                    height: 20.0,
+                    groups: Vec::new(),
+                })
+                .collect(),
+            tree_edges: (2..=4)
+                .map(|target| LayoutInputEdge { source: 1, target })
+                .collect(),
+            relations: Vec::new(),
+            suppress_root_line: Vec::new(),
+            folded: Vec::new(),
+        };
+        let graph = project(&flat).unwrap();
+        let groups = vec![group("p"), group("q")];
+        let groups_of = groups_of(&[(2, &["p"]), (3, &["p", "q"]), (4, &["q"])]);
+        let frames = compute_frames(&graph, &groups, &groups_of, &layout_children_of(&graph));
+        let (blocks, loose) = blocks_of(&graph, &frames);
+        assert_eq!(blocks, vec![("p".to_string(), Some(1), vec![2, 3])]);
+        assert_eq!(loose, vec!["q".to_string()]);
     }
 }
 
