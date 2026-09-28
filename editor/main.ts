@@ -12,6 +12,9 @@ import dagDiamond from './samples/dag-diamond.md?raw';
 import dagEpic from './samples/dag-epic.md?raw';
 import dagRunbookDb from './samples/dag-runbook-db.md?raw';
 import dagRunbookK8s from './samples/dag-runbook-k8s.md?raw';
+import hugeOrg from './samples/huge-org.md?raw';
+import hugePortfolio from './samples/huge-portfolio.md?raw';
+import hugeRegions from './samples/huge-regions.md?raw';
 import { buildModel, formatDiagnostics, init, parseDocument, render, type Diagnostic, type MarkdagDiagram, type OutlineNode } from '../src/core';
 import styleText from './editor.css?inline';
 import * as ops from './ops';
@@ -53,6 +56,9 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
     dagRunbookDb: { label: 'DAG 3: 手順書 DB アップグレード', text: dagRunbookDb },
     dagCrossTeam: { label: 'DAG 4: 複数チームの依存 (アプリ刷新)', text: dagCrossTeam },
     dagRunbookK8s: { label: 'DAG 5: 手順書 Kubernetes 移行', text: dagRunbookK8s },
+    hugeOrg: { label: '超大規模 1: 部門 > チーム > 機能 (239 ノード)', text: hugeOrg },
+    hugeRegions: { label: '超大規模 2: リージョン > 層 > 部品の手順書 (265 ノード)', text: hugeRegions },
+    hugePortfolio: { label: '超大規模 3: 事業部 > プロダクト > エピック (231 ノード)', text: hugePortfolio },
     empty: { label: '空のボード', text: EMPTY_SAMPLE },
 };
 
