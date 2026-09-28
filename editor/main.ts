@@ -7,6 +7,11 @@ import groupsLeavesColors from './samples/groups-leaves-colors.md?raw';
 import groupsNested from './samples/groups-nested.md?raw';
 import groupsPhases from './samples/groups-phases.md?raw';
 import groupsSiblings from './samples/groups-siblings.md?raw';
+import dagCrossTeam from './samples/dag-cross-team.md?raw';
+import dagDiamond from './samples/dag-diamond.md?raw';
+import dagEpic from './samples/dag-epic.md?raw';
+import dagRunbookDb from './samples/dag-runbook-db.md?raw';
+import dagRunbookK8s from './samples/dag-runbook-k8s.md?raw';
 import { buildModel, formatDiagnostics, init, parseDocument, render, type Diagnostic, type MarkdagDiagram, type OutlineNode } from '../src/core';
 import styleText from './editor.css?inline';
 import * as ops from './ops';
@@ -43,6 +48,11 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
     groupsCross: { label: 'グループ 3: 枝をまたぐグループ', text: groupsCross },
     groupsPhases: { label: 'グループ 4: 工程の枠を chain でつなぐ', text: groupsPhases },
     groupsLeavesColors: { label: 'グループ 5: 葉だけの指定と色だけのグループ', text: groupsLeavesColors },
+    dagEpic: { label: 'DAG 1: エピックの企画からリリースまで', text: dagEpic },
+    dagDiamond: { label: 'DAG 2: 広げて絞る (全社 SSO 移行)', text: dagDiamond },
+    dagRunbookDb: { label: 'DAG 3: 手順書 DB アップグレード', text: dagRunbookDb },
+    dagCrossTeam: { label: 'DAG 4: 複数チームの依存 (アプリ刷新)', text: dagCrossTeam },
+    dagRunbookK8s: { label: 'DAG 5: 手順書 Kubernetes 移行', text: dagRunbookK8s },
     empty: { label: '空のボード', text: EMPTY_SAMPLE },
 };
 
