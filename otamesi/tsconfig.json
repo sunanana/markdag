@@ -1,0 +1,7 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "paths": { "markdag": ["../dist/types/index.d.ts"] }
+    },
+    "include": ["src", "test", "vite.config.ts"]
+}
