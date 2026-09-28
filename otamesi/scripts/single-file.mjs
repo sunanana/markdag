@@ -12,7 +12,8 @@ for (const [tag, path] of styles) {
     html = html.replace(tag, () => `<style>\n${css}</style>`);
 }
 for (const [tag, path] of scripts) {
-    const js = (await readFile(new URL(path, dist), 'utf8')).replace(/<\/script/gi, '<\\/script');
+    // 置換文字 (U+FFFD) はそのまま書くと壊れた文字と見分けがつかないので、文字列の中のエスケープに直す
+    const js = (await readFile(new URL(path, dist), 'utf8')).replace(/<\/script/gi, '<\\/script').replace(/\uFFFD/g, '\\uFFFD');
     // 本文の後ろで動かす (type="module" と同じ順になるように)
     html = html.replace(tag, '').replace('</body>', () => `<script type="module">\n${js}</script>\n</body>`);
 }
