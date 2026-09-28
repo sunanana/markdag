@@ -1,10 +1,13 @@
-// 配置の流れ (layout/pipeline.rs の layout_document) が、旧実装の view の配置の流れ (src/view/view.ts の update) と同じ結果を出すかの確かめ。
+// 配置の流れ (layout/pipeline.rs の layout_document_exact) が、旧実装の view の配置の流れ (src/view/view.ts の update) と同じ結果を出すかの確かめ。
+// layout_document は同じ回を回し、入り込みが前の回より減らずに高さが STALL_GROWTH 倍以上に伸びた回が来たら前の回を採る。
+// 採る回は記録の countIntruders と bounds から決め、
+// その回の layout_document_exact の結果と同じになることを確かめる。
 // f64 は to_bits で比べる (許容なし、-0 の符号まで)。
 // (1) 審判のコーパス (tests/fixtures/judge/expected/*.json) の layout と layoutFolded の 62 件。入力は期待値の parsed と model から
 //     harness と同じ規則 (tests/judge_harness.rs) で組み、layout_document の出力を judge_shape で期待値の形にして、
 //     folded、graph、frames (outline つき)、rects、gaps、edges、bounds、plannedX、nodeSize、passes を比べる。
 // (2) 同じ 62 件の回ごとの値を、旧実装で view の繰り返しを回した記録 (tests/fixtures/pipeline/corpus.json。
-//     scripts/migration/fixtures/pipeline.ts が書く) と比べる。回 k の配置は max_passes を k にした layout_document の結果
+//     scripts/migration/fixtures/pipeline.ts が書く) と比べる。回 k の配置は max_passes を k にした layout_document_exact の結果
 //     (k 回目より前に入り込みが 0 になっていないので、k 回目で打ち切られる)。比べるもの: 配置の 6 つの欄、flextree が呼んだ
 //     spacing の組の順と合計、枠の余白 (前回の矩形から作った FrameSpacing の between) の値、countIntruders
 // (3) 乱数の入力 (tests/fixtures/pipeline/random.json、options と ignoreProxiedDepends と回数の上限を変える) で (2) と同じもの。
@@ -20,7 +23,9 @@ use std::path::Path;
 use indexmap::{IndexMap, IndexSet};
 use markdag_core::layout::frames::{Frame, count_intruders, frame_spacing};
 use markdag_core::layout::layout::{LayoutOptions, MARKMAP_DEFAULTS};
-use markdag_core::layout::pipeline::{LayoutDocumentResult, MAX_LAYOUT_PASSES, layout_document};
+use markdag_core::layout::pipeline::{
+    LayoutDocumentResult, MAX_LAYOUT_PASSES, STALL_GROWTH, layout_document, layout_document_exact,
+};
 use markdag_core::types::{GroupDef, LayoutInput, LayoutInputRelation, ParsedDocument, Rect};
 use serde_json::{Value, json};
 
@@ -136,7 +141,7 @@ struct Case<'a> {
 fn check_passes(case: &Case, expected_passes: &[Value]) -> (LayoutDocumentResult, usize) {
     let name = case.name;
     let run = |max: usize| {
-        layout_document(
+        layout_document_exact(
             case.input,
             case.groups,
             case.groups_of,
@@ -199,6 +204,32 @@ fn check_passes(case: &Case, expected_passes: &[Value]) -> (LayoutDocumentResult
         calls += result.spacing.len();
         previous = Some(result);
     }
+    // layout_document が採る回: 入り込みが前の回より減らず、高さが STALL_GROWTH 倍以上に伸びた最初の回の、1 つ前。
+    // そういう回がなければ最後の回
+    let intruders: Vec<u64> = expected_passes
+        .iter()
+        .map(|pass| pass["intruders"].as_u64().unwrap())
+        .collect();
+    let heights: Vec<f64> = expected_passes
+        .iter()
+        .map(|pass| pass["bounds"][3].as_f64().unwrap())
+        .collect();
+    let adopted = (1..intruders.len())
+        .find(|&index| {
+            intruders[index] >= intruders[index - 1]
+                && heights[index] >= heights[index - 1] * STALL_GROWTH
+        })
+        .unwrap_or(intruders.len());
+    let chosen = layout_document(
+        case.input,
+        case.groups,
+        case.groups_of,
+        Some(case.options.clone()),
+        Some(case.max_passes),
+    )
+    .unwrap();
+    assert_eq!(chosen.passes, adopted, "{name}: 採った回");
+    assert_eq!(chosen, run(adopted), "{name}: 採った回の配置");
     (full, calls)
 }
 
@@ -215,6 +246,7 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
     assert_eq!(files.len(), 57);
     let (mut compared, mut with_frames, mut frame_count, mut calls) = (0, 0, 0, 0);
     let mut pass_counts: IndexMap<usize, usize> = IndexMap::new();
+    let mut stopped: Vec<String> = Vec::new();
     for path in files {
         let doc = read_json(&path);
         let file = path.file_name().unwrap().to_str().unwrap();
@@ -265,10 +297,19 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
             calls += count;
             // 既定の引数 (None) でも同じ
             assert_eq!(
-                layout_document(&input, &groups, &groups_of, None, None).unwrap(),
+                layout_document_exact(&input, &groups, &groups_of, None, None).unwrap(),
                 result,
                 "{name}: 既定の引数"
             );
+            let adopted = layout_document(&input, &groups, &groups_of, None, None).unwrap();
+            if adopted.passes < result.passes {
+                // 途中で打ち切った配置は、最後まで回した配置より高くならない
+                assert!(
+                    adopted.bounds.height <= result.bounds.height,
+                    "{name}: 打ち切った配置の高さ"
+                );
+                stopped.push(name.clone());
+            }
 
             let folded: Vec<u32> = folded.into_iter().collect();
             let actual = judge_shape::expected_layout_document_from_boundary(
@@ -288,6 +329,9 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
     assert_eq!(pass_counts.get(&1).copied(), Some(57));
     assert_eq!(pass_counts.get(&2).copied(), Some(2));
     assert_eq!(pass_counts.get(&4).copied(), Some(3));
+    // 打ち切るのは記法の例だけ (枠のメンバーとメンバーでないノードが兄弟の並びで交互に挟まり、高さが回ごとに倍になる)。
+    // large-project の閉じた状態は入り込みが 2 → 2 → 1 → 0 と 1 回足踏みするが、高さの伸びが小さいので最後まで回す
+    assert_eq!(stopped, vec!["ex-notation.json:layout".to_string()]);
     assert!(calls > 0);
 }
 

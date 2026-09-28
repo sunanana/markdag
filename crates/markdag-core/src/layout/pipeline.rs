@@ -3,6 +3,11 @@
 // 射影 → 枠のまとまり → 配置の繰り返しを行う。枠の上下の端はメンバーの子の列の広がりで決まるので、1 回目の配置では
 // 隣のメンバーでないノードが枠の矩形に入り込むことがある。2 回目からは前回の結果の張り出しのぶんだけ間隔を空け、
 // 入り込みが 0 になるか回数の上限に達したら打ち切る。
+// 間隔を空けても入り込みが減らず、図の高さが 1 回で STALL_GROWTH 倍以上に伸びた回が来たら、そこで打ち切って前の回の配置を採る。
+// 枠のメンバーとメンバーでないノードが兄弟の並びで交互に挟まると、空けた間隔のぶんだけ枠も伸びるので、入り込みは減らないまま
+// 図の高さが回ごとにほぼ倍になる (docs/examples/notation.md では 340 → 682 → 1406 → 2842)。
+// 入り込みが 1 回足踏みしてから減る文書もある (large-project.md を閉じた状態では 2 → 2 → 1 → 0、高さは +24%、+12%、+7%) ので、
+// 入り込みが減らないことだけでは打ち切らない。旧実装どおりに上限まで回す layout_document_exact も残す。
 // 枠の余白は LayoutOptions の extra_spacing (枠と前回の矩形の値) で layout_graph に渡し、FrameSpacing は layout_graph が
 // 1 回の配置につき 1 度作る (A-019、A-039。ここでは frame_spacing を呼ばない)。
 // layoutOverride (利用者の関数) の経路と、折りたたみの状態 (initialFold、visibleIds) は JS の view に残る (DESIGN (d))。
@@ -11,14 +16,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::frames::{Frame, compute_frames, count_intruders, frame_outline};
 use crate::layout::layout::{
-    ExtraSpacing, LayoutOptions, MARKMAP_DEFAULTS, PlacedEdge, SpacingCall, check_layout_options,
-    layout_children_of, layout_graph,
+    ExtraSpacing, LayoutOptions, LayoutResult, MARKMAP_DEFAULTS, PlacedEdge, SpacingCall,
+    check_layout_options, layout_children_of, layout_graph,
 };
 use crate::layout::project::{VisibleGraph, project};
 use crate::types::{GroupDef, LayoutError, LayoutInput, Rect};
 
 /// 原文: view.ts の MAX_LAYOUT_PASSES (審判の harness も同じ値)
 pub const MAX_LAYOUT_PASSES: usize = 4;
+
+/// 入り込みが減らない回で、図の高さが前の回のこの倍率以上に伸びたら打ち切る (冒頭のコメント)。
+/// 間隔が膨らみ続けるときは約 2 倍、入り込みが減っていくときは数十 % までなので、その間に置く
+pub const STALL_GROWTH: f64 = 1.5;
 
 /// 枠と、最後の回の矩形から作った枠の矩形 (harness の `{ ...frame, outline: frameOutline(frame, rects) }`)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -37,7 +46,7 @@ pub struct LayoutDocumentResult {
     pub graph: VisibleGraph,
     /// 外側の枠が先 (compute_frames の順)
     pub frames: Vec<LayoutDocumentFrame>,
-    /// 最後の回の配置。並びは flextree の each の順 (幅優先)
+    /// 採った回の配置。並びは flextree の each の順 (幅優先)
     #[serde(with = "crate::model::util::pairs")]
     pub rects: IndexMap<u32, Rect>,
     #[serde(with = "crate::model::util::pairs::f64_values")]
@@ -48,23 +57,55 @@ pub struct LayoutDocumentResult {
     pub planned_x: IndexMap<u32, f64>,
     #[serde(with = "crate::model::util::pairs::f64_pair_values")]
     pub node_size: IndexMap<u32, [f64; 2]>,
-    /// 配置を行った回数 (1 始まり)
+    /// 採った配置が何回目か (1 始まり)。入り込みが減らずに高さだけが伸びて打ち切ったときは、その前の回
     pub passes: usize,
-    /// 最後の回に flextree が呼んだ spacing の組と値 (枠の余白を含む合計)。境界の JSON には出さない (A-169)
+    /// 採った回に flextree が呼んだ spacing の組と値 (枠の余白を含む合計)。境界の JSON には出さない (A-169)
     #[serde(skip)]
     pub spacing: Vec<SpacingCall>,
 }
 
 /// 原文: view.ts の update のうち layoutOverride が null の経路 (944-978 行)。
-/// options が None なら MARKMAP_DEFAULTS、max_passes が None なら MAX_LAYOUT_PASSES (規則 2.6 の既定の引数)。
+/// 入り込みが前の回より減らず、高さが STALL_GROWTH 倍以上に伸びたら、その回で打ち切って前の回の配置を返す (旧実装にない打ち切り。冒頭のコメント)。
 /// options の extra_spacing は使わず、回ごとに枠と前回の矩形から作り直す (view の `{ ...MARKMAP_DEFAULTS, extraSpacing }` と同じく上書き)。
-/// 原文の打ち切りは `pass === MAX_LAYOUT_PASSES` (定数 4)。境界から 0 が来ても止まるよう `>=` で比べる (1 以上では同じ。A-170)
+/// options が None なら MARKMAP_DEFAULTS、max_passes が None なら MAX_LAYOUT_PASSES (規則 2.6 の既定の引数)
 pub fn layout_document(
     input: &LayoutInput,
     groups: &[GroupDef],
     groups_of: &IndexMap<u32, Vec<String>>,
     options: Option<LayoutOptions>,
     max_passes: Option<usize>,
+) -> Result<LayoutDocumentResult, LayoutError> {
+    run_passes(input, groups, groups_of, options, max_passes, true)
+}
+
+/// 旧実装どおり、入り込みが 0 になるか回数の上限に達するまで配置をやり直す (入り込みが減らなくても続ける)。
+/// max_passes を k にすると k 回目の配置がそのまま返るので、回ごとの値を旧実装の記録と比べる試験が使う。
+/// 原文の打ち切りは `pass === MAX_LAYOUT_PASSES` (定数 4)。境界から 0 が来ても止まるよう `>=` で比べる (1 以上では同じ。A-170)
+pub fn layout_document_exact(
+    input: &LayoutInput,
+    groups: &[GroupDef],
+    groups_of: &IndexMap<u32, Vec<String>>,
+    options: Option<LayoutOptions>,
+    max_passes: Option<usize>,
+) -> Result<LayoutDocumentResult, LayoutError> {
+    run_passes(input, groups, groups_of, options, max_passes, false)
+}
+
+// 1 回の配置の結果と、その矩形、入り込みの数、何回目か
+struct Pass {
+    result: LayoutResult,
+    targets: IndexMap<u32, Rect>,
+    intruders: usize,
+    pass: usize,
+}
+
+fn run_passes(
+    input: &LayoutInput,
+    groups: &[GroupDef],
+    groups_of: &IndexMap<u32, Vec<String>>,
+    options: Option<LayoutOptions>,
+    max_passes: Option<usize>,
+    stop_on_stall: bool,
 ) -> Result<LayoutDocumentResult, LayoutError> {
     let mut options = options.unwrap_or(MARKMAP_DEFAULTS);
     options.extra_spacing = None;
@@ -75,16 +116,16 @@ pub fn layout_document(
     let graph = project(input)?;
     // 兄弟の縦の並びは配置の前に決まっているので、枠のまとまりを先に作り、枠の余白が入るだけ間隔を空ける
     let frames = compute_frames(&graph, groups, groups_of, &layout_children_of(&graph));
-    let mut previous: Option<IndexMap<u32, Rect>> = None;
+    let mut previous: Option<Pass> = None;
     let mut pass: usize = 1;
     loop {
-        // PERF(port): ExtraSpacing が frames と rects を所有するので回ごとに frames を写す。借用の形にすれば写しは要らない
+        // PERF(port): ExtraSpacing が frames と rects を所有するので回ごとに frames と前回の矩形を写す。借用の形にすれば写しは要らない
         let result = layout_graph(
             &graph,
             Some(LayoutOptions {
                 extra_spacing: Some(ExtraSpacing {
                     frames: frames.clone(),
-                    rects: previous.take(),
+                    rects: previous.as_ref().map(|kept| kept.targets.clone()),
                 }),
                 ..options.clone()
             }),
@@ -94,34 +135,59 @@ pub fn layout_document(
             .iter()
             .map(|(id, placed)| (*id, placed.rect))
             .collect();
-        if count_intruders(&frames, &targets) == 0 || pass >= max_passes {
-            let gaps: IndexMap<u32, f64> = result
-                .nodes
-                .iter()
-                .map(|(id, placed)| (*id, placed.gap))
-                .collect();
-            let frames = frames
-                .into_iter()
-                .map(|frame| {
-                    let outline = frame_outline(&frame, &targets);
-                    LayoutDocumentFrame { frame, outline }
-                })
-                .collect();
-            return Ok(LayoutDocumentResult {
-                graph,
-                frames,
-                rects: targets,
-                gaps,
-                edges: result.edges,
-                bounds: result.bounds,
-                planned_x: result.planned_x,
-                node_size: result.flextree_params.node_size,
-                passes: pass,
-                spacing: result.flextree_params.spacing,
-            });
+        let intruders = count_intruders(&frames, &targets);
+        let current = Pass {
+            result,
+            targets,
+            intruders,
+            pass,
+        };
+        if stop_on_stall {
+            let height = current.result.bounds.height;
+            if let Some(kept) = previous.take_if(|kept| {
+                intruders >= kept.intruders && height >= kept.result.bounds.height * STALL_GROWTH
+            }) {
+                return Ok(finish(graph, frames, kept));
+            }
         }
-        previous = Some(targets);
+        if intruders == 0 || pass >= max_passes {
+            return Ok(finish(graph, frames, current));
+        }
+        previous = Some(current);
         pass += 1;
+    }
+}
+
+fn finish(graph: VisibleGraph, frames: Vec<Frame>, adopted: Pass) -> LayoutDocumentResult {
+    let Pass {
+        result,
+        targets,
+        pass,
+        ..
+    } = adopted;
+    let gaps: IndexMap<u32, f64> = result
+        .nodes
+        .iter()
+        .map(|(id, placed)| (*id, placed.gap))
+        .collect();
+    let frames = frames
+        .into_iter()
+        .map(|frame| {
+            let outline = frame_outline(&frame, &targets);
+            LayoutDocumentFrame { frame, outline }
+        })
+        .collect();
+    LayoutDocumentResult {
+        graph,
+        frames,
+        rects: targets,
+        gaps,
+        edges: result.edges,
+        bounds: result.bounds,
+        planned_x: result.planned_x,
+        node_size: result.flextree_params.node_size,
+        passes: pass,
+        spacing: result.flextree_params.spacing,
     }
 }
 

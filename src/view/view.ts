@@ -1017,7 +1017,8 @@ export class MarkdagView {
         let graph: VisibleGraph;
         if (override === null) {
             // 射影、枠のまとまり、枠の余白を入れた配置の繰り返しは Rust が 1 回の呼び出しで行う。枠の上下の端はメンバーの子の列の広がりで
-            // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す
+            // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す。
+            // 入り込みが減らずに高さだけが大きく伸びた回が来たら、前の回の配置を採る
             const result = layoutDocument(input, model, { ignoreProxiedDepends: this.options.ignoreProxiedDepends });
             graph = result.graph;
             this.frames = result.frames;

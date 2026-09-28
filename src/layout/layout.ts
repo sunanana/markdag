@@ -56,7 +56,7 @@ export interface DocumentLayout {
     bounds: Rect;
     plannedX: Map<number, number>;
     nodeSize: Map<number, [number, number]>;
-    // 配置を行った回数
+    // 採った配置が何回目か。入り込みが減らずに高さだけが伸びて打ち切ったときは、その前の回
     passes: number;
 }
 
