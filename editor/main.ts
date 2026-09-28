@@ -2,6 +2,11 @@
 // 左に原文、右に markdag の図を置き、図の上の操作 (ノードの追加、削除、名前の変更、ドラッグでの付け替え、線の追加と削除) を
 // editor/ops.ts の書き換えで原文に反映して描き直す。原文を直接書き換えても図が追う。
 import notationSample from '../docs/examples/notation.md?raw';
+import groupsCross from './samples/groups-cross.md?raw';
+import groupsLeavesColors from './samples/groups-leaves-colors.md?raw';
+import groupsNested from './samples/groups-nested.md?raw';
+import groupsPhases from './samples/groups-phases.md?raw';
+import groupsSiblings from './samples/groups-siblings.md?raw';
 import { buildModel, formatDiagnostics, init, parseDocument, render, type Diagnostic, type MarkdagDiagram, type OutlineNode } from '../src/core';
 import styleText from './editor.css?inline';
 import * as ops from './ops';
@@ -33,6 +38,11 @@ const EMPTY_SAMPLE = `# 新しいボード
 const SAMPLES: Record<string, { label: string; text: string }> = {
     simple: { label: '小さな例', text: SIMPLE_SAMPLE },
     notation: { label: '記法の例 (notation.md)', text: notationSample },
+    groupsNested: { label: 'グループ 1: 入れ子の枠', text: groupsNested },
+    groupsSiblings: { label: 'グループ 2: 隣り合う兄弟だけの枠', text: groupsSiblings },
+    groupsCross: { label: 'グループ 3: 枝をまたぐグループ', text: groupsCross },
+    groupsPhases: { label: 'グループ 4: 工程の枠を chain でつなぐ', text: groupsPhases },
+    groupsLeavesColors: { label: 'グループ 5: 葉だけの指定と色だけのグループ', text: groupsLeavesColors },
     empty: { label: '空のボード', text: EMPTY_SAMPLE },
 };
 
