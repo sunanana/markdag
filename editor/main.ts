@@ -905,13 +905,24 @@ toggleMd.addEventListener('click', () => {
 });
 
 $('.ed-copy').addEventListener('click', () => {
-    navigator.clipboard.writeText(source).then(
-        () => showToast('原文をコピーしました'),
-        () => showToast('コピーできませんでした', 'error'),
-    );
+    // クリップボードに書けない環境では、原文の欄を全部選んで、手でコピーしてもらう
+    const fallback = (): void => {
+        main.dataset.md = 'shown';
+        textarea.focus();
+        textarea.select();
+        showToast('原文を選択しました。Ctrl+C (⌘C) でコピーしてください');
+    };
+    try {
+        navigator.clipboard.writeText(source).then(() => showToast('原文をコピーしました'), fallback);
+    } catch {
+        fallback();
+    }
 });
 
-$('.ed-download').addEventListener('click', () => {
+// 埋め込まれたページ (iframe) ではダウンロードが止められるので、保存のボタンを出さない
+const downloadButton = $<HTMLButtonElement>('.ed-download');
+if (window.self !== window.top) downloadButton.hidden = true;
+downloadButton.addEventListener('click', () => {
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([source], { type: 'text/markdown' }));
     link.download = 'board.md';
@@ -931,7 +942,8 @@ themeButton.addEventListener('click', () => applyTheme(theme === 'dark' ? 'light
 
 await init(wasmSource());
 ctx = contextOf(source);
-applyTheme('dark');
+// ページを置く側が明暗を決めていればそれに従い、決めていなければ暗い配色で始める
+applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 diagram = render(host, source, {
     theme,
     details: 'hover',

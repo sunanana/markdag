@@ -39,9 +39,13 @@ await build({
 
 const files = readdirSync(work);
 if (files.length !== 1) throw new Error(`1 つの JS にまとまらなかった: ${files.join(', ')}`);
-const script = readFileSync(`${work}board.js`, 'utf8').replace(/<\/script/gi, '<\\/script');
+const script = readFileSync(`${work}board.js`, 'utf8').replace(/<\/script/gi, '<\\/script')
+    // 境界の置き換え文字 (U+FFFD) は文字列の中にだけ出てくる。載せる先が原文の置き換え文字を壊れた文字として拒むので、エスケープで書く
+    .replace(/\uFFFD/g, '\\uFFFD');
 const html = readFileSync(here('./index.html'), 'utf8').replace('<script type="module" src="./main.ts"></script>', () => `<script type="module">${script}</script>`);
 mkdirSync(OUT, { recursive: true });
 writeFileSync(`${OUT}markdag-board.html`, html);
+// Artifact に載せる形。載せる側が doctype と head と body を包むので、title とアプリの要素と script だけを書く
+writeFileSync(`${OUT}markdag-board.artifact.html`, `<title>markdag Board</title>\n<div id="app"></div>\n<script type="module">${script}</script>\n`);
 rmSync(work, { recursive: true, force: true });
 console.log(`editor/dist/markdag-board.html を書き出した (${(html.length / 1024 / 1024).toFixed(1)} MB)`);
