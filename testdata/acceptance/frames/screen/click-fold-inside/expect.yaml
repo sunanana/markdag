@@ -1,0 +1,30 @@
+kind: 境界
+checks: >-
+    外側の枠 (dev) の中の、根でないメンバー (API) の開閉の円をクリックして閉じる。子 (認証、検索) が隠れて dev の枠は縮み、
+    入れ子の fe の枠はそのまま中に残る
+combos: [2-3]
+decisions: [B-9]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+    - click_fold: API
+    - measure: 閉じたあと
+expect:
+    diagnostics: []
+    初め:
+        visible: 9
+        frames:
+            - { group: dev, members: [開発, 画面, 一覧, 詳細, API, 認証, 検索], inside: [] }
+            - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+        intrusions: 0
+    閉じたあと:
+        visible: 7
+        frames:
+            - { group: dev, members: [開発, 画面, 一覧, 詳細, API], inside: [] }
+            - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }

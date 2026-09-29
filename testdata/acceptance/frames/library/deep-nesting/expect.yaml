@@ -1,0 +1,24 @@
+kind: 境界
+checks: >-
+    4 段の入れ子の枠。内側の枠はすべて外側の枠の中に収まり、各段のメンバーでないノード (詳細、API、運用、公開) はその段の枠の下
+combos: []
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: l1, members: [全体, 開発, 画面, 一覧, 行, 列, 詳細, API, 運用], inside: [] }
+        - { group: l2, members: [開発, 画面, 一覧, 行, 列, 詳細, API], inside: [l1] }
+        - { group: l3, members: [画面, 一覧, 行, 列, 詳細], inside: [l1, l2] }
+        - { group: l4, members: [一覧, 行, 列], inside: [l1, l2, l3] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        詳細: { l4: 下 }
+        API: { l3: 下 }
+        運用: { l2: 下 }
+        公開: { l1: 下 }

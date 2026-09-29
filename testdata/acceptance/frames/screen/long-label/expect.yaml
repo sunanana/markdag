@@ -1,0 +1,23 @@
+kind: 境界
+checks: >-
+    ラベルがメンバーの 1 行目より長いグループ。ラベルは枠の右の辺を越えず、下の枠 (b、ラベル 1 文字) のノードやラベルとも重ならない。
+    メンバーのノードに付く印 (%ラベル) も同じ長さなので、メンバーの箱が広がり、枠はラベルより広い
+combos: []
+decisions: [B-9]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        frames:
+            - { group: a, members: [甲, 乙], inside: [] }
+            - { group: b, members: [丙, 丁], inside: [] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        sides:
+            戊: { a: 下, b: 下 }
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [], beyond_members: [] }

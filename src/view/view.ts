@@ -1,7 +1,8 @@
 // 図の描画と操作。渡された要素の中に、HTML の絶対配置 (ノード) と SVG (線、枠、開閉の円) で図を組み立てる。
 // ノードの実測のサイズを射影と配置に渡し、結果を補間しながら反映する。折りたたみ、ズームとパン、全体表示、
 // 詳細の吹き出し、線とグループの強調、凡例を受け持つ。見た目は同梱のスタイルシートが持つ。
-// グループの枠は簡易版で、メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
+// グループの枠は、1 つの矩形のまとまりにできれば箱として置き、枠どうしとメンバーでないノードが重ならないようにする (配置は Rust)。
+// まとまりにできない枠だけ、メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
 import { select } from 'd3-selection';
 import { zoom, zoomIdentity, zoomTransform, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import type { LayoutInput } from '../layout/input-types';
@@ -226,6 +227,9 @@ export class MarkdagView {
     private gaps = new Map<number, number>();
     private edges: PlacedEdge[] = [];
     private frames: Frame[] = [];
+    // 一部共有する枠の組で、core が outline の左の辺と右の辺を右へずらした量 (枠ごと)。
+    // 描画の毎コマ outline をノードの矩形から作り直すので、配置のたびに core の outline との差を覚えて足す
+    private frameShifts = new Map<Frame, { left: number; right: number }>();
     private graph: VisibleGraph | null = null;
     private animation = 0;
     private updateScheduled = false;
@@ -526,7 +530,24 @@ export class MarkdagView {
 
     // 描く枠の矩形。見えているメンバーが 1 つだけの枠は、色帯で所属が分かるので描かない
     private outlineOf(frame: Frame, rects: Map<number, Rect>): Rect | null {
-        return frame.members.filter((id) => rects.has(id)).length < 2 ? null : frameOutline(frame, rects);
+        if (frame.members.filter((id) => rects.has(id)).length < 2) return null;
+        const outline = frameOutline(frame, rects);
+        const shift = this.frameShifts.get(frame);
+        if (!outline || !shift) return outline;
+        return { ...outline, x: outline.x + shift.left, width: outline.width - shift.left + shift.right };
+    }
+
+    // core の outline と、同じ矩形から作った frameOutline の左右の辺の差。差のない枠は持たない
+    private static shiftsOf(frames: Array<Frame & { outline: Rect | null }>, rects: Map<number, Rect>): Map<Frame, { left: number; right: number }> {
+        const shifts = new Map<Frame, { left: number; right: number }>();
+        for (const frame of frames) {
+            const base = frameOutline(frame, rects);
+            if (!frame.outline || !base) continue;
+            const left = frame.outline.x - base.x;
+            const right = frame.outline.x + frame.outline.width - (base.x + base.width);
+            if (Math.abs(left) > 1e-6 || Math.abs(right) > 1e-6) shifts.set(frame, { left, right });
+        }
+        return shifts;
     }
 
     private withGap(id: number, rect: Rect): Rect {
@@ -1016,11 +1037,12 @@ export class MarkdagView {
         const override = this.options.layoutOverride;
         let graph: VisibleGraph;
         if (override === null) {
-            // 射影、枠のまとまり、枠の余白を入れた配置の繰り返しは Rust が 1 回の呼び出しで行う。枠の上下の端はメンバーの子の列の広がりで
-            // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す
+            // 射影、枠のまとまり、枠の配置は Rust が 1 回の呼び出しで行う。まとまりにできる枠は箱として 1 回で置く。
+            // まとまりにできない枠があるときだけ、前回の張り出しのぶんだけ間隔を空けて上限の回数まで配置し直し、入り込みの一番少ない回を採る
             const result = layoutDocument(input, model, { ignoreProxiedDepends: this.options.ignoreProxiedDepends });
             graph = result.graph;
             this.frames = result.frames;
+            this.frameShifts = MarkdagView.shiftsOf(result.frames, result.rects);
             this.targets = result.rects;
             this.gaps = result.gaps;
             this.edges = result.edges;
@@ -1036,6 +1058,7 @@ export class MarkdagView {
             for (const [child, parent] of graph.layoutParent) siblings.set(parent, [...(siblings.get(parent) ?? []), child]);
             for (const list of siblings.values()) list.sort((a, b) => (result.rects.get(a)?.y ?? 0) - (result.rects.get(b)?.y ?? 0));
             this.frames = projectAndFrames(input, model, siblings).frames;
+            this.frameShifts = new Map();
         }
         const layoutMs = performance.now() - started;
         this.graph = graph;

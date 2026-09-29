@@ -1,0 +1,19 @@
+kind: 正常
+checks: >-
+    members で 2 つの枝の子 (設計/*、実装/*) を 1 つのグループにすると、枠は枝ごとに 2 つに分かれる。2 つの枠は上下に並び、重ならない
+combos: [1-2]
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: a, members: [画面, API], inside: [] }
+        - { group: a, members: [フロント, バック], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        フロント: { "a[画面]": 下 }

@@ -1,0 +1,22 @@
+kind: 境界
+checks: >-
+    H1〜H6 の見出しで作る 5 段の入れ子の枠。いちばん外の枠 (l1) は内側に 4 段を持つので、枠の余白 (side) が
+    横の間隔 (spacing_horizontal) より大きい。内側の枠はすべて外側の枠の中に収まり、入り込みはなく、
+    ルートのノードはいちばん外の枠の左の辺に食い込まない (枠の左)
+combos: []
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: l1, members: [本部, 事業, 開発, 画面, 一覧, 作業], inside: [] }
+        - { group: l2, members: [事業, 開発, 画面, 一覧, 作業], inside: [l1] }
+        - { group: l3, members: [開発, 画面, 一覧, 作業], inside: [l1, l2] }
+        - { group: l4, members: [画面, 一覧, 作業], inside: [l1, l2, l3] }
+        - { group: l5, members: [一覧, 作業], inside: [l1, l2, l3, l4] }
+    intrusions: 0
+    sides:
+        深い入れ子、5 段: { l1: 左 }

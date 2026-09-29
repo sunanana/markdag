@@ -1,0 +1,38 @@
+kind: 境界
+checks: >-
+    文書で内側の枠の根 (画面) を閉じた状態から、diagram.expandAll で全部開くと fe の枠が dev の中に現れ、
+    diagram.resetFold で文書の初期の開閉に戻すと fe の枠が消える
+combos: [2-4]
+decisions: [writing-guide の groups の規則]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+    - expandAll: true
+    - measure: 全部開いたあと
+    - resetFold: true
+    - measure: 初期に戻したあと
+expect:
+    diagnostics: []
+    初め:
+        visible: 7
+        frames:
+            - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
+        unframed: { fe: [画面] }
+        intrusions: 0
+    全部開いたあと:
+        visible: 9
+        frames:
+            - { group: dev, members: [開発, 画面, 一覧, 詳細, API, 認証, 検索], inside: [] }
+            - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }
+    初期に戻したあと:
+        visible: 7
+        frames:
+            - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
+        unframed: { fe: [画面] }
+        intrusions: 0

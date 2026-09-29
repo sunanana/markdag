@@ -1,0 +1,25 @@
+kind: 境界
+status: 未決
+checks: >-
+    一部共有する p と q の枠が交差して重なるときのラベル。2 つのラベルは互いに重ならず、ノードとも重ならず、相手の枠の辺をまたがない
+combos: [1-10]
+decisions: [B-9]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        frames:
+            - { group: p, members: [要件, 試作, 画面, API, 計測], inside: [] }
+            - { group: q, members: [試作, 画面, API, 計測, 実装], inside: [] }
+        overlap: { disjoint: 0, crossing: 1 }
+        intrusions: 0
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }
+        edges:
+            - { frame: q, against: p, left: 4, right_min: 16 }
+look:
+    - p と q の枠の辺が試作の所で交差して見える (共有なので許す規定)。見た目を依頼者が確かめていない

@@ -1,5 +1,6 @@
 // 配置の層の包み。見えているグラフとノードのサイズから座標を決める計算は Rust (wasm の layout_document) が行う:
-// 射影、グループの枠のまとまり、枠の余白を入れた配置の繰り返し (枠に入り込むノードがなくなるか上限の回数まで) を 1 回の呼び出しで行う。
+// 射影、グループの枠のまとまり、枠の配置を 1 回の呼び出しで行う。1 つの矩形のまとまりにできる枠は箱として 1 回で置き、
+// できない枠があるときだけ、その枠の余白を入れた配置を上限の回数まで繰り返して、入り込みの一番少ない回を採る。
 // ここは境界の結果の配列の組を Map に戻す。描画とアニメーションの毎コマで使う boundsOf と、線の太さの式 (MARKMAP_DEFAULTS.lineWidth) は JS に写しを残す。
 import type { GraphModel } from '../model/model';
 import type { Frame } from '../view/frames';
@@ -56,7 +57,7 @@ export interface DocumentLayout {
     bounds: Rect;
     plannedX: Map<number, number>;
     nodeSize: Map<number, [number, number]>;
-    // 配置を行った回数
+    // 採った配置が何回目か (1 始まり)。まとまりにできない枠がなければ 1
     passes: number;
 }
 

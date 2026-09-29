@@ -1,0 +1,22 @@
+kind: 誤り
+checks: >-
+    members に一致するノードのない行。存在しない名前は ref-not-found、途中までの名前 (実) は ref-prefix の警告で、そのノードはメンバーにならない。
+    残りのメンバー (画面、API) で枠 1 つ。メンバーが 1 つもない b は枠にならない
+combos: []
+decisions: []
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics:
+        - { code: ref-not-found, severity: warning, at: "11:19+8", message_has: 「設計/存在しない」に一致するノードがありません }
+        - { code: ref-prefix, severity: warning, at: "12:19+1", message_has: 前方一致では指しません }
+        - { code: ref-not-found, severity: warning, at: "17:19+6", message_has: 「どこにもない」に一致するノードがありません }
+    frames:
+        - { group: a, members: [画面, API], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        フロント: { a: 下 }

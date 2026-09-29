@@ -1,0 +1,20 @@
+kind: 境界
+checks: >-
+    入れ子の枠 (o {開発, 設計, 画面, API, 試験, 結合, 手順} ⊃ i {設計, 画面, API}) の内側の枠のメンバー (設計/画面) から、
+    どちらの枠のメンバーでもないノード (告知) への relations (chain)。告知は内側の枠の出口 (外側の枠の中) ではなく、
+    いちばん外側の枠の右の外に置かれ、どちらの枠にも入らない。試験の下の 2 段 (結合、手順) で外側の枠の右の辺が
+    内側の枠の右の辺より右に出るので、告知が内側の枠の出口に置かれると外側の枠に入る
+combos: []
+decisions: [Q2-c, B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: o, members: [開発, 設計, 画面, API, 試験, 結合, 手順], inside: [] }
+        - { group: i, members: [設計, 画面, API], inside: [o] }
+    intrusions: 0
+    sides:
+        告知: { o: 右, i: 右 }

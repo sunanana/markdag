@@ -290,7 +290,7 @@ Methods of `MarkdagView` (also reachable as `diagram.view`):
 | `getFolded()` | Ids of the folded nodes, ascending |
 | `setFolded(ids)` | Replace the fold state. Ids that are not in the document, and ids of nodes without children, are dropped |
 | `expandAll()` / `resetFold()` | Open every node / go back to the document's initial fold state (`markdag.initialExpandLevel`) |
-| `contentBounds()` | The rectangle the content occupies, in diagram coordinates: the same range `fit()` uses, including group frames and their labels. `null` when nothing is drawn. During an animation it answers with the final layout |
+| `contentBounds()` | The rectangle the content occupies, in diagram coordinates: the same range `fit()` uses. It includes group frames and the label row above each frame, but not the part of a frame label that is wider than its frame: a label longer than the frame runs past the frame's right edge, and `fit()` can cut that part off. `null` when nothing is drawn. During an animation it answers with the final layout |
 | `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`) |
 | `setIconSvg(ref, svg)` | Store the SVG of a logo (`null`: it could not be resolved, the logo stays as text) and redraw only the places that use `ref`. See [Logos](#logos) |
 | `destroy()` | Remove the diagram and its listeners |

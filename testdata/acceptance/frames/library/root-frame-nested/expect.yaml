@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    ルートを含む枠 (all) は全部のノードを囲み、その中に見出しの枠 (a) が入れ子で入る。a のメンバーでない実装とその子は a の枠の下
+combos: [1-9]
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: all, members: [入れ子、ルートを含む, 設計, 画面, API, 実装, フロント, バック], inside: [] }
+        - { group: a, members: [設計, 画面, API], inside: [all] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        実装: { a: 下 }

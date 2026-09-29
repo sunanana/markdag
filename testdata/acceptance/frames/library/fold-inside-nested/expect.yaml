@@ -1,0 +1,20 @@
+kind: 境界
+checks: >-
+    枠の中のメンバー (一覧) を文書で閉じる (<!-- markmap: fold -->)。隠れたノードは数えず、入れ子の 2 つの枠はそのまま
+combos: [2-3]
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    visible: 9
+    frames:
+        - { group: dev, members: [開発, 画面, 一覧, 詳細, API, 認証, 検索], inside: [] }
+        - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        公開: { dev: 下 }

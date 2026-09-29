@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    枝をまたぐグループで閉路になる出口。告知は始点の枠 (設計側) の下の行、実装側の枠の右に置かれ、どちらの枠にも入らない
+combos: [3-12]
+decisions: [Q3-b (閉路のときだけ枠の下の行)]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: a, members: [設計/画面, API], inside: [] }
+        - { group: a, members: [実装/画面, サーバ], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        告知: { "a[設計/画面]": 下, "a[実装/画面]": 右 }

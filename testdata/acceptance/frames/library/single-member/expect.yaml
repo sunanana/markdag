@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    見えているメンバーが 1 つ (子のない見出し 1 つ) のグループは枠にならない。relations (設計 → 告知) があっても同じ
+combos: [3-13]
+decisions: [writing-guide の groups の規則]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    visible: 6
+    frames: []
+    unframed: { a: [設計] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0

@@ -1,0 +1,20 @@
+kind: 境界
+checks: >-
+    ルートに %a %b を付け、全体を囲む枠が 2 つ入れ子になる。2 つのラベルは重ならず、内側 (b) のラベルは外側の枠の中
+combos: [1-15]
+decisions: [B-9]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        frames:
+            - { group: a, members: [同じ集合、ルートを含む, 設計, 画面, API, 実装, フロント, バック], inside: [] }
+            - { group: b, members: [同じ集合、ルートを含む, 設計, 画面, API, 実装, フロント, バック], inside: [a] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }

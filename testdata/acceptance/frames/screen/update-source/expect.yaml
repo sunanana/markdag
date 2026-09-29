@@ -1,0 +1,30 @@
+kind: 境界
+checks: >-
+    diagram.update で boundary を false にした文書 (next.md) に差し替えると枠が消え、元の文書に戻すと枠が戻る
+combos: [1-1]
+decisions: []
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+    - update: next.md
+    - measure: 枠を外したあと
+    - update: input.md
+    - measure: 戻したあと
+expect:
+    diagnostics: []
+    初め:
+        frames:
+            - { group: a, members: [設計, 画面, API], inside: [] }
+        intrusions: 0
+    枠を外したあと:
+        visible: 7
+        frames: []
+        labels: { count: 0 }
+    戻したあと:
+        frames:
+            - { group: a, members: [設計, 画面, API], inside: [] }
+        intrusions: 0
+        labels: { count: 1, on_node: [] }

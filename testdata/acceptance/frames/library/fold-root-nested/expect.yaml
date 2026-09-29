@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    内側の枠の根 (画面) を文書で閉じると、fe は見えるメンバーが 1 つで枠にならない。外側の dev の枠だけが残る
+combos: [2-4]
+decisions: [writing-guide の groups の規則]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    visible: 7
+    frames:
+        - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
+    unframed: { fe: [画面] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        公開: { dev: 下 }
