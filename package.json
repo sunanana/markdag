@@ -63,6 +63,8 @@
         "spike:render": "vite --open /spike/render/plan-b.html",
         "playground": "vite --open /spike/playground/index.html",
         "preview": "vite --open /docs/ignore/preview/index.html",
+        "editor": "vite --open /editor/index.html",
+        "editor:build": "vite-node editor/build.ts",
         "playground:build": "vite-node spike/playground/build.ts"
     },
     "devDependencies": {
