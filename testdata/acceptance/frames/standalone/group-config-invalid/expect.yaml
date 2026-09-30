@@ -1,0 +1,16 @@
+kind: 誤り
+checks: >-
+    枠の設定の誤りのある文書を単体 HTML で開く。markdagStandalone.diagnostics に group-invalid の警告 2 件、枠は c だけ
+combos: []
+decisions: []
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md }) を開く。開いたページを 1800x1100 で測る (getBoundingClientRect。screen と同じ測り方)。diagnostics と folded は window.markdagStandalone から読む
+expect:
+    diagnostics:
+        - { code: group-invalid, severity: warning, at: "7:23+5", message_has: boundary は真偽値で書きます }
+        - { code: group-invalid, severity: warning, at: "10:13+7", message_has: キー「boundry」は使えません }
+    frames:
+        - { group: c, members: [運用, 監視, 障害], inside: [] }
+    intrusions: 0
+    labels: { count: 1, on_node: [] }

@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    枠 a のメンバーから枠 b の根への relations。b の枠は a の枠の右に並び、2 つの枠は重ならない
+combos: [3-3]
+decisions: [Q3-b, B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: a, members: [設計, 画面, API], inside: [] }
+        - { group: b, members: [実装, フロント, バック], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        実装: { a: 右 }
+        設計: { b: 左 }

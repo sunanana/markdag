@@ -1,0 +1,30 @@
+kind: 正常
+checks: >-
+    薄く表示のノードのタグ、色のないグループの文字ラベル、マイルストーンの ◆ は、それぞれの色 (--markdag-muted、--markdag-accent) を背景と混ぜて薄くする (opacity は 1)。
+    どれも文字の縁は 4px の背景の色
+combos: [B タグ 縁, B タグ 薄く表示, B グループのラベル 縁, B グループのラベル 薄く表示]
+decisions: [Q4, Q5]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む (◆ は .mdag-content::before)。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: light
+reference: 担当を決める
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        担当を決める:
+            タグ: { 文字の縁: 4px 背景 }
+            ラベル: { 文字の縁: 4px 背景 }
+        期限を決める:
+            ノード: { opacity: 1, 薄く表示: true }
+            タグ: { 色: 違う, opacity: 1, 文字の縁: 4px 背景 }
+            ラベル: { 色: 違う, opacity: 1, 文字の縁: 4px 背景 }
+        作業中のマイルストーン:
+            ◆: { 文字の縁: 4px 背景 }
+        完了のマイルストーン:
+            reference: 作業中のマイルストーン
+            ノード: { opacity: 1, 薄く表示: true }
+            ◆: { 色: 違う, 文字の縁: 4px 背景 }

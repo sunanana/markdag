@@ -1,0 +1,21 @@
+kind: 正常
+checks: >-
+    入れ子の枠のラベル。枝ごとに分かれた内側の枠 (work) 2 つのラベルは外側 (dev) の枠の中に収まり、ノード、ほかのラベル、枠の辺と重ならない
+combos: [1-8]
+decisions: [B-9]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        frames:
+            - { group: dev, members: [開発, 画面, 画面/実装, 画面/試験, API, API/実装, API/試験], inside: [] }
+            - { group: work, members: [画面/実装, 画面/試験], inside: [dev] }
+            - { group: work, members: [API/実装, API/試験], inside: [dev] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        labels: { count: 3, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }

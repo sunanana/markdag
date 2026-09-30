@@ -1,0 +1,19 @@
+kind: 正常
+checks: >-
+    CLI の markdag html が書き出した単体 HTML を開くと、buildStandaloneHtml の例 (nested) と同じ枠が描かれる
+    (CLI はビルドのときに dist の core の iife を焼き込むので、npm run build のあとに CLI をビルドし直す)
+combos: [1-7]
+decisions: [B-9]
+call:
+    api: >-
+        markdag html input.md の出力を開く。開いたページを 1800x1100 で測る (getBoundingClientRect。screen と同じ測り方)。diagnostics と folded は window.markdagStandalone から読む
+    cli: markdag html input.md
+expect:
+    diagnostics: []
+    folded: []
+    frames:
+        - { group: dev, members: [開発, 画面, 一覧, 詳細, API, 認証, 検索], inside: [] }
+        - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }

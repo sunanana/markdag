@@ -8,6 +8,8 @@ export default defineConfig({
     testMatch: ['spike/**/*.spec.ts', 'e2e/**/*.spec.ts'],
     outputDir: 'test-results',
     fullyParallel: true,
+    // 既定 (論理 CPU の半分) より多くする。chromium の全部で 5 本は 83〜112 秒、8 本は 66 秒で、失敗は増えなかった (2026-09-30)
+    workers: 8,
     reporter: 'line',
     use: {
         baseURL: `http://localhost:${PORT}`,

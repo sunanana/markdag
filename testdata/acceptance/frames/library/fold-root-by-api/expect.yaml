@@ -1,0 +1,21 @@
+kind: 境界
+checks: >-
+    描いたあとに view.setFolded で枠の根 (設計) を閉じると、a は枠にならず、b の枠だけが残る。閉じた設計は b の枠の上
+combos: [2-2]
+decisions: [writing-guide の groups の規則]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、actions を順に呼んでから、
+        rect.mdag-frame (図の座標) と onLayout の rects と buildModel の groupsOf から測る
+    actions:
+        - { setFolded: [設計] }
+expect:
+    diagnostics: []
+    visible: 5
+    frames:
+        - { group: b, members: [実装, フロント, バック], inside: [] }
+    unframed: { a: [設計] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        設計: { b: 上 }

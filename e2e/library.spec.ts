@@ -266,7 +266,10 @@ test.describe('作業中と中止の状態', () => {
         await expect(node(3)).toHaveAttribute('data-dimmed', '');
         await expect(node(4)).toHaveAttribute('data-dimmed', '');
         await expect(node(2)).not.toHaveAttribute('data-dimmed', '');
-        await expect(node(3)).toHaveCSS('opacity', '0.35');
+        // 薄さはノードの opacity ではなく文字の色で付ける (箱の背景が透けて、下を通る線が文字に重ならないように)
+        const colorOf = (id: number) => node(id).locator('.mdag-content').evaluate((element) => getComputedStyle(element).color);
+        await expect(node(3)).toHaveCSS('opacity', '1');
+        expect(await colorOf(3)).not.toBe(await colorOf(2));
         await expect(node(4).locator('.mdag-task-label')).toHaveCSS('text-decoration-line', 'line-through');
         await expect(node(2).locator('.mdag-task-label')).toHaveCSS('text-decoration-line', 'none');
         // 薄いノードでは詳細がノードの中に開かず (dim.details: hover)、タグはそのまま残る (dim.tags: keep)
@@ -277,7 +280,7 @@ test.describe('作業中と中止の状態', () => {
         await expect(node(3).locator('.mdag-tags')).toHaveText('#owner:bob');
         // 薄いノードに重ねると元の濃さに戻り、吹き出しに詳細が出る
         await node(3).locator('.mdag-box').hover();
-        await expect(node(3)).toHaveCSS('opacity', '1');
+        await expect.poll(() => colorOf(3)).toBe(await colorOf(2));
         const popover = page.locator('#a .mdag-popover');
         await expect(popover).toBeVisible();
         await expect(popover).toContainText('完了の補足');

@@ -1,0 +1,21 @@
+kind: 誤り
+checks: >-
+    枠の設定の誤り (boundary: "yes"、キーの打ち間違い boundry) の文書を描く。diagram.diagnostics に group-invalid の警告が 2 件入り、
+    画面には正しく書いた c の枠とラベルだけが出る
+combos: []
+decisions: []
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics:
+        - { code: group-invalid, severity: warning, at: "7:23+5" }
+        - { code: group-invalid, severity: warning, at: "10:13+7" }
+    初め:
+        frames:
+            - { group: c, members: [運用, 監視, 障害], inside: [] }
+        intrusions: 0
+        labels: { count: 1, on_node: [] }

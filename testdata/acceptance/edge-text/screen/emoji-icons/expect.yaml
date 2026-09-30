@@ -1,0 +1,43 @@
+kind: 正常
+checks: >-
+    完了で薄く表示のノードでは、本文の絵文字 (span.mdag-emoji)、絵文字の別名 (:rocket:)、original のロゴ、グループのラベルの絵文字を要素ごと opacity 0.35 で薄くする。
+    mono のロゴとラベルの文字は文字の色で薄くなる (opacity は 1)。文字の見た目の © は囲まないので本文の色で薄くなる。ポインタを載せると全部 opacity 1 に戻る
+combos: [B 絵文字 薄く表示, B ロゴ 薄く表示, B グループのラベル 薄く表示]
+decisions: [Q7, F1-2, F1-5]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false, resolveIcon }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        resolveIcon は下の SVG を返す。色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: light
+    resolveIcon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#2f81f7"/><rect x="7" y="7" width="10" height="10" fill="#f78166"/></svg>'
+reference: 作業中
+steps:
+    - measure: 初め
+    - hover: 完了
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        作業中:
+            絵文字: { opacity: 1 }
+            別名: { opacity: 1 }
+            ロゴ mono: { opacity: 1 }
+            ロゴ original: { opacity: 1 }
+            ラベルの絵文字: { opacity: 1 }
+        完了:
+            ノード: { opacity: 1, 薄く表示: true }
+            本文: { 色: 違う, 文字の縁: 4px 背景 }
+            絵文字: { opacity: 0.35 }
+            別名: { opacity: 0.35 }
+            ロゴ mono: { 色: 違う, opacity: 1 }
+            ロゴ original: { opacity: 0.35 }
+            ラベル: { 色: 違う, opacity: 1, 文字の縁: 4px 背景 }
+            ラベルの絵文字: { opacity: 0.35 }
+    載せた:
+        完了:
+            本文: { 色: 同じ }
+            絵文字: { opacity: 1 }
+            別名: { opacity: 1 }
+            ロゴ mono: { 色: 同じ }
+            ロゴ original: { opacity: 1 }
+            ラベルの絵文字: { opacity: 1 }

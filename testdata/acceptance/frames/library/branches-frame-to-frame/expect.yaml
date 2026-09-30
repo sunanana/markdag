@@ -1,0 +1,21 @@
+kind: 正常
+checks: >-
+    枝をまたぐグループの、設計側の枠のメンバーから実装側の枠のメンバーへの relations。実装/画面は設計側の枠の右へ出て、
+    実装側の枠は分かれずに 1 つのまま (実装/画面とサーバ)
+combos: [3-11]
+decisions: [Q3-b, B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: a, members: [設計/画面, API], inside: [] }
+        - { group: a, members: [実装/画面, サーバ], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        実装/画面: { "a[設計/画面]": 右 }
+        サーバ: { "a[設計/画面]": 下 }

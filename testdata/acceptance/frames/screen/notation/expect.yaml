@@ -1,0 +1,28 @@
+kind: 正常
+checks: >-
+    記法の見本 (docs/examples/notation.md の写し)。設計チームと開発チームの枠 2 つ。実装は設計チームの枠の右、検証は開発チームの枠の右に置かれ、
+    どの枠にもメンバーでないノードとラベルが重ならない (品質保証は枠のないグループ)
+combos: []
+decisions: [Q3-b, Q2-c, B-9, 触って直す (17 見本の OK)]
+render:
+    api: >-
+        render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
+        rect.mdag-frame、text.mdag-frame-label の文字のインク、.mdag-node の .mdag-box を測る
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        visible: 19
+        frames:
+            - { group: design, members: [設計, 画面設計, API設計], inside: [] }
+            - { group: build, members: [実装, フロントエンド, 一覧画面, 登録フォーム, フロントエンド/テスト, バックエンド, 検索API, 登録API, 削除API, バックエンド/テスト], inside: [] }
+        overlap: { disjoint: 0, crossing: 0 }
+        intrusions: 0
+        sides:
+            実装: { design: 右 }
+            検証: { design: 右, build: 右 }
+            公開: { design: 右, build: 右 }
+        labels: { count: 2, on_node: [], crosses_frame: [], on_label: [], wider_than_frame: [] }
+look:
+    - 実装とその配下は設計チームの枠の右、検証から公開までは開発チームの枠の右に並ぶ

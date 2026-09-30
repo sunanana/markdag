@@ -1,8 +1,8 @@
 // 図の描画と操作。渡された要素の中に、HTML の絶対配置 (ノード) と SVG (線、枠、開閉の円) で図を組み立てる。
 // ノードの実測のサイズを射影と配置に渡し、結果を補間しながら反映する。折りたたみ、ズームとパン、全体表示、
 // 詳細の吹き出し、線とグループの強調、凡例を受け持つ。見た目は同梱のスタイルシートが持つ。
-// グループの枠は、メンバーが部分木で閉じていれば 1 つの矩形のまとまりとして配置する (Rust の layout/blocks.rs)。閉じていない枠だけ、
-// メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
+// グループの枠は、1 つの矩形のまとまりにできれば箱として置き、枠どうしとメンバーでないノードが重ならないようにする (配置は Rust)。
+// まとまりにできない枠だけ、メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
 import { select } from 'd3-selection';
 import { zoom, zoomIdentity, zoomTransform, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import type { LayoutInput } from '../layout/input-types';
@@ -13,6 +13,7 @@ import { DEFAULT_TASK_CYCLE, taskMarkOf, type TaskMark } from '../parse/task';
 import { frameOutline, LABEL_HEIGHT, projectAndFrames, type Frame } from './frames';
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
+import { wrapEmoji } from './emoji';
 import { frameLabelParts, groupIconRefs, IconSvgStore, iconMarkHtml, legendLogoHtml, nodeIconRefs, tagLineContent, withIconMarks, type IconRenderContext } from './icons';
 
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
@@ -227,6 +228,9 @@ export class MarkdagView {
     private gaps = new Map<number, number>();
     private edges: PlacedEdge[] = [];
     private frames: Frame[] = [];
+    // 一部共有する枠の組で、core が outline の左の辺と右の辺を右へずらした量 (枠ごと)。
+    // 描画の毎コマ outline をノードの矩形から作り直すので、配置のたびに core の outline との差を覚えて足す
+    private frameShifts = new Map<Frame, { left: number; right: number }>();
     private graph: VisibleGraph | null = null;
     private animation = 0;
     private updateScheduled = false;
@@ -424,6 +428,8 @@ export class MarkdagView {
         cancelAnimationFrame(this.animation);
         window.clearTimeout(this.popoverTimer);
         this.root.innerHTML = '';
+        // 線を選んでいる目印は図を置いた要素に付けているので、要素を別の用途に使い回しても code の地の透かしが残らないよう外す
+        this.root.removeAttribute('data-edge-selected');
     }
 
     expandAll(): void {
@@ -527,7 +533,24 @@ export class MarkdagView {
 
     // 描く枠の矩形。見えているメンバーが 1 つだけの枠は、色帯で所属が分かるので描かない
     private outlineOf(frame: Frame, rects: Map<number, Rect>): Rect | null {
-        return frame.members.filter((id) => rects.has(id)).length < 2 ? null : frameOutline(frame, rects);
+        if (frame.members.filter((id) => rects.has(id)).length < 2) return null;
+        const outline = frameOutline(frame, rects);
+        const shift = this.frameShifts.get(frame);
+        if (!outline || !shift) return outline;
+        return { ...outline, x: outline.x + shift.left, width: outline.width - shift.left + shift.right };
+    }
+
+    // core の outline と、同じ矩形から作った frameOutline の左右の辺の差。差のない枠は持たない
+    private static shiftsOf(frames: Array<Frame & { outline: Rect | null }>, rects: Map<number, Rect>): Map<Frame, { left: number; right: number }> {
+        const shifts = new Map<Frame, { left: number; right: number }>();
+        for (const frame of frames) {
+            const base = frameOutline(frame, rects);
+            if (!frame.outline || !base) continue;
+            const left = frame.outline.x - base.x;
+            const right = frame.outline.x + frame.outline.width - (base.x + base.width);
+            if (Math.abs(left) > 1e-6 || Math.abs(right) > 1e-6) shifts.set(frame, { left, right });
+        }
+        return shifts;
     }
 
     private withGap(id: number, rect: Rect): Rect {
@@ -697,6 +720,7 @@ export class MarkdagView {
         content.className = 'mdag-content';
         content.innerHTML = withIconMarks(node.html, this.iconContext());
         if (node.task) wrapTaskLabel(content);
+        wrapEmoji(content);
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
@@ -710,6 +734,7 @@ export class MarkdagView {
             const groupLabels = document.createElement('span');
             groupLabels.className = 'mdag-labels';
             groupLabels.textContent = plain.join(' ');
+            wrapEmoji(groupLabels);
             box.append(groupLabels);
         }
         // タグは本文に書いたとおりに見せる。always ならノードの中、hover と click なら詳細と同じ吹き出しの中 (どちらに出すかは CSS が決める)
@@ -810,6 +835,7 @@ export class MarkdagView {
         const content = tagLineContent(this.model?.tagsOf.get(id) ?? [], this.model?.tagKeys ?? [], this.iconContext());
         if ('html' in content) tagLabels.innerHTML = content.html;
         else tagLabels.textContent = content.text;
+        wrapEmoji(tagLabels);
     }
 
     // 飾りを付け直す。フックの外の状態が変わって、返す飾りが変わったときに呼ぶ
@@ -1017,13 +1043,12 @@ export class MarkdagView {
         const override = this.options.layoutOverride;
         let graph: VisibleGraph;
         if (override === null) {
-            // 射影、枠のまとまり、枠の余白を入れた配置の繰り返しは Rust が 1 回の呼び出しで行う。枠の上下の端はメンバーの子の列の広がりで
-            // 決まるので、隣のメンバーでないノードが枠の矩形に入り込まなくなるまで (上限あり)、前回の張り出しのぶんだけ間隔を空けて配置し直す。
-            // メンバーが部分木で閉じている枠は、矩形のまとまりとして 1 回で置く。繰り返すのはそれ以外の枠だけで、
-            // 入り込みが減らずに高さだけが大きく伸びた回が来たら、前の回の配置を採る
+            // 射影、枠のまとまり、枠の配置は Rust が 1 回の呼び出しで行う。まとまりにできる枠は箱として 1 回で置く。
+            // まとまりにできない枠があるときだけ、前回の張り出しのぶんだけ間隔を空けて上限の回数まで配置し直し、入り込みの一番少ない回を採る
             const result = layoutDocument(input, model, { ignoreProxiedDepends: this.options.ignoreProxiedDepends });
             graph = result.graph;
             this.frames = result.frames;
+            this.frameShifts = MarkdagView.shiftsOf(result.frames, result.rects);
             this.targets = result.rects;
             this.gaps = result.gaps;
             this.edges = result.edges;
@@ -1039,6 +1064,7 @@ export class MarkdagView {
             for (const [child, parent] of graph.layoutParent) siblings.set(parent, [...(siblings.get(parent) ?? []), child]);
             for (const list of siblings.values()) list.sort((a, b) => (result.rects.get(a)?.y ?? 0) - (result.rects.get(b)?.y ?? 0));
             this.frames = projectAndFrames(input, model, siblings).frames;
+            this.frameShifts = new Map();
         }
         const layoutMs = performance.now() - started;
         this.graph = graph;
@@ -1235,6 +1261,9 @@ export class MarkdagView {
         const anchorKey = picked ? this.selectedEdge : this.hoveredEdge;
         // 薄くするのは、線かグループを選んでいるときだけ。重ねているだけでほかを薄くすると、動かすたびに図が明滅する
         const dim = picked !== undefined || this.selectedGroup !== null;
+        // 線を選んでいる間は図の要素にも示す。code の地をより透かして、強調した線を地の下でもたどれるようにするため (CSS が見る)。
+        // グループを選んだときは線を強調せず薄くするだけなので含めない
+        this.root.toggleAttribute('data-edge-selected', picked !== undefined);
         // 線を太くするのは、線を起点にしたときだけ。グループは範囲が広いので、薄くするだけにする
         this.thicken = anchor !== undefined;
         if (anchor) {
@@ -1310,8 +1339,11 @@ export class MarkdagView {
         const dim = this.selectedEdge !== null || this.selectedGroup !== null;
         const hovered = this.thicken ? this.find(this.hoveredEdge) : undefined;
         const touched = new Set(hovered ? [hovered.edge.source, hovered.edge.target] : []);
+        // 強調から外れたノードは data-faded でも示す。薄く表示のノードの色と部品の薄さを、この opacity と重ねないため (CSS が見る)
         for (const [id, element] of this.elements) {
-            element.style.opacity = dim && !this.nodeLevels.has(id) ? '0.35' : '';
+            const faded = dim && !this.nodeLevels.has(id);
+            element.style.opacity = faded ? '0.35' : '';
+            element.toggleAttribute('data-faded', faded);
         }
         const bold = (id: number): boolean => this.thicken && (this.nodeLevels.has(id) || touched.has(id));
         // 薄く表示するタスクの下線と円は、強調から外れたときと同じ濃さにする

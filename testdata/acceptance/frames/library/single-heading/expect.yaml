@@ -1,0 +1,19 @@
+kind: 正常
+checks: >-
+    見出しに %a を付けたグループの枠が 1 つ。メンバーは見出しとその子孫で、次の見出し (実装) とその子は枠の下に並ぶ
+combos: [1-1]
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: a, members: [設計, 画面, API], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        実装: { a: 下 }
+        フロント: { a: 下 }

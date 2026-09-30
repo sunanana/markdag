@@ -1,0 +1,24 @@
+kind: 境界
+status: 未決
+checks: >-
+    メンバーを一部共有する 2 つの枠 (p {要件, 試作}、q {試作, 実装})。共有する試作の所で 2 つの枠が交差して重なる (共有なので許す)。
+    要件は q の枠の上、実装は p の枠の下で、メンバーでないノードの入り込みはない
+combos: [1-10]
+decisions: [B-9, Q4-b]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: p, members: [要件, 試作, 画面, API, 計測], inside: [] }
+        - { group: q, members: [試作, 画面, API, 計測, 実装], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 1 }
+    intrusions: 0
+    sides:
+        要件: { q: 上 }
+        実装: { p: 下 }
+    edges:
+        - { frame: q, against: p, left: 4, right_min: 16 }

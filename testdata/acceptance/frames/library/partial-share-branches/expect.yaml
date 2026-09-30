@@ -1,0 +1,24 @@
+kind: 境界
+status: 未決
+checks: >-
+    枝をまたぐ p (画面、API、フロント、バック) と、実装の枝の q (バック、基盤) がバックを共有する。p は枝ごとに 2 つの枠に分かれ、
+    実装の枝の p の枠と q の枠がバックの所で交差して重なる。入り込みはない
+combos: [1-11]
+decisions: [B-9, Q4-b]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: p, members: [画面, API], inside: [] }
+        - { group: p, members: [フロント, バック], inside: [] }
+        - { group: q, members: [バック, 基盤], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 1 }
+    intrusions: 0
+    sides:
+        基盤: { "p[画面]": 下, "p[フロント]": 下 }
+    edges:
+        - { frame: q, against: "p[フロント]", left: 4, right_min: 16 }

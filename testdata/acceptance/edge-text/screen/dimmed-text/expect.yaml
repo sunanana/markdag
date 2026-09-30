@@ -1,0 +1,37 @@
+kind: 正常
+checks: >-
+    完了で薄く表示のノード (tasks.dim) は、ノードごとの opacity では薄くせず (1 のまま)、本文の文字の色を背景と混ぜて薄くする (作業中のノードと色が違う)。
+    文字の縁は、作業中でも薄く表示でも 4px の背景の色で、塗りの下 (paint-order: stroke) に付く。
+    ポインタを載せると色が作業中のノードと同じに戻り、外すとまた薄くなる
+combos: [A 通常 ライト, A 薄く表示 ライト, A 薄く表示 + hover ライト, B 本文 縁, B 本文 薄く表示, B チェックボックス 薄く表示]
+decisions: [Q4, Q5]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: light
+reference: 作業中の行
+steps:
+    - measure: 初め
+    - hover: 完了の行
+    - measure: 載せた
+    - leave: 完了の行
+    - measure: 外した
+expect:
+    diagnostics: []
+    初め:
+        作業中の行:
+            ノード: { opacity: 1, 薄く表示: false, 強調から外れた: false }
+            タスクの文字: { 文字の縁: 4px 背景, paint-order: stroke, 影の縁: なし }
+        完了の行:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う, opacity: 1, 文字の縁: 4px 背景, paint-order: stroke, 影の縁: なし }
+            印: { 色: 違う, opacity: 1 }
+    載せた:
+        完了の行:
+            ノード: { opacity: 1 }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 背景 }
+            印: { 色: 同じ }
+    外した:
+        完了の行:
+            タスクの文字: { 色: 違う }

@@ -1,0 +1,38 @@
+kind: 正常
+checks: >-
+    中止のタスクの文字 (取り消し線を引く) と、本文の打ち消し (~~ ~~ の s)、挿入 (++ ++ の ins)、詳細に HTML で書いた del と u は、文字の縁 (-webkit-text-stroke) の色を透明にし、
+    かわりに背景の色の drop-shadow 8 つで縁を作る (縁が線を覆って線が見えなくならないように)。線の色は文字の色のまま。
+    薄く表示では線を持つ要素も文字の色で薄くなり、drop-shadow の縁は残る。ポインタを載せると色が戻る
+combos: [B リンク 縁 (打ち消しの s も同じ値), A 薄く表示 ダーク]
+decisions: [Q11, F1-1, Q5]
+render:
+    api: >-
+        render(element, input.md, { theme: 'dark', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 作業中の
+steps:
+    - measure: 初め
+    - hover: 中止した作業
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        作業中の:
+            タスクの文字: { 文字の縁: 4px 背景, 影の縁: なし, 線: none }
+            打ち消し: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: line-through, 線の色: 文字の色 }
+            ins: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: underline, 線の色: 文字の色 }
+            詳細の del: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: line-through, 線の色: 文字の色 }
+            詳細の u: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: underline, 線の色: 文字の色 }
+        完了の:
+            ノード: { opacity: 1, 薄く表示: true }
+            打ち消し: { 色: 違う, opacity: 1, 影の縁: drop-shadow 8 背景, 線の色: 文字の色 }
+            ins: { 色: 違う, 影の縁: drop-shadow 8 背景 }
+            詳細の del: { 色: 違う, 影の縁: drop-shadow 8 背景 }
+            詳細の u: { 色: 違う, 影の縁: drop-shadow 8 背景 }
+        中止した作業:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う, opacity: 1, 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: line-through, 線の色: 文字の色 }
+    載せた:
+        中止した作業:
+            タスクの文字: { 色: 同じ, 影の縁: drop-shadow 8 背景, 線: line-through, 線の色: 文字の色 }

@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    buildStandaloneHtml の state.folded で内側の枠の根 (画面) を閉じて開くと、fe は枠にならず dev の枠だけになる (文書に fold を書かない)
+combos: [2-4]
+decisions: [writing-guide の groups の規則]
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md, state: { folded: [画面の id] } }) を開く。開いたページを 1800x1100 で測る (getBoundingClientRect。screen と同じ測り方)。diagnostics と folded は window.markdagStandalone から読む
+    state_folded: [画面]
+expect:
+    diagnostics: []
+    folded: [画面]
+    visible: 7
+    frames:
+        - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
+    unframed: { fe: [画面] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    labels: { count: 1, on_node: [], crosses_frame: [] }

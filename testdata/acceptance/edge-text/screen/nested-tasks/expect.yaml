@@ -1,0 +1,29 @@
+kind: 境界
+checks: >-
+    薄く表示はノードごとに決まり、入れ子の親子で受け継がない。完了の親の下の作業中の子は薄くならず (作業中の親と同じ色)、その下の完了の孫は薄い。
+    作業中の親の下の完了の子も薄い。どのノードも opacity は 1 で、文字の縁は 4px の背景の色
+combos: [A 通常 ダーク, A 薄く表示 ダーク]
+decisions: [Q5]
+render:
+    api: >-
+        render(element, input.md, { theme: 'dark', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 作業中の親
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        完了の親:
+            ノード: { opacity: 1, 薄く表示: true }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景 }
+        作業中の子:
+            ノード: { opacity: 1, 薄く表示: false }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 背景 }
+        完了の孫:
+            ノード: { opacity: 1, 薄く表示: true }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景 }
+        完了の子:
+            ノード: { opacity: 1, 薄く表示: true }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景 }

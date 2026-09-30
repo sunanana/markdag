@@ -1,0 +1,20 @@
+kind: 正常
+checks: >-
+    入れ子の枠。内側 (fe、画面とその子) が外側 (dev) の中に収まり、外側のメンバーでない公開は外側の枠の下
+combos: [1-7]
+decisions: [B-9]
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics: []
+    frames:
+        - { group: dev, members: [開発, 画面, 一覧, 詳細, API, 認証, 検索], inside: [] }
+        - { group: fe, members: [画面, 一覧, 詳細], inside: [dev] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        公開: { dev: 下 }
+        API: { fe: 下 }

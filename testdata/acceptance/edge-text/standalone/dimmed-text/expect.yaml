@@ -1,0 +1,37 @@
+kind: 正常
+checks: >-
+    buildStandaloneHtml で書き出した単体 HTML (style.css を埋め込む) でも、画面と同じスタイルが効く。
+    薄く表示のノードは opacity 1 のまま文字の色を混ぜて薄くし、文字の縁は 4px の背景の色。リンクと中止のタスクは drop-shadow の縁。
+    本文の絵文字は opacity 0.35。ポインタを載せると戻る
+combos: [A 通常 ライト, A 薄く表示 ライト, A 薄く表示 + hover ライト, B 本文, B リンク, B 絵文字]
+decisions: [Q4, Q5, Q7, Q11]
+render:
+    api: >-
+        buildStandaloneHtml({ source: input.md, view: { theme: 'light', animate: false } }) の HTML を開き (iframe)、ページの中のノードの getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: light
+reference: 作業中の行
+steps:
+    - measure: 初め
+    - hover: 完了の行
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        作業中の行:
+            タスクの文字: { 文字の縁: 4px 背景, paint-order: stroke }
+            リンク: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景 }
+            絵文字: { opacity: 1 }
+        完了の行:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景, paint-order: stroke }
+            リンク: { 色: 違う, 影の縁: drop-shadow 8 背景 }
+            絵文字: { opacity: 0.35 }
+        中止した作業:
+            ノード: { opacity: 1, 薄く表示: true }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: line-through, 線の色: 文字の色 }
+    載せた:
+        完了の行:
+            タスクの文字: { 色: 同じ }
+            リンク: { 色: 同じ }
+            絵文字: { opacity: 1 }

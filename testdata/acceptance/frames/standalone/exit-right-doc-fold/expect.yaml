@@ -1,0 +1,19 @@
+kind: 境界
+checks: >-
+    文書で片方の枝 (実装) を閉じた、枝をまたぐグループと relations の出口を単体 HTML で開く。見える枝の枠 1 つで、告知は枠の右
+combos: [4-3]
+decisions: [Q2-c]
+call:
+    api: >-
+        buildStandaloneHtml({ source: input.md }) を開く。開いたページを 1800x1100 で測る (getBoundingClientRect。screen と同じ測り方)。diagnostics と folded は window.markdagStandalone から読む
+expect:
+    diagnostics: []
+    folded: [実装]
+    visible: 6
+    frames:
+        - { group: a, members: [画面, API], inside: [] }
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
+    sides:
+        告知: { a: 右 }
+    labels: { count: 1, on_node: [] }

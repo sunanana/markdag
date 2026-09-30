@@ -1,0 +1,19 @@
+kind: 誤り
+checks: >-
+    枠の設定の誤り。boundary に文字列 ("yes") を書いた a と、キーを打ち間違えた (boundry) b は group-invalid の警告で、枠にならない。
+    正しく書いた c だけが枠になる。警告なので check の終了コードは 0 (error 0 件)
+combos: []
+decisions: []
+call:
+    api: >-
+        render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
+        onLayout の rects と buildModel の groupsOf から測る
+expect:
+    diagnostics:
+        - { code: group-invalid, severity: warning, at: "7:23+5", message_has: boundary は真偽値で書きます }
+        - { code: group-invalid, severity: warning, at: "10:13+7", message_has: キー「boundry」は使えません }
+    frames:
+        - { group: c, members: [運用, 監視, 障害], inside: [] }
+    unframed: {}
+    overlap: { disjoint: 0, crossing: 0 }
+    intrusions: 0
