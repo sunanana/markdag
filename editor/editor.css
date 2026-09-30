@@ -76,7 +76,8 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
 
 /* キャンバス。ドットの格子を敷く */
 .ed-stage:focus { outline: none; }
-.ed-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--ed-canvas); background-image: radial-gradient(var(--ed-dot) 1.2px, transparent 1.3px); background-size: 22px 22px; }
+.ed-stage { user-select: none; -webkit-user-select: none; position: relative; min-width: 0; min-height: 0; overflow: hidden; background-color: var(--ed-canvas); background-image: radial-gradient(var(--ed-dot) 1.2px, transparent 1.3px); background-size: 22px 22px; }
+.ed-stage .mdag-popover { user-select: text; -webkit-user-select: text; }
 .ed-stage .markdag { position: absolute; inset: 0; height: auto !important; background: transparent; --markdag-bg: var(--ed-canvas); }
 :root:not([data-theme='light']) .ed-stage .markdag { --markmap-text-color: var(--ed-text-strong); --markdag-text: var(--ed-text-strong); --markdag-accent: var(--ed-accent); }
 .ed-stage .mdag-viewport { cursor: default; }
@@ -114,7 +115,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
 .ed-wire path { fill: none; stroke: var(--ed-accent); stroke-width: 2; stroke-dasharray: 6 4; }
 .ed-wire circle { fill: var(--ed-accent); }
 .ed-ghost { position: absolute; z-index: 30; pointer-events: none; opacity: 0.8; padding: 4px 10px; border-radius: 6px; background: var(--ed-panel); border: 2px solid var(--ed-accent); box-shadow: var(--ed-shadow); color: var(--ed-text-strong); white-space: nowrap; transform: translate(12px, 12px); }
-.ed-rename { position: absolute; z-index: 25; min-width: 140px; padding: 2px 6px; border: 2px solid var(--ed-accent); border-radius: 6px; background: var(--ed-panel); color: var(--ed-text-strong); font: 300 16px/20px sans-serif; outline: none; box-shadow: var(--ed-shadow); }
+.ed-rename { user-select: text; -webkit-user-select: text; position: absolute; z-index: 25; min-width: 140px; padding: 2px 6px; border: 2px solid var(--ed-accent); border-radius: 6px; background: var(--ed-panel); color: var(--ed-text-strong); font: 300 16px/20px sans-serif; outline: none; box-shadow: var(--ed-shadow); }
 
 .ed-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 20; padding: 6px 12px; border-radius: 8px; background: var(--ed-panel); border: 1px solid var(--ed-border); color: var(--ed-muted); font-size: 12px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 .ed-hint kbd { font: 11px ui-monospace, monospace; padding: 0 4px; border: 1px solid var(--ed-border); border-radius: 4px; color: var(--ed-text); }
@@ -134,8 +135,14 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
     .ed-tools hr { width: 1px; height: auto; margin: 0 4px; border-top: 0; border-left: 1px solid var(--ed-border); }
 }
 
-/* 複数選択と範囲選択 (合流させるノードを選ぶ) */
-.ed-multi .ed-sel::after { content: attr(data-order); position: absolute; left: -9px; top: -9px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--ed-accent); color: var(--ed-canvas); font: 700 10px/16px system-ui; text-align: center; }
-.ed-marquee { position: absolute; border: 1.5px dashed var(--ed-accent); background: var(--ed-accent-soft); border-radius: 2px; }
+/* 複数選択と範囲選択 (合流させるノードを選ぶ)。選んだノードは細い枠、全体を 1 つの枠で囲む (個数は操作の帯に出す) */
+.ed-multi .ed-sel-item { border-width: 1.5px; border-radius: 5px; background: var(--ed-accent-soft); }
+.ed-group-box { position: absolute; border: 1px solid var(--ed-accent); border-radius: 8px; }
+.ed-group-box::before { content: ''; position: absolute; inset: -4px; border-radius: 10px; border: 1px dashed var(--ed-accent); opacity: 0.35; }
+.ed-marquee { position: absolute; border: 1px solid var(--ed-accent); background: var(--ed-accent-soft); border-radius: 2px; }
 .ed-stage[data-tool='join'] .mdag-box { cursor: crosshair; }
 .ed-stage[data-tool='join'] .mdag-box:hover { outline: 2px dashed var(--ed-accent); outline-offset: 3px; }
+/* 範囲選択の道具では何もないところは矢印、手のひら・Space・中ボタンの間はつかむ手 */
+.ed-stage[data-tool='select'] .mdag-viewport:active { cursor: default; }
+.ed-stage[data-tool='pan'] .mdag-viewport, .ed-stage[data-tool='pan'] .mdag-box, .ed-stage.is-space .mdag-viewport, .ed-stage.is-space .mdag-box { cursor: grab; }
+.ed-stage[data-tool='pan'] .mdag-viewport:active, .ed-stage.is-space .mdag-viewport:active, .ed-stage.is-panning, .ed-stage.is-panning * { cursor: grabbing !important; }

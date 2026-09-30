@@ -63,12 +63,14 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
 };
 
 // join は「既存のノードへ合流」で、合流先のノードを選んでいるところ
-type Tool = 'select' | 'connect' | 'add' | 'join';
-// nodes は Shift / Ctrl / ⌘ クリックか Shift ドラッグで 2 つ以上選んだとき (選んだ順)
+// pan は手のひら。ドラッグで図を動かす (選ぶ道具でも Space を押している間と中ボタンのドラッグは動かす)
+type Tool = 'select' | 'pan' | 'connect' | 'add' | 'join';
+// nodes は範囲選択 (何もないところからのドラッグ) か Shift / Ctrl / ⌘ クリックで 2 つ以上選んだとき (選んだ順)
 type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | null;
 
 const ICONS = {
     select: '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg>',
+    pan: '<svg viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3.5 13a1.5 1.5 0 012.3-1.9L8 13"/></svg>',
     connect: '<svg viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><path d="M7 17C12 16 12 8 17 7"/><path d="M14 5l3 2-2 3"/></svg>',
     add: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
     undo: '<svg viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 010 12h-2" transform="translate(0 -6)"/></svg>',
@@ -114,6 +116,7 @@ app.innerHTML = `
                 <div class="ed-target" hidden></div>
                 <div class="ed-sel" hidden></div>
                 <div class="ed-multi"></div>
+                <div class="ed-group-box" hidden></div>
                 <div class="ed-marquee" hidden></div>
                 <div class="ed-handle ed-handle-connect" title="ドラッグしてほかのノードへ線を引く" hidden></div>
                 <div class="ed-handle ed-handle-add ed-handle-child" title="子を足す (Tab)" hidden>+</div>
@@ -121,10 +124,11 @@ app.innerHTML = `
                 <div class="ed-ctx" hidden></div>
             </div>
             <nav class="ed-tools" aria-label="道具">
-                <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)">${ICONS.select}</button>
+                <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}</button>
+                <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選ぶ道具でも Space を押しながらドラッグで動かせる">${ICONS.pan}</button>
                 <button class="ed-tool" data-tool="connect" title="線を引く (C)">${ICONS.connect}</button>
                 <button class="ed-tool" data-tool="add" title="ノードを足す (N)">${ICONS.add}</button>
-                <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。Shift+クリックか Shift+ドラッグで 2 つ以上選んでから">${ICONS.join}</button>
+                <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}</button>
                 <hr>
                 <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}</button>
                 <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}</button>
@@ -151,6 +155,7 @@ const linesLabel = $<HTMLSpanElement>('.ed-lines');
 const selFrame = $<HTMLDivElement>('.ed-sel');
 const multiLayer = $<HTMLDivElement>('.ed-multi');
 const marqueeBox = $<HTMLDivElement>('.ed-marquee');
+const groupBox = $<HTMLDivElement>('.ed-group-box');
 const targetFrame = $<HTMLDivElement>('.ed-target');
 const connectHandle = $<HTMLDivElement>('.ed-handle-connect');
 const childHandle = $<HTMLDivElement>('.ed-handle-child');
@@ -421,7 +426,7 @@ function toggleNode(id: number): void {
 function joinIntoNewNode(): void {
     const ids = selectedIds();
     if (ids.length < 2) {
-        showToast('Shift+クリックか Shift+ドラッグで、合流させるノードを 2 つ以上選んでください', 'error');
+        showToast('何もないところからドラッグして、合流させるノードを 2 つ以上囲んでください', 'error');
         return;
     }
     apply(ops.addJoinNode(ctx, ids, '合流点', contextOf), { rename: true });
@@ -535,10 +540,11 @@ function updateHint(): void {
     if (tool === 'join') text = `${joinSources.length} 個のノードを合流させる先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'connect') text = connectFrom === null ? '線の始点のノードをクリック (またはノードからドラッグ)' : `「${nameOf(connectFrom)}」から線を引く先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'add') text = 'ノードをクリックで子を足す / 何もないところをクリックで最上位に足す';
-    else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ ${k('Shift')}+クリックで複数選んで合流`;
-    else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 ${k('Shift')}+クリックで追加・解除 ${k('Del')} 削除`;
+    else if (tool === 'pan') text = `ドラッグで図を動かす / ホイールで拡大縮小 ${k('V')} で選ぶ道具へ`;
+    else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
+    else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 / ${k('Shift')}+クリックかドラッグで追加 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
-    else text = `クリックで選ぶ ${k('Shift')}+クリック / ${k('Shift')}+ドラッグで複数選ぶ / ダブルクリックでノードを足す / 右の点をドラッグで線を引く`;
+    else text = `何もないところからドラッグで範囲選択 / ${k('Space')}+ドラッグで図を動かす / ダブルクリックでノードを足す / 右の点をドラッグで線を引く`;
     hint.innerHTML = text;
 }
 
@@ -650,11 +656,11 @@ function positionOverlay(): void {
         place(childHandle, rect.right + 30, rect.top);
         place(siblingHandle, rect.left + rect.width / 2, rect.bottom + 18);
     }
-    // 複数選択は、選んだノードごとに枠を出し、線を引くつまみは全体の右端の中ほどに置く
+    // 複数選択は、選んだノードごとに細い枠を出し、全体を 1 つの枠で囲む。線を引くつまみは全体の枠の右端の中ほどに置く
     const multi = selection?.type === 'nodes' && (!drag || drag.kind === 'connect') ? selection.ids : [];
     while (multiLayer.children.length < multi.length) {
         const frame = document.createElement('div');
-        frame.className = 'ed-sel';
+        frame.className = 'ed-sel ed-sel-item';
         multiLayer.append(frame);
     }
     let union: DOMRect | null = null;
@@ -666,13 +672,18 @@ function positionOverlay(): void {
         if (frame.hidden || !found) return;
         const rect = localRect(found);
         Object.assign(frame.style, { left: `${rect.left - 5}px`, top: `${rect.top - 4}px`, width: `${rect.width + 10}px`, height: `${rect.height + 8}px` });
-        frame.dataset.order = String(index + 1);
         union = union === null ? rect : unionRect(union, rect);
     });
-    if (union !== null && !drag && !marquee) {
-        const rect: DOMRect = union;
-        anchor = rect;
-        connectAt = { x: rect.right + 18, y: rect.top + rect.height / 2 };
+    // forEach の中で書き換えるので、TypeScript は null のままと見なす
+    const groupRect = union as DOMRect | null;
+    groupBox.hidden = groupRect === null || multi.length < 2;
+    if (groupRect && !groupBox.hidden) {
+        const pad = 10;
+        Object.assign(groupBox.style, { left: `${groupRect.left - pad}px`, top: `${groupRect.top - pad}px`, width: `${groupRect.width + pad * 2}px`, height: `${groupRect.height + pad * 2}px` });
+    }
+    if (groupRect && !drag && !marquee) {
+        anchor = new DOMRect(groupRect.left - 10, groupRect.top - 10, groupRect.width + 20, groupRect.height + 20);
+        connectAt = { x: groupRect.right + 10, y: groupRect.top + groupRect.height / 2 };
     }
     connectHandle.hidden = connectAt === null || tool !== 'select';
     if (connectAt) place(connectHandle, connectAt.x, connectAt.y);
@@ -712,7 +723,7 @@ interface Drag {
 }
 let drag: Drag | null = null;
 let suppressClick = false;
-// Shift+ドラッグの範囲選択。base はドラッグを始める前に選んでいたノード
+// 何もないところからのドラッグの範囲選択。base は選択に足すとき (Shift / Ctrl / ⌘) に、それまで選んでいたノード
 let marquee: { start: { x: number; y: number }; base: number[]; pointerId: number; moved: boolean } | null = null;
 
 function nodeIdAt(x: number, y: number): number | null {
@@ -813,7 +824,17 @@ stage.addEventListener(
     'pointerdown',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || event.button !== 0 || renaming) return;
+        if (!target || renaming) return;
+        // 中ボタンのドラッグは、どの道具でも図を動かす (d3-zoom は左ボタンしか受けない)
+        if (event.button === 1) {
+            event.preventDefault();
+            panning = { last: { x: event.clientX, y: event.clientY }, pointerId: event.pointerId };
+            stage.classList.add('is-panning');
+            return;
+        }
+        if (event.button !== 0) return;
+        // 手のひらの道具と Space を押している間は、図のパンに任せる
+        if (tool === 'pan' || spaceHeld) return;
         if (target === connectHandle && selection?.type === 'node') {
             event.preventDefault();
             event.stopPropagation();
@@ -829,11 +850,12 @@ stage.addEventListener(
         const box = target.closest('.mdag-box');
         const element = box?.closest<HTMLElement>('.mdag-node');
         if (!box || !element) {
-            // 何もないところからの Shift+ドラッグは、図を動かさずに範囲で選ぶ
-            if (event.shiftKey && tool === 'select' && target.closest('.mdag-viewport') && !target.closest('.mdag-edge-hit, .mdag-fold, .mdag-legend, .mdag-popover')) {
+            // 何もないところからのドラッグは、範囲で選ぶ。指でのドラッグは図のパンのままにする
+            if (tool === 'select' && event.pointerType !== 'touch' && target.closest('.mdag-viewport') && !target.closest('.mdag-fold, .mdag-legend, .mdag-popover, .mdag-note-mark, a')) {
                 event.preventDefault();
                 event.stopPropagation();
-                marquee = { start: { x: event.clientX, y: event.clientY }, base: selectedIds(), pointerId: event.pointerId, moved: false };
+                const additive = event.shiftKey || event.metaKey || event.ctrlKey;
+                marquee = { start: { x: event.clientX, y: event.clientY }, base: additive ? selectedIds() : [], pointerId: event.pointerId, moved: false };
             }
             return;
         }
@@ -855,11 +877,11 @@ stage.addEventListener(
     },
     { capture: true },
 );
-// 範囲選択の間は、図のパン (d3-zoom は mousedown で始まる) を止める
+// 範囲選択と中ボタンのパンの間は、d3-zoom のパン (mousedown で始まる) を止める
 stage.addEventListener(
     'mousedown',
     (event) => {
-        if (marquee) event.stopPropagation();
+        if (marquee || panning) event.stopPropagation();
     },
     { capture: true },
 );
@@ -901,14 +923,32 @@ function endMarquee(event: PointerEvent): void {
     select(selection);
 }
 
+let panning: { last: { x: number; y: number }; pointerId: number } | null = null;
+let spaceHeld = false;
+
+function setSpaceHeld(next: boolean): void {
+    spaceHeld = next;
+    stage.classList.toggle('is-space', next);
+}
+
 window.addEventListener('pointermove', (event) => {
     moveDrag(event);
     moveMarquee(event);
+    if (panning && event.pointerId === panning.pointerId) {
+        diagram.view.panBy(event.clientX - panning.last.x, event.clientY - panning.last.y);
+        panning.last = { x: event.clientX, y: event.clientY };
+    }
 });
 window.addEventListener('pointerup', (event) => {
     endDrag(event);
     endMarquee(event);
+    if (panning && event.pointerId === panning.pointerId) {
+        panning = null;
+        stage.classList.remove('is-panning');
+    }
 });
+// 中ボタンの押し下げでブラウザの自動スクロールが始まらないようにする
+stage.addEventListener('auxclick', (event) => event.button === 1 && event.preventDefault());
 window.addEventListener('pointercancel', (event) => {
     if (marquee && event.pointerId === marquee.pointerId) {
         marquee = null;
@@ -985,8 +1025,9 @@ stage.addEventListener(
             return;
         }
         if (tool === 'connect' || tool === 'join') setTool('select');
-        // Shift を押しながら何もないところを押しても、選んだものは解かない
-        if (event.shiftKey && tool === 'select') return;
+        // Shift / Ctrl / ⌘ を押しながら何もないところを押しても、選んだものは解かない
+        if ((event.shiftKey || event.metaKey || event.ctrlKey) && tool === 'select') return;
+        if (tool === 'pan') return;
         select(null);
     },
     { capture: true },
@@ -1096,6 +1137,14 @@ document.addEventListener('keydown', (event) => {
         case 'V':
             setTool('select');
             break;
+        case 'h':
+        case 'H':
+            setTool('pan');
+            break;
+        case ' ':
+            event.preventDefault();
+            if (!event.repeat) setSpaceHeld(true);
+            break;
         case 'c':
         case 'C':
         case 'l':
@@ -1121,6 +1170,11 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
+document.addEventListener('keyup', (event) => {
+    if (event.key === ' ') setSpaceHeld(false);
+});
+window.addEventListener('blur', () => setSpaceHeld(false));
+
 // ---- 上の帯と道具箱 ----------------------------------------------------------------------------------------------
 
 for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool[data-tool]')) {
@@ -1128,7 +1182,7 @@ for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool[data-tool
 }
 $('.ed-join-tool').addEventListener('click', () => {
     if (selectedIds().length >= 2) joinIntoNewNode();
-    else showToast('Shift+クリックか Shift+ドラッグで 2 つ以上選ぶと、選んだノードを新しいノードへ合流させます');
+    else showToast('何もないところからドラッグして 2 つ以上を囲むと、選んだノードを新しいノードへ合流させます');
 });
 undoButton.addEventListener('click', undo);
 redoButton.addEventListener('click', redo);
