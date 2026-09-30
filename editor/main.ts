@@ -69,6 +69,9 @@ type Tool = 'select' | 'pan' | 'connect' | 'join';
 // group はグループの枠 (またはそのラベル) を押したとき。id は markdag.groups のキー
 type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | { type: 'group'; id: string } | null;
 
+// ショートカットの表記 (Mac は ⌘、それ以外は Ctrl)
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+
 const ICONS = {
     select: '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg>',
     pan: '<svg viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3.5 13a1.5 1.5 0 012.3-1.9L8 13"/></svg>',
@@ -129,6 +132,7 @@ app.innerHTML = `
                 <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}<span>選択</span></button>
                 <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選択でも Space を押しながらドラッグで動かせる">${ICONS.pan}<span>パン</span></button>
                 <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}<span>合流</span></button>
+                <button class="ed-tool ed-group-tool" title="選んだノードをグループにまとめる (${MOD}G)。何もないところからドラッグして囲んで選んでから">${ICONS.group}<span>グループ</span></button>
                 <hr>
                 <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}<span>戻る</span></button>
                 <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}<span>進む</span></button>
@@ -188,8 +192,6 @@ let joinSources: number[] = [];
 // 名前を入力している欄。ノードの名前か、グループの名前 (枠のラベル)
 type RenameTarget = { type: 'node'; id: number } | { type: 'group'; id: string };
 let renaming: { target: RenameTarget; input: HTMLInputElement } | null = null;
-// ショートカットの表記 (Mac は ⌘、それ以外は Ctrl)
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
 function contextOf(text: string): ops.EditContext {
     const parsed = parseDocument(text);
@@ -1329,6 +1331,10 @@ for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool')) button
 $('.ed-join-tool').addEventListener('click', () => {
     if (selectedIds().length >= 2) joinIntoNewNode();
     else showToast('何もないところからドラッグして 2 つ以上を囲むと、選んだノードを新しいノードへ合流させます');
+});
+$('.ed-group-tool').addEventListener('click', () => {
+    if (selectedIds().length >= 1) groupSelection();
+    else showToast('何もないところからドラッグしてノードを囲むと、選んだノードをグループにまとめます');
 });
 undoButton.addEventListener('click', undo);
 redoButton.addEventListener('click', redo);
