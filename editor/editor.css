@@ -85,7 +85,6 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
 .ed-stage .mdag-box { border-radius: 4px; cursor: pointer; }
 .ed-stage .mdag-box:hover { background: var(--ed-accent-soft); }
 .ed-stage[data-tool='connect'] .mdag-box { cursor: crosshair; }
-.ed-stage[data-tool='add'] .mdag-box, .ed-stage[data-tool='add'] .mdag-viewport { cursor: copy; }
 .ed-stage.is-dragging, .ed-stage.is-dragging * { cursor: grabbing !important; user-select: none; }
 
 /* 左の道具箱 */

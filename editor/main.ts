@@ -64,7 +64,7 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
 
 // join は「既存のノードへ合流」で、合流先のノードを選んでいるところ
 // pan は手のひら。ドラッグで図を動かす (選ぶ道具でも Space を押している間と中ボタンのドラッグは動かす)
-type Tool = 'select' | 'pan' | 'connect' | 'add' | 'join';
+type Tool = 'select' | 'pan' | 'connect' | 'join';
 // nodes は範囲選択 (何もないところからのドラッグ) か Shift / Ctrl / ⌘ クリックで 2 つ以上選んだとき (選んだ順)
 type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | null;
 
@@ -72,7 +72,6 @@ const ICONS = {
     select: '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg>',
     pan: '<svg viewBox="0 0 24 24"><path d="M8 12V6a1.5 1.5 0 013 0v5M11 11V4.5a1.5 1.5 0 013 0V11M14 11V6a1.5 1.5 0 013 0v7c0 4-2.5 7-6 7-2.5 0-4-1-5.5-3L3.5 13a1.5 1.5 0 012.3-1.9L8 13"/></svg>',
     connect: '<svg viewBox="0 0 24 24"><circle cx="5" cy="18" r="2"/><path d="M7 17C12 16 12 8 17 7"/><path d="M14 5l3 2-2 3"/></svg>',
-    add: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M12 9v6M9 12h6"/></svg>',
     undo: '<svg viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 010 12h-2" transform="translate(0 -6)"/></svg>',
     redo: '<svg viewBox="0 0 24 24"><path d="M15 7l5 5-5 5"/><path d="M20 12H10a6 6 0 000 12h2" transform="translate(0 -6)"/></svg>',
     fit: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
@@ -127,7 +126,6 @@ app.innerHTML = `
                 <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}</button>
                 <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選ぶ道具でも Space を押しながらドラッグで動かせる">${ICONS.pan}</button>
                 <button class="ed-tool" data-tool="connect" title="線を引く (C)">${ICONS.connect}</button>
-                <button class="ed-tool" data-tool="add" title="ノードを足す (N)">${ICONS.add}</button>
                 <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}</button>
                 <hr>
                 <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}</button>
@@ -539,7 +537,6 @@ function updateHint(): void {
     let text: string;
     if (tool === 'join') text = `${joinSources.length} 個のノードを合流させる先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'connect') text = connectFrom === null ? '線の始点のノードをクリック (またはノードからドラッグ)' : `「${nameOf(connectFrom)}」から線を引く先のノードをクリック ${k('Esc')} でやめる`;
-    else if (tool === 'add') text = 'ノードをクリックで子を足す / 何もないところをクリックで最上位に足す';
     else if (tool === 'pan') text = `ドラッグで図を動かす / ホイールで拡大縮小 ${k('V')} で選ぶ道具へ`;
     else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
     else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 / ${k('Shift')}+クリックかドラッグで追加 ${k('Del')} 削除`;
@@ -992,9 +989,6 @@ stage.addEventListener(
             } else if (tool === 'select' && (event.shiftKey || event.metaKey || event.ctrlKey)) {
                 if (nodeOf(id)?.parent === null) showToast('ルートは合流の始点にできません', 'error');
                 else toggleNode(id);
-            } else if (tool === 'add') {
-                apply(ops.addChild(ctx, id), { rename: true });
-                setTool('select');
             } else if (tool === 'connect') {
                 // クリックだけで引く (ドラッグせずに離した) とき
                 if (connectFrom === null) {
@@ -1019,11 +1013,6 @@ stage.addEventListener(
             return;
         }
         if (target.closest('.mdag-fold, [data-group]')) return;
-        if (tool === 'add') {
-            apply(ops.addChild(ctx, 1), { rename: true });
-            setTool('select');
-            return;
-        }
         if (tool === 'connect' || tool === 'join') setTool('select');
         // Shift / Ctrl / ⌘ を押しながら何もないところを押しても、選んだものは解かない
         if ((event.shiftKey || event.metaKey || event.ctrlKey) && tool === 'select') return;
@@ -1058,25 +1047,75 @@ siblingHandle.addEventListener('click', (event) => {
 
 // ---- キーボード --------------------------------------------------------------------------------------------------
 
+// マウスカーソルの位置。ウィンドウの外へ出たら null にする (矢印キーで最初に選ぶノードを決めるのに使う)
+let pointerAt: { x: number; y: number } | null = null;
+window.addEventListener('pointermove', (event) => (pointerAt = { x: event.clientX, y: event.clientY }), { capture: true });
+document.documentElement.addEventListener('mouseleave', () => (pointerAt = null));
+
+// 描いてあるノードのうち、点にいちばん近いもの (箱の中なら距離 0)
+function nearestNode(point: { x: number; y: number }): number | null {
+    let best: { id: number; distance: number } | null = null;
+    for (const element of host.querySelectorAll<HTMLElement>('.mdag-node')) {
+        const found = element.querySelector('.mdag-box');
+        if (!isVisible(found)) continue;
+        const rect = found.getBoundingClientRect();
+        const dx = Math.max(rect.left - point.x, 0, point.x - rect.right);
+        const dy = Math.max(rect.top - point.y, 0, point.y - rect.bottom);
+        const distance = Math.hypot(dx, dy);
+        if (!best || distance < best.distance) best = { id: Number(element.dataset.id), distance };
+    }
+    return best?.id ?? null;
+}
+
+// ノードを画面の上の並び (上から下、同じ高さなら左から右) にそろえる。描いていないノードがあれば文書の順のまま
+function inScreenOrder(nodes: OutlineNode[]): OutlineNode[] {
+    const rects = nodes.map((node) => {
+        const found = boxOf(node.id);
+        return isVisible(found) ? found.getBoundingClientRect() : null;
+    });
+    if (rects.some((rect) => rect === null)) return nodes;
+    return nodes
+        .map((node, index) => ({ node, rect: rects[index] as DOMRect }))
+        .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left)
+        .map((item) => item.node);
+}
+
+// 矢印キーで選ぶノードを移す。左は親、右は子のいちばん上、上下は兄弟 (端では反対の端へ回る)。
+// 何も選んでいなければ、マウスカーソルにいちばん近いノード (カーソルがウィンドウの外ならルート) を選ぶ
 function moveSelection(key: string): void {
-    if (selection?.type !== 'node') {
-        const first = ctx.parsed.nodes[0];
-        if (first) select({ type: 'node', id: first.id });
+    const current = selection?.type === 'node' ? selection.id : selection?.type === 'nodes' ? (selection.ids[selection.ids.length - 1] ?? null) : null;
+    const node = current === null ? undefined : nodeOf(current);
+    if (!node) {
+        const root = ctx.parsed.nodes.find((item) => item.parent === null);
+        const start = (pointerAt && nearestNode(pointerAt)) ?? root?.id;
+        if (start !== undefined) select({ type: 'node', id: start });
         return;
     }
-    const node = nodeOf(selection.id);
-    if (!node) return;
-    const siblings = ctx.parsed.nodes.filter((other) => other.parent === node.parent);
-    const index = siblings.indexOf(node);
     let next: OutlineNode | undefined;
     if (key === 'ArrowLeft') next = node.parent === null ? undefined : nodeOf(node.parent);
-    else if (key === 'ArrowRight') next = ctx.parsed.nodes.find((other) => other.parent === node.id);
-    else if (key === 'ArrowUp') next = siblings[index - 1];
-    else if (key === 'ArrowDown') next = siblings[index + 1];
-    if (next) {
-        diagram.view.revealNode(next.id);
-        select({ type: 'node', id: next.id });
+    else if (key === 'ArrowRight') next = inScreenOrder(ctx.parsed.nodes.filter((other) => other.parent === node.id))[0];
+    else {
+        const siblings = inScreenOrder(ctx.parsed.nodes.filter((other) => other.parent === node.parent));
+        const index = siblings.indexOf(node);
+        if (siblings.length > 1) next = siblings[(index + (key === 'ArrowDown' ? 1 : -1) + siblings.length) % siblings.length];
     }
+    if (!next) return;
+    const id = next.id;
+    diagram.view.revealNode(id);
+    select({ type: 'node', id });
+    // 選んだノードが画面の外なら、見える所まで図を動かす (畳んだ枝を開いたときは配置が変わるので、次のコマで測る)
+    requestAnimationFrame(() => scrollIntoView(id));
+}
+
+function scrollIntoView(id: number): void {
+    const found = boxOf(id);
+    if (!isVisible(found)) return;
+    const rect = found.getBoundingClientRect();
+    const view = stage.getBoundingClientRect();
+    const margin = 48;
+    const dx = rect.left < view.left + margin ? view.left + margin - rect.left : rect.right > view.right - margin ? view.right - margin - rect.right : 0;
+    const dy = rect.top < view.top + margin ? view.top + margin - rect.top : rect.bottom > view.bottom - margin ? view.bottom - margin - rect.bottom : 0;
+    if (dx !== 0 || dy !== 0) diagram.view.panBy(dx, dy);
 }
 
 document.addEventListener('keydown', (event) => {
@@ -1152,10 +1191,6 @@ document.addEventListener('keydown', (event) => {
             setTool('connect');
             if (nodeId !== null) connectFrom = nodeId;
             updateHint();
-            break;
-        case 'n':
-        case 'N':
-            setTool('add');
             break;
         case 'j':
         case 'J':
