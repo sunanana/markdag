@@ -1,7 +1,7 @@
 // 図の側の編集 (editor/ops.ts) が、原文を狙いどおりに書き換えるかを、書き換えたあとの原文を解析し直して確かめる
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { addChild, addJoin, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameNode, reverseEdge, type EditContext, type EditResult } from '../editor/ops';
+import { addChild, addGroup, addJoin, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
 import { buildModel } from '../src/model/model';
 import { parseDocument } from '../src/parse/document';
 
@@ -278,5 +278,53 @@ describe('合流', () => {
         const next = sourceOf(addJoinNode(ctx, tests, '結合確認', contextOf));
         expect(next).toContain('            - フロントエンド/テスト & バックエンド/テスト --> 結合確認\n');
         expect(errorsOf(next)).toEqual([]);
+    });
+});
+
+describe('グループ', () => {
+    const groupsOf = (source: string, name: string): string[] => {
+        const ctx = contextOf(source);
+        return ctx.model.groupsOf.get(byName(ctx, name)) ?? [];
+    };
+    const labelOfGroup = (source: string, id: string): string | undefined => contextOf(source).model.groups.find((group) => group.id === id)?.label;
+
+    test('選んだノードに印を付け、枠を出す定義を markdag.groups に足す。子孫には印を足さない', () => {
+        const ctx = contextOf(SIMPLE);
+        const result = addGroup(ctx, [byName(ctx, 'A'), byName(ctx, 'x'), byName(ctx, 'C')]);
+        const next = sourceOf(result);
+        expect(result.ok && result.groupId).toBe('group1');
+        expect(next).toContain('## A %group1\n- x\n');
+        expect(next).toContain('### C %group1\n');
+        expect(next).toContain('    groups:\n        group1:\n            label: グループ 1\n            color: "#3B7DD8"\n            boundary: true\n---');
+        expect(groupsOf(next, 'y')).toEqual(['group1']);
+        expect(groupsOf(next, 'B')).toEqual([]);
+        expect(errorsOf(next)).toEqual([]);
+    });
+
+    test('frontmatter がなければ作り、使われている名前は避ける', () => {
+        const first = sourceOf(addGroup(contextOf('# R\n\n## a\n\n## b\n'), [2]));
+        expect(first.startsWith('---\nmarkdag:\n    groups:\n        group1:\n')).toBe(true);
+        const ctx = contextOf(first);
+        const result = addGroup(ctx, [byName(ctx, 'b')]);
+        const second = sourceOf(result);
+        expect(result.ok && result.groupId).toBe('group2');
+        expect(second).toContain('        group1:\n            label: グループ 1\n            color: "#3B7DD8"\n            boundary: true\n        group2:\n            label: グループ 2\n');
+        expect(errorsOf(second)).toEqual([]);
+    });
+
+    test('グループの名前を変える。YAML で書けない文字は引用符で囲む', () => {
+        const ctx = contextOf(sourceOf(addGroup(contextOf(SIMPLE), [2])));
+        const renamed = sourceOf(renameGroup(ctx, 'group1', '設計: 第 1 段'));
+        expect(renamed).toContain('            label: "設計: 第 1 段"\n');
+        expect(labelOfGroup(renamed, 'group1')).toBe('設計: 第 1 段');
+        // 定義がない (印だけの) グループには label の定義を足す
+        const markOnly = sourceOf(renameGroup(contextOf('# R\n\n## a %team\n'), 'team', 'チーム'));
+        expect(labelOfGroup(markOnly, 'team')).toBe('チーム');
+    });
+
+    test('グループを解くと、印と定義が外れ、空になった groups も外れる', () => {
+        const grouped = sourceOf(addGroup(contextOf(SIMPLE), [byName(contextOf(SIMPLE), 'x'), byName(contextOf(SIMPLE), 'C')]));
+        const next = sourceOf(ungroup(contextOf(grouped), 'group1'));
+        expect(next).toBe(SIMPLE);
     });
 });

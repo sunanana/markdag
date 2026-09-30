@@ -808,3 +808,106 @@ export function reverseEdge(ctx: EditContext, edge: EdgeRef): EditResult {
     lines[found.item.line] = `${found.item.indent}- ${yamlScalar(reversed)}`;
     return { ok: true, source: lines.join('\n') };
 }
+
+// ---- グループ -------------------------------------------------------------------------------------------------------
+
+const GROUP_COLORS = ['#3B7DD8', '#2E9E6B', '#E8833A', '#8A5FC2', '#D64545', '#E0A100'];
+
+// markdag.groups に、グループの定義 (fields はキーと値の行) を書き足す。書き足せない形 (flow 形式) なら false
+function appendGroup(lines: string[], id: string, fields: string[]): boolean {
+    const range = frontmatterRange(lines);
+    if (!range) {
+        lines.splice(0, 0, '---', 'markdag:', '    groups:', `        ${id}:`, ...fields.map((field) => `            ${field}`), '---', '');
+        return true;
+    }
+    const markdag = findPath(lines, ['markdag']);
+    if (!markdag) {
+        lines.splice(range.close, 0, 'markdag:', '    groups:', `        ${id}:`, ...fields.map((field) => `            ${field}`));
+        return true;
+    }
+    if (markdag.inline !== '' && markdag.inline !== '~' && markdag.inline !== 'null') return false;
+    const unit = childIndentOf(lines, markdag) ?? 4;
+    const pad = (depth: number): string => ' '.repeat(unit * depth);
+    const groups = findPath(lines, ['markdag', 'groups']);
+    if (!groups) {
+        lines.splice(markdag.end, 0, `${pad(1)}groups:`, `${pad(2)}${id}:`, ...fields.map((field) => `${pad(3)}${field}`));
+        return true;
+    }
+    if (groups.inline !== '') return false;
+    const keyIndent = childIndentOf(lines, groups) ?? groups.indent + unit;
+    lines.splice(groups.end, 0, `${' '.repeat(keyIndent)}${id}:`, ...fields.map((field) => `${' '.repeat(keyIndent + unit)}${field}`));
+    return true;
+}
+
+// 選んだノードを 1 つのグループにまとめる。1 行目に %名前 の印を足し (子孫は印を引き継ぐので、選んだノードの子孫には足さない)、
+// markdag.groups に枠を出す定義 (label、color、boundary) を足す
+export function addGroup(ctx: EditContext, ids: number[]): EditResult & { groupId?: string } {
+    const nodes = ctx.parsed.nodes;
+    const chosen = new Set(ids.filter((id) => nodeById(ctx, id)?.parent !== null));
+    if (chosen.size === 0) return { ok: false, message: 'グループにするノードを選んでください (ルートは入れられません)' };
+    const hasChosenAncestor = (node: OutlineNode): boolean => {
+        for (let parent = node.parent; parent !== null; parent = nodes[parent - 1]?.parent ?? null) if (chosen.has(parent)) return true;
+        return false;
+    };
+    const taken = new Set(ctx.model.groups.map((group) => group.id));
+    let index = 1;
+    while (taken.has(`group${index}`)) index++;
+    const id = `group${index}`;
+    const label = `グループ ${index}`;
+    const lines = splitLines(ctx.source);
+    for (const nodeId of chosen) {
+        const node = nodeById(ctx, nodeId);
+        if (!node?.lines || hasChosenAncestor(node)) continue;
+        const first = parseFirstLine(lines[node.lines.start] ?? '');
+        if (!first) return { ok: false, message: `「${node.refText}」にはグループの印を付けられません` };
+        lines[node.lines.start] = joinFirstLine({ ...first, marks: `${first.marks} %${id}` });
+    }
+    const color = GROUP_COLORS[(index - 1) % GROUP_COLORS.length] ?? GROUP_COLORS[0];
+    if (!appendGroup(lines, id, [`label: ${yamlScalar(label)}`, `color: "${color}"`, 'boundary: true'])) {
+        return { ok: false, message: 'frontmatter の markdag.groups が flow 形式などで、書き足せません' };
+    }
+    return { ok: true, source: lines.join('\n'), message: `${chosen.size} 個のノードを「${label}」にまとめました`, groupId: id };
+}
+
+// グループの名前 (枠と凡例に出る label) を変える。定義がなければ label だけの定義を足す
+export function renameGroup(ctx: EditContext, id: string, text: string): EditResult {
+    const label = text.replace(/[\r\n]+/g, ' ').trim();
+    if (label === '') return { ok: false, message: 'グループの名前が空です' };
+    if (ctx.model.groups.find((group) => group.id === id)?.label === label) return { ok: false, message: '' };
+    const lines = splitLines(ctx.source);
+    const block = findPath(lines, ['markdag', 'groups', id]);
+    if (!block) {
+        if (!appendGroup(lines, id, [`label: ${yamlScalar(label)}`])) return { ok: false, message: 'frontmatter の markdag.groups が flow 形式などで、書き足せません' };
+        return { ok: true, source: lines.join('\n') };
+    }
+    if (block.inline !== '') return { ok: false, message: 'このグループの定義は flow 形式で、名前を書き換えられません' };
+    const fieldIndent = childIndentOf(lines, block) ?? block.indent + 4;
+    const field = findKey(lines, block.line + 1, block.end, fieldIndent, 'label');
+    const line = `${' '.repeat(fieldIndent)}label: ${yamlScalar(label)}`;
+    if (field) lines[field.line] = line;
+    else lines.splice(block.line + 1, 0, line);
+    return { ok: true, source: lines.join('\n') };
+}
+
+// グループを解く。ノードの 1 行目の %名前 の印と、markdag.groups の定義を外す (members で入れたメンバーも定義ごと外れる)
+export function ungroup(ctx: EditContext, id: string): EditResult {
+    const lines = splitLines(ctx.source);
+    let removed = 0;
+    for (const node of ctx.parsed.nodes) {
+        if (!node.lines) continue;
+        const first = parseFirstLine(lines[node.lines.start] ?? '');
+        if (!first || !first.marks.includes(`%${id}`)) continue;
+        const marks = first.marks.split(/(?=[ \t]+[%#$])/).filter((mark) => mark.trim() !== `%${id}`).join('');
+        if (marks === first.marks) continue;
+        lines[node.lines.start] = joinFirstLine({ ...first, marks });
+        removed++;
+    }
+    const block = findPath(lines, ['markdag', 'groups', id]);
+    if (block) {
+        lines.splice(block.line, block.end - block.line);
+        const groups = findPath(lines, ['markdag', 'groups']);
+        if (groups && groups.inline === '' && childIndentOf(lines, groups) === null) lines.splice(groups.line, groups.end - groups.line);
+    }
+    if (removed === 0 && !block) return { ok: false, message: 'このグループは解けません' };
+    return { ok: true, source: lines.join('\n'), message: 'グループを解きました' };
+}

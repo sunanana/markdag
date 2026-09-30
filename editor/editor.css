@@ -115,9 +115,10 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
 .ed-wire path { fill: none; stroke: var(--ed-accent); stroke-width: 2; stroke-dasharray: 6 4; }
 .ed-wire circle { fill: var(--ed-accent); }
 .ed-ghost { position: absolute; z-index: 30; pointer-events: none; opacity: 0.8; padding: 4px 10px; border-radius: 6px; background: var(--ed-panel); border: 2px solid var(--ed-accent); box-shadow: var(--ed-shadow); color: var(--ed-text-strong); white-space: nowrap; transform: translate(12px, 12px); }
+.ed-rename.is-group { font-weight: 600; }
 .ed-rename { user-select: text; -webkit-user-select: text; position: absolute; z-index: 25; min-width: 140px; padding: 2px 6px; border: 2px solid var(--ed-accent); border-radius: 6px; background: var(--ed-panel); color: var(--ed-text-strong); font: 300 16px/20px sans-serif; outline: none; box-shadow: var(--ed-shadow); }
 
-.ed-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 20; padding: 6px 12px; border-radius: 8px; background: var(--ed-panel); border: 1px solid var(--ed-border); color: var(--ed-muted); font-size: 12px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+.ed-hint { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 20; padding: 6px 12px; border-radius: 8px; background: var(--ed-panel); border: 1px solid var(--ed-border); box-shadow: var(--ed-shadow); color: var(--ed-muted); font-size: 12px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 .ed-hint kbd { font: 11px ui-monospace, monospace; padding: 0 4px; border: 1px solid var(--ed-border); border-radius: 4px; color: var(--ed-text); }
 .ed-toast { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 40; padding: 8px 14px; border-radius: 8px; background: var(--ed-text-strong); color: var(--ed-bg); font-size: 13px; box-shadow: var(--ed-shadow); max-width: calc(100% - 24px); }
 .ed-toast[hidden] { display: none; }

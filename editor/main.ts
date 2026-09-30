@@ -66,7 +66,8 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
 // pan は手のひら。ドラッグで図を動かす (選ぶ道具でも Space を押している間と中ボタンのドラッグは動かす)
 type Tool = 'select' | 'pan' | 'connect' | 'join';
 // nodes は範囲選択 (何もないところからのドラッグ) か Shift / Ctrl / ⌘ クリックで 2 つ以上選んだとき (選んだ順)
-type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | null;
+// group はグループの枠 (またはそのラベル) を押したとき。id は markdag.groups のキー
+type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | { type: 'group'; id: string } | null;
 
 const ICONS = {
     select: '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg>',
@@ -80,6 +81,8 @@ const ICONS = {
     sibling: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="6" rx="1.5"/><path d="M12 13v7M8.5 16.5h7"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13"/></svg>',
     reverse: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>',
+    group: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><rect x="6.5" y="9" width="6" height="4" rx="1"/><rect x="11.5" y="14" width="6" height="3.5" rx="1"/></svg>',
+    ungroup: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><path d="M8 9l8 7M16 9l-8 7"/></svg>',
     join: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7M3 12h12"/><path d="M15 9l4 3-4 3"/><circle cx="20.5" cy="12" r="1.2"/></svg>',
     merge: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7"/><rect x="15" y="9" width="6" height="6" rx="1.5"/></svg>',
 };
@@ -182,7 +185,11 @@ const redoStack: string[] = [];
 let connectFrom: number | null = null;
 // 「既存のノードへ合流」で、合流させるノード
 let joinSources: number[] = [];
-let renaming: { id: number; input: HTMLInputElement } | null = null;
+// 名前を入力している欄。ノードの名前か、グループの名前 (枠のラベル)
+type RenameTarget = { type: 'node'; id: number } | { type: 'group'; id: string };
+let renaming: { target: RenameTarget; input: HTMLInputElement } | null = null;
+// ショートカットの表記 (Mac は ⌘、それ以外は Ctrl)
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
 
 function contextOf(text: string): ops.EditContext {
     const parsed = parseDocument(text);
@@ -240,8 +247,10 @@ function commit(next: string, options: CommitOptions = {}): void {
     // 複数選択は、書き換えで id がずれるので解く
     else if (selection?.type === 'nodes') selection = null;
     else if (selection?.type === 'edge' && !host.querySelector(`.mdag-edge[data-key="${CSS.escape(selection.key)}"]`)) selection = null;
+    else if (selection?.type === 'group' && !ctx.model.groups.some((group) => group.id === (selection as { id: string }).id)) selection = null;
     if (selection?.type === 'node') diagram.view.revealNode(selection.id);
     if (selection?.type !== 'edge') diagram.view.selectEdge(null);
+    diagram.view.selectGroup(selection?.type === 'group' ? selection.id : null);
     renderContextBar();
     updateHint();
 
@@ -252,7 +261,7 @@ function commit(next: string, options: CommitOptions = {}): void {
     if (options.message) showToast(options.message);
     if (options.rename && selection?.type === 'node') {
         const id = selection.id;
-        requestAnimationFrame(() => startRename(id, true));
+        requestAnimationFrame(() => startRename(id, true, true));
     }
 }
 
@@ -405,6 +414,7 @@ function select(next: Selection, scrollText = true): void {
     selection = next;
     if (next?.type === 'edge') diagram.view.selectEdge(next.key);
     else diagram.view.selectEdge(null);
+    diagram.view.selectGroup(next?.type === 'group' ? next.id : null);
     paintSelectedLines();
     const lines = selectedLines()[0];
     if (lines && scrollText) scrollTextTo(lines.start);
@@ -478,11 +488,6 @@ function renderContextBar(): void {
         button(ICONS.rename, '名前', '名前を変える (F2 / ダブルクリック)', () => startRename(id, false));
         button(ICONS.child, '子', '子を足す (Tab)', () => apply(ops.addChild(ctx, id), { rename: true }));
         if (!isRoot) button(ICONS.sibling, '兄弟', '兄弟を足す (Enter)', () => apply(ops.addSibling(ctx, id), { rename: true }));
-        button(ICONS.connect, '線', 'ここから線を引く (次にクリックしたノードへ)', () => {
-            setTool('connect');
-            connectFrom = id;
-            updateHint();
-        });
         if (!isRoot) {
             separator();
             button(ICONS.trash, '削除', '配下ごと消す (Delete)', () => apply(ops.deleteNode(ctx, id)), true);
@@ -496,8 +501,20 @@ function renderContextBar(): void {
         separator();
         button(ICONS.merge, '合流ノードを作る', '選んだノードから、新しいノードへ合流させる (J)', joinIntoNewNode);
         button(ICONS.join, '既存のノードへ合流', '選んだノードから、次にクリックするノードへ合流させる', startJoinToExisting);
+        button(ICONS.group, 'グループ', `選んだノードをグループにまとめる (${MOD}G)`, groupSelection);
         separator();
         button(ICONS.trash, '削除', '選んだノードを配下ごと消す (Delete)', () => deleteNodes(ids), true);
+    } else if (selection?.type === 'group') {
+        const id = selection.id;
+        const label = document.createElement('span');
+        label.style.cssText = 'align-self:center;padding:0 8px;font-size:12px;color:var(--ed-muted)';
+        label.textContent = `グループ「${ctx.model.groups.find((group) => group.id === id)?.label ?? id}」`;
+        ctxBar.append(label);
+        separator();
+        button(ICONS.rename, '名前', 'グループの名前を変える (Enter / ダブルクリック)', () => startGroupRename(id));
+        button(ICONS.ungroup, 'グループ解除', '枠と印を外す (ノードは残る)', () => {
+            if (apply(ops.ungroup(ctx, id))) select(null);
+        }, true);
     } else if (selection?.type === 'edge') {
         const edge = ops.parseEdgeKey(selection.key);
         if (!edge) return;
@@ -537,8 +554,11 @@ function updateHint(): void {
     if (tool === 'join') text = `${joinSources.length} 個のノードを合流させる先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'connect') text = connectFrom === null ? '線の始点のノードをクリック (またはノードからドラッグ)' : `「${nameOf(connectFrom)}」から線を引く先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'pan') text = `ドラッグで図を動かす / ホイールで拡大縮小 ${k('V')} で選ぶ道具へ`;
-    else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
-    else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 / ${k('Shift')}+クリックかドラッグで追加 ${k('Del')} 削除`;
+    else if (renaming?.target.type === 'node') text = `${k('Enter')} 決めて兄弟を足す ${k('Tab')} 決めて子を足す ${k('Esc')} やめる`;
+    else if (renaming) text = `${k('Enter')} 決める ${k('Esc')} やめる`;
+    else if (selection?.type === 'node') text = `${k('Enter')} 名前 ${k('Tab')} 子 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
+    else if (selection?.type === 'group') text = `${k('Enter')} グループの名前を変える / 枠のラベルをダブルクリックでも変えられる`;
+    else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る ${k(`${MOD}G`)} グループにまとめる / 右の点をほかのノードへドラッグでそこへ合流 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
     else text = `何もないところからドラッグで範囲選択 / ${k('Space')}+ドラッグで図を動かす / 右の点をドラッグで線を引く ${k('Tab')} で子を足す`;
     hint.innerHTML = text;
@@ -555,33 +575,53 @@ function showToast(message: string, level: 'info' | 'error' = 'info'): void {
 
 // ---- 名前の変更 --------------------------------------------------------------------------------------------------
 
-function startRename(id: number, selectAll: boolean): void {
-    finishRename(false);
+// fresh は、足したばかりのノードの名前を入れるとき。Esc でやめたら、足す前に戻す (仮の名前のノードを残さない)
+function startRename(id: number, selectAll: boolean, fresh = false): void {
     const node = nodeOf(id);
     const label = node ? ops.labelOf(source, node) : null;
     if (label === null) {
         showToast('このノードは名前を変えられません', 'error');
         return;
     }
+    openRename({ type: 'node', id }, label, selectAll, fresh);
+}
+
+// グループの名前 (枠のラベルと凡例に出る label) を変える
+function startGroupRename(id: string): void {
+    const group = ctx.model.groups.find((item) => item.id === id);
+    if (!group) return;
+    openRename({ type: 'group', id }, group.label, true);
+}
+
+function openRename(target: RenameTarget, label: string, selectAll: boolean, fresh = false): void {
+    finishRename(false);
     const input = document.createElement('input');
     input.className = 'ed-rename';
+    if (target.type === 'group') input.classList.add('is-group');
     input.value = label;
     stage.append(input);
-    renaming = { id, input };
+    renaming = { target, input };
     positionRename();
     input.focus();
     if (selectAll) input.select();
     else input.setSelectionRange(label.length, label.length);
+    updateHint();
     input.addEventListener('keydown', (event) => {
         event.stopPropagation();
         if (event.isComposing) return;
         if (event.key === 'Enter') {
+            // ノードの名前は、決めたらそのまま兄弟 (ルートなら子) を足して書き続ける
             event.preventDefault();
             finishRename(true);
+            if (target.type === 'node' && selection?.type === 'node') {
+                const current = selection.id;
+                apply(nodeOf(current)?.parent === null ? ops.addChild(ctx, current) : ops.addSibling(ctx, current), { rename: true });
+            }
         } else if (event.key === 'Escape') {
             event.preventDefault();
             finishRename(false);
-        } else if (event.key === 'Tab') {
+            if (fresh) undo();
+        } else if (event.key === 'Tab' && target.type === 'node') {
             // 名前を決めて、そのまま子 (Shift なら兄弟) を足して書き続ける
             event.preventDefault();
             finishRename(true);
@@ -596,30 +636,60 @@ function startRename(id: number, selectAll: boolean): void {
 
 function finishRename(save: boolean): void {
     if (!renaming) return;
-    const { id, input } = renaming;
+    const { target, input } = renaming;
     renaming = null;
     input.remove();
     if (save) {
-        const result = ops.renameNode(ctx, id, input.value, parseDocument);
-        if (result.ok) apply(result);
-        else if (result.message) showToast(result.message, 'error');
+        const result = target.type === 'node' ? ops.renameNode(ctx, target.id, input.value, parseDocument) : ops.renameGroup(ctx, target.id, input.value);
+        if (result.ok) {
+            apply(result);
+            if (target.type === 'group') select({ type: 'group', id: target.id }, false);
+        } else if (result.message) showToast(result.message, 'error');
     }
+    updateHint();
     stage.focus({ preventScroll: true });
 }
 
 function positionRename(): void {
     if (!renaming) return;
-    const box = boxOf(renaming.id);
-    if (!isVisible(box)) return;
+    const { target, input } = renaming;
     const stageRect = stage.getBoundingClientRect();
-    const rect = box.getBoundingClientRect();
     const k = diagram.view.getTransform().k;
-    const input = renaming.input;
+    if (target.type === 'group') {
+        // 枠のラベルの上に重ねる。ラベルの字の大きさ (11px) に倍率を掛ける
+        const label = host.querySelector(`.mdag-frame-label[data-group="${CSS.escape(target.id)}"]`);
+        if (!label) return;
+        const rect = label.getBoundingClientRect();
+        input.style.left = `${rect.left - stageRect.left - 8}px`;
+        input.style.top = `${rect.top - stageRect.top + rect.height / 2 - (14 * k + 8) / 2}px`;
+        input.style.width = `${Math.max(160, rect.width + 60)}px`;
+        input.style.fontSize = `${Math.max(12, 11 * k)}px`;
+        input.style.lineHeight = `${Math.max(14, 14 * k)}px`;
+        return;
+    }
+    const box = boxOf(target.id);
+    if (!isVisible(box)) return;
+    const rect = box.getBoundingClientRect();
     input.style.left = `${rect.left - stageRect.left - 8}px`;
     input.style.top = `${rect.top - stageRect.top + rect.height / 2 - (20 * k + 8) / 2}px`;
     input.style.width = `${Math.max(160, rect.width + 40)}px`;
     input.style.fontSize = `${16 * k}px`;
     input.style.lineHeight = `${20 * k}px`;
+}
+
+// 選んだノードをグループにまとめ、すぐグループの名前を入れられるようにする
+function groupSelection(): void {
+    const ids = selectedIds();
+    if (ids.length === 0) {
+        showToast('グループにするノードを選んでください (何もないところからドラッグで囲む)', 'error');
+        return;
+    }
+    const result = ops.addGroup(ctx, ids);
+    if (!apply(result) || !result.ok || !result.groupId) return;
+    const id = result.groupId;
+    select({ type: 'group', id }, false);
+    // 枠は配置のあとに描かれるので、次のコマで名前の欄を出す
+    requestAnimationFrame(() => requestAnimationFrame(() => startGroupRename(id)));
 }
 
 // ---- 重ねる印 (選んだ枠、つまみ、操作の帯) の位置合わせ。配置のアニメーションに付いていくよう、毎コマ合わせる ---------
@@ -686,6 +756,12 @@ function positionOverlay(): void {
     if (selection?.type === 'edge') {
         const path = host.querySelector(`path.mdag-edge[data-key="${CSS.escape(selection.key)}"]`);
         if (path) anchor = localRect(path);
+    }
+    if (selection?.type === 'group') {
+        // 帯は枠のラベルより上に出す (ラベルは枠の上の辺の外に描かれる)
+        const frame = host.querySelector(`.mdag-frame[data-group="${CSS.escape(selection.id)}"]`);
+        const label = host.querySelector(`.mdag-frame-label[data-group="${CSS.escape(selection.id)}"]`);
+        if (frame) anchor = label ? unionRect(localRect(frame), localRect(label)) : localRect(frame);
     }
     ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null;
     if (anchor && !ctxBar.hidden) {
@@ -821,6 +897,10 @@ stage.addEventListener(
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
         if (!target || renaming) return;
+        // 原文の欄などにフォーカスが残ったままだと、Backspace や Enter がそちらへ入るので、キャンバスへ移す
+        // (ノードのドラッグで pointerdown の既定の動作を止めるため、ブラウザはフォーカスを移さない)
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && focused !== stage && !stage.contains(focused)) stage.focus({ preventScroll: true });
         // 中ボタンのドラッグは、どの道具でも図を動かす (d3-zoom は左ボタンしか受けない)
         if (event.button === 1) {
             event.preventDefault();
@@ -1011,6 +1091,13 @@ stage.addEventListener(
             window.setTimeout(() => select(selection?.type === 'edge' && selection.key === key ? null : { type: 'edge', key }), 0);
             return;
         }
+        // グループの枠かラベルを押したら、グループを選ぶ (同じ枠をもう 1 度押すと解く。図の側の強調も同じように切り替わる)
+        const frame = target.closest<SVGElement>('.mdag-frames [data-group]');
+        if (frame?.dataset.group && tool === 'select') {
+            const id = frame.dataset.group;
+            window.setTimeout(() => select(selection?.type === 'group' && selection.id === id ? null : { type: 'group', id }), 0);
+            return;
+        }
         if (target.closest('.mdag-fold, [data-group]')) return;
         if (tool === 'connect' || tool === 'join') setTool('select');
         // Shift / Ctrl / ⌘ を押しながら何もないところを押しても、選んだものは解かない
@@ -1027,9 +1114,16 @@ stage.addEventListener(
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename')) return;
         event.stopPropagation();
-        // ノードのダブルクリックは名前の変更。何もないところのダブルクリックでは何もしない (図のズームもしない)
+        // ノードのダブルクリックは名前の変更、グループの枠かラベルならグループの名前の変更。
+        // 何もないところのダブルクリックでは何もしない (図のズームもしない)
         const element = target.closest('.mdag-box')?.closest<HTMLElement>('.mdag-node');
+        const frame = target.closest<SVGElement>('.mdag-frames [data-group]');
         if (element) startRename(Number(element.dataset.id), false);
+        else if (frame?.dataset.group) {
+            const id = frame.dataset.group;
+            select({ type: 'group', id }, false);
+            startGroupRename(id);
+        }
     },
     { capture: true },
 );
@@ -1132,6 +1226,12 @@ document.addEventListener('keydown', (event) => {
         redo();
         return;
     }
+    if (mod && !event.shiftKey && event.key.toLowerCase() === 'g') {
+        // ブラウザの「次を検索」より先に受ける
+        event.preventDefault();
+        groupSelection();
+        return;
+    }
     if (mod || event.altKey) return;
     const nodeId = selection?.type === 'node' ? selection.id : null;
     switch (event.key) {
@@ -1141,9 +1241,15 @@ document.addEventListener('keydown', (event) => {
             apply(ops.addChild(ctx, nodeId), { rename: true });
             break;
         case 'Enter':
+            // 選んだノードの名前の入力へ入る (入力中の Enter は、決めて兄弟を足す)
+            if (selection?.type === 'group') {
+                event.preventDefault();
+                startGroupRename(selection.id);
+                break;
+            }
             if (nodeId === null) return;
             event.preventDefault();
-            apply(nodeOf(nodeId)?.parent === null ? ops.addChild(ctx, nodeId) : ops.addSibling(ctx, nodeId), { rename: true });
+            startRename(nodeId, false);
             break;
         case 'F2':
             if (nodeId === null) return;
