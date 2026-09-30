@@ -1,7 +1,7 @@
 // 図の側の編集 (editor/ops.ts) が、原文を狙いどおりに書き換えるかを、書き換えたあとの原文を解析し直して確かめる
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { addChild, addGroup, addJoin, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
+import { addChild, addGroup, addJoin, detailsOf, setDetails, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
 import { buildModel } from '../src/model/model';
 import { parseDocument } from '../src/parse/document';
 
@@ -326,5 +326,41 @@ describe('グループ', () => {
         const grouped = sourceOf(addGroup(contextOf(SIMPLE), [byName(contextOf(SIMPLE), 'x'), byName(contextOf(SIMPLE), 'C')]));
         const next = sourceOf(ungroup(contextOf(grouped), 'group1'));
         expect(next).toBe(SIMPLE);
+    });
+});
+
+describe('詳細', () => {
+    const detailsHtml = (source: string, name: string): string | null => {
+        const ctx = contextOf(source);
+        return ctx.parsed.nodes[byName(ctx, name) - 1]?.details ?? null;
+    };
+
+    test('書いてある詳細を読み、書き換える。複数行は行ごとに > を付ける', () => {
+        const ctx = contextOf(SIMPLE);
+        expect(detailsOf(ctx, byName(ctx, 'x'))).toBe('詳細');
+        const next = sourceOf(setDetails(ctx, byName(ctx, 'x'), '1 行目\n\n3 行目'));
+        expect(next).toContain('- x\n    > 1 行目\n    >\n    > 3 行目\n- y');
+        expect(detailsHtml(next, 'x')).toContain('3 行目');
+        expect(errorsOf(next)).toEqual([]);
+    });
+
+    test('詳細がなければ、子の前に足す。空にすると外す', () => {
+        const source = '---\nmarkdag:\n---\n# R\n\n- a\n    - a1\n- b\n';
+        const ctx = contextOf(source);
+        const added = sourceOf(setDetails(ctx, byName(ctx, 'a'), 'メモ'));
+        expect(added).toContain('- a\n    > メモ\n    - a1\n');
+        expect(parentOf(added, 'a1')).toBe('a');
+        expect(detailsHtml(added, 'a')).toContain('メモ');
+        const removed = sourceOf(setDetails(contextOf(added), byName(contextOf(added), 'a'), ''));
+        expect(removed).toBe(source);
+    });
+
+    test('見出しには書けない。markdag のキーがなければ足す', () => {
+        const ctx = contextOf('# R\n\n## A\n- a\n');
+        expect(detailsOf(ctx, byName(ctx, 'A'))).toBeNull();
+        expect(setDetails(ctx, byName(ctx, 'A'), 'x').ok).toBe(false);
+        const next = sourceOf(setDetails(ctx, byName(ctx, 'a'), 'メモ'));
+        expect(next).toBe('---\nmarkdag:\n---\n\n# R\n\n## A\n- a\n    > メモ\n');
+        expect(detailsHtml(next, 'a')).toContain('メモ');
     });
 });

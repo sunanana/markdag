@@ -86,6 +86,8 @@ const ICONS = {
     reverse: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>',
     group: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><rect x="6.5" y="9" width="6" height="4" rx="1"/><rect x="11.5" y="14" width="6" height="3.5" rx="1"/></svg>',
     ungroup: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><path d="M8 9l8 7M16 9l-8 7"/></svg>',
+    note: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+    eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     join: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7M3 12h12"/><path d="M15 9l4 3-4 3"/><circle cx="20.5" cy="12" r="1.2"/></svg>',
     merge: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7"/><rect x="15" y="9" width="6" height="6" rx="1.5"/></svg>',
 };
@@ -127,12 +129,26 @@ app.innerHTML = `
                 <div class="ed-handle ed-handle-add ed-handle-child" title="子を足す (Tab)" hidden>+</div>
                 <div class="ed-handle ed-handle-add ed-handle-sibling" title="兄弟を足す (Enter)" hidden>+</div>
                 <div class="ed-ctx" hidden></div>
+                <div class="ed-details-editor" hidden>
+                    <div class="ed-details-head"><span>詳細</span><b></b></div>
+                    <textarea spellcheck="false" rows="6" placeholder="詳細を書く (Markdown が使える)"></textarea>
+                    <div class="ed-details-foot"><span></span><button class="ed-details-cancel">やめる</button><button class="ed-details-save">保存</button></div>
+                </div>
             </div>
             <nav class="ed-tools" aria-label="道具">
                 <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}<span>選択</span></button>
                 <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選択でも Space を押しながらドラッグで動かせる">${ICONS.pan}<span>パン</span></button>
                 <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}<span>合流</span></button>
                 <button class="ed-tool ed-group-tool" title="選んだノードをグループにまとめる (${MOD}G)。何もないところからドラッグして囲んで選んでから">${ICONS.group}<span>グループ</span></button>
+                <div class="ed-details-mode">
+                    <button class="ed-tool ed-details-tool" title="詳細の見せ方を選ぶ" aria-haspopup="menu" aria-expanded="false">${ICONS.eye}<span>詳細表示</span></button>
+                    <div class="ed-flyout" role="menu" hidden>
+                        <div class="ed-flyout-title">詳細の見せ方</div>
+                        <button role="menuitemradio" data-mode="always">常に表示<small>ノードの中に開いて出す</small></button>
+                        <button role="menuitemradio" data-mode="hover">ホバー時に表示<small>ノードに重ねると吹き出しで出す</small></button>
+                        <button role="menuitemradio" data-mode="click">隠す<small>i を押したときだけ出す</small></button>
+                    </div>
+                </div>
                 <hr>
                 <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}<span>戻る</span></button>
                 <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}<span>進む</span></button>
@@ -192,6 +208,11 @@ let joinSources: number[] = [];
 // 名前を入力している欄。ノードの名前か、グループの名前 (枠のラベル)
 type RenameTarget = { type: 'node'; id: number } | { type: 'group'; id: string };
 let renaming: { target: RenameTarget; input: HTMLInputElement } | null = null;
+// 詳細を書いているノード
+let detailsEditing: number | null = null;
+// 詳細の見せ方 (常に表示 / ホバー時に表示 / 隠す = i を押したときだけ)
+type DetailsMode = 'always' | 'hover' | 'click';
+let detailsMode: DetailsMode = 'hover';
 
 function contextOf(text: string): ops.EditContext {
     const parsed = parseDocument(text);
@@ -468,7 +489,7 @@ function deleteNodes(ids: number[]): void {
 
 function renderContextBar(): void {
     ctxBar.innerHTML = '';
-    const button = (icon: string, label: string, title: string, run: () => void, danger = false): void => {
+    const button = (icon: string, label: string, title: string, run: () => void, danger = false): HTMLButtonElement => {
         const element = document.createElement('button');
         element.innerHTML = `${icon}<span>${label}</span>`;
         element.title = title;
@@ -478,6 +499,7 @@ function renderContextBar(): void {
             run();
         });
         ctxBar.append(element);
+        return element;
     };
     const separator = (): void => {
         const line = document.createElement('span');
@@ -489,7 +511,10 @@ function renderContextBar(): void {
         const isRoot = nodeOf(id)?.parent === null;
         button(ICONS.rename, '名前', '名前を変える (F2 / ダブルクリック)', () => startRename(id, false));
         button(ICONS.child, '子', '子を足す (Tab)', () => apply(ops.addChild(ctx, id), { rename: true }));
-        if (!isRoot) button(ICONS.sibling, '兄弟', '兄弟を足す (Enter)', () => apply(ops.addSibling(ctx, id), { rename: true }));
+        if (!isRoot) button(ICONS.sibling, '兄弟', '兄弟を足す (名前の入力中に Enter)', () => apply(ops.addSibling(ctx, id), { rename: true }));
+        const canWrite = ops.detailsOf(ctx, id) !== null;
+        const note = button(ICONS.note, '詳細', canWrite ? '詳細を書く (D)' : '詳細はリスト項目にだけ書けます (見出しには書けません)', () => openDetailsEditor(id));
+        note.disabled = !canWrite;
         if (!isRoot) {
             separator();
             button(ICONS.trash, '削除', '配下ごと消す (Delete)', () => apply(ops.deleteNode(ctx, id)), true);
@@ -558,7 +583,8 @@ function updateHint(): void {
     else if (tool === 'pan') text = `ドラッグで図を動かす / ホイールで拡大縮小 ${k('V')} で選ぶ道具へ`;
     else if (renaming?.target.type === 'node') text = `${k('Enter')} 決めて兄弟を足す ${k('Tab')} 決めて子を足す ${k('Esc')} やめる`;
     else if (renaming) text = `${k('Enter')} 決める ${k('Esc')} やめる`;
-    else if (selection?.type === 'node') text = `${k('Enter')} 名前 ${k('Tab')} 子 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
+    else if (detailsEditing !== null) text = `${k(`${MOD}Enter`)} 詳細を保存 ${k('Esc')} やめる / 行頭の > は自動で付く`;
+    else if (selection?.type === 'node') text = `${k('Enter')} 名前 ${k('Tab')} 子 ${k('D')} 詳細 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
     else if (selection?.type === 'group') text = `${k('Enter')} グループの名前を変える / 枠のラベルをダブルクリックでも変えられる`;
     else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る ${k(`${MOD}G`)} グループにまとめる / 右の点をほかのノードへドラッグでそこへ合流 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
@@ -679,6 +705,129 @@ function positionRename(): void {
     input.style.lineHeight = `${20 * k}px`;
 }
 
+// ---- 詳細の入力 --------------------------------------------------------------------------------------------------
+
+const detailsEditor = $<HTMLDivElement>('.ed-details-editor');
+const detailsText = detailsEditor.querySelector('textarea') as HTMLTextAreaElement;
+
+function openDetailsEditor(id: number): void {
+    const text = ops.detailsOf(ctx, id);
+    if (text === null) {
+        showToast('詳細はリスト項目にだけ書けます (見出しには書けません)', 'error');
+        return;
+    }
+    finishRename(true);
+    detailsEditing = id;
+    (detailsEditor.querySelector('.ed-details-head b') as HTMLElement).textContent = nameOf(id);
+    (detailsEditor.querySelector('.ed-details-foot span') as HTMLElement).textContent = `${MOD}Enter で保存 / Esc でやめる`;
+    detailsText.value = text;
+    detailsEditor.hidden = false;
+    positionDetailsEditor();
+    detailsText.focus();
+    detailsText.setSelectionRange(text.length, text.length);
+    updateHint();
+}
+
+function closeDetailsEditor(save: boolean): void {
+    if (detailsEditing === null) return;
+    const id = detailsEditing;
+    detailsEditing = null;
+    detailsEditor.hidden = true;
+    if (save) {
+        const result = ops.setDetails(ctx, id, detailsText.value);
+        if (result.ok) apply(result);
+        else if (result.message) showToast(result.message, 'error');
+    }
+    updateHint();
+    stage.focus({ preventScroll: true });
+}
+
+// ノードの右に置く。右に入らなければノードの下 (下にも入らなければ上) に置き、図の領域の中に収める
+function positionDetailsEditor(): void {
+    if (detailsEditing === null) return;
+    const box = boxOf(detailsEditing);
+    if (!isVisible(box)) return;
+    const rect = localRect(box);
+    const width = detailsEditor.offsetWidth;
+    const height = detailsEditor.offsetHeight;
+    const clampX = (x: number): number => Math.min(Math.max(8, x), stage.clientWidth - width - 8);
+    const clampY = (y: number): number => Math.min(Math.max(8, y), stage.clientHeight - height - 8);
+    if (rect.right + 14 + width <= stage.clientWidth - 8) place(detailsEditor, rect.right + 14, clampY(rect.top - 8));
+    else if (rect.bottom + 12 + height <= stage.clientHeight - 8) place(detailsEditor, clampX(rect.left), rect.bottom + 12);
+    else place(detailsEditor, clampX(rect.left), clampY(rect.top - height - 12));
+}
+
+detailsText.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.isComposing) return;
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        closeDetailsEditor(true);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeDetailsEditor(false);
+    }
+});
+// 入力欄の外へフォーカスが移ったら保存する (保存とやめるのボタンは、それぞれの動きに任せる)
+detailsEditor.addEventListener('focusout', (event) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && detailsEditor.contains(next)) return;
+    window.setTimeout(() => {
+        if (detailsEditing !== null && !detailsEditor.contains(document.activeElement)) closeDetailsEditor(true);
+    }, 0);
+});
+detailsEditor.querySelector('.ed-details-save')?.addEventListener('click', () => closeDetailsEditor(true));
+detailsEditor.querySelector('.ed-details-cancel')?.addEventListener('click', () => closeDetailsEditor(false));
+for (const type of ['pointerdown', 'click', 'dblclick'] as const) detailsEditor.addEventListener(type, (event) => event.stopPropagation());
+
+// ---- 詳細の見せ方 ------------------------------------------------------------------------------------------------
+
+const detailsModeBox = $<HTMLDivElement>('.ed-details-mode');
+const detailsModeButton = $<HTMLButtonElement>('.ed-details-tool');
+const flyout = $<HTMLDivElement>('.ed-flyout');
+const DETAILS_MODE_LABEL: Record<DetailsMode, string> = { always: '常に表示', hover: 'ホバー時に表示', click: '隠す' };
+let flyoutPinned = false;
+let flyoutTimer = 0;
+
+function setFlyout(open: boolean): void {
+    window.clearTimeout(flyoutTimer);
+    flyout.hidden = !open;
+    detailsModeButton.setAttribute('aria-expanded', String(open));
+    if (!open) flyoutPinned = false;
+}
+
+function setDetailsMode(next: DetailsMode, announce = true): void {
+    detailsMode = next;
+    for (const item of flyout.querySelectorAll<HTMLButtonElement>('[data-mode]')) item.setAttribute('aria-checked', String(item.dataset.mode === next));
+    detailsModeButton.title = `詳細の見せ方: ${DETAILS_MODE_LABEL[next]}`;
+    diagram.view.setOptions({ details: next });
+    if (announce) showToast(`詳細を「${DETAILS_MODE_LABEL[next]}」にしました`);
+}
+
+// ホバーで開き、離れたら少し待って閉じる。クリックで開いたままにする (もう 1 度押すか、外を押すと閉じる)
+detailsModeBox.addEventListener('pointerenter', () => setFlyout(true));
+detailsModeBox.addEventListener('pointerleave', () => {
+    if (flyoutPinned) return;
+    flyoutTimer = window.setTimeout(() => setFlyout(false), 220);
+});
+detailsModeButton.addEventListener('click', () => {
+    if (flyoutPinned) setFlyout(false);
+    else {
+        setFlyout(true);
+        flyoutPinned = true;
+    }
+});
+for (const item of flyout.querySelectorAll<HTMLButtonElement>('[data-mode]')) {
+    item.addEventListener('click', () => {
+        setDetailsMode(item.dataset.mode as DetailsMode);
+        setFlyout(false);
+        item.blur();
+    });
+}
+document.addEventListener('pointerdown', (event) => {
+    if (!flyout.hidden && event.target instanceof Node && !detailsModeBox.contains(event.target)) setFlyout(false);
+});
+
 // 選んだノードをグループにまとめ、すぐグループの名前を入れられるようにする
 function groupSelection(): void {
     const ids = selectedIds();
@@ -765,7 +914,8 @@ function positionOverlay(): void {
         const label = host.querySelector(`.mdag-frame-label[data-group="${CSS.escape(selection.id)}"]`);
         if (frame) anchor = label ? unionRect(localRect(frame), localRect(label)) : localRect(frame);
     }
-    ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null;
+    ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null || detailsEditing !== null;
+    positionDetailsEditor();
     if (anchor && !ctxBar.hidden) {
         const width = ctxBar.offsetWidth;
         const x = Math.min(Math.max(8, anchor.left + anchor.width / 2 - width / 2), stage.clientWidth - width - 8);
@@ -898,7 +1048,10 @@ stage.addEventListener(
     'pointerdown',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || renaming) return;
+        if (!target) return;
+        // 詳細の入力欄の外を押したら保存して閉じる (範囲選択やドラッグで既定の動作を止めると、フォーカスが移らず focusout が来ない)
+        if (detailsEditing !== null && !target.closest('.ed-details-editor')) closeDetailsEditor(true);
+        if (renaming) return;
         // 原文の欄などにフォーカスが残ったままだと、Backspace や Enter がそちらへ入るので、キャンバスへ移す
         // (ノードのドラッグで pointerdown の既定の動作を止めるため、ブラウザはフォーカスを移さない)
         const focused = document.activeElement;
@@ -1051,7 +1204,7 @@ stage.addEventListener(
     'click',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor')) return;
         if (suppressClick) {
             event.stopPropagation();
             return;
@@ -1114,7 +1267,7 @@ stage.addEventListener(
     'dblclick',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor')) return;
         event.stopPropagation();
         // ノードのダブルクリックは名前の変更、グループの枠かラベルならグループの名前の変更。
         // 何もないところのダブルクリックでは何もしない (図のズームもしない)
@@ -1268,7 +1421,14 @@ document.addEventListener('keydown', (event) => {
                 if (edge) apply(ops.deleteEdge(ctx, edge));
             }
             break;
+        case 'd':
+        case 'D':
+            if (nodeId === null) return;
+            event.preventDefault();
+            openDetailsEditor(nodeId);
+            break;
         case 'Escape':
+            setFlyout(false);
             setTool('select');
             select(null);
             break;
@@ -1397,7 +1557,7 @@ ctx = contextOf(source);
 applyTheme(document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 diagram = render(host, source, {
     theme,
-    details: 'hover',
+    details: detailsMode,
     // タスクの絵のクリックで原文が書き換わった
     onChange: (next) => commit(next, { drawn: true }),
 });
@@ -1406,6 +1566,7 @@ textarea.value = source;
 renderMirror();
 showDiagnostics(diagram.diagnostics);
 setTool('select');
+setDetailsMode(detailsMode, false);
 updateUndoButtons();
 fitView();
 requestAnimationFrame(positionOverlay);

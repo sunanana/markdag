@@ -911,3 +911,64 @@ export function ungroup(ctx: EditContext, id: string): EditResult {
     if (removed === 0 && !block) return { ok: false, message: 'このグループは解けません' };
     return { ok: true, source: lines.join('\n'), message: 'グループを解きました' };
 }
+
+// ---- 詳細 (リスト項目の中の引用ブロック) -----------------------------------------------------------------------------
+
+const QUOTE = /^([ \t]*)>[ \t]?(.*)$/;
+
+// ノード自身の行 (配下の行を除く) のうち、最初の引用ブロックの範囲。indent は > の前の字下げ
+function detailsRange(ctx: EditContext, lines: string[], node: OutlineNode): { start: number; end: number; indent: string } | null {
+    if (!node.lines) return null;
+    const firstChild = childrenOf(ctx.parsed.nodes, node)[0]?.lines?.start ?? Infinity;
+    const end = Math.min(node.lines.end, firstChild);
+    for (let index = node.lines.start + 1; index < end; index++) {
+        const found = QUOTE.exec((lines[index] ?? '').replace(/\r$/, ''));
+        if (!found) continue;
+        let last = index + 1;
+        while (last < end && QUOTE.test((lines[last] ?? '').replace(/\r$/, ''))) last++;
+        return { start: index, end: last, indent: found[1] ?? '' };
+    }
+    return null;
+}
+
+// ノードの詳細の原文 (引用の > を外した行)。詳細を書けないノード (見出しなど、リスト項目でないもの) は null
+export function detailsOf(ctx: EditContext, id: number): string | null {
+    const node = nodeById(ctx, id);
+    if (!node?.lines) return null;
+    const lines = splitLines(ctx.source);
+    if (parseFirstLine(lines[node.lines.start] ?? '')?.kind !== 'list') return null;
+    const range = detailsRange(ctx, lines, node);
+    if (!range) return '';
+    return lines
+        .slice(range.start, range.end)
+        .map((line) => QUOTE.exec(line.replace(/\r$/, ''))?.[2] ?? '')
+        .join('\n');
+}
+
+// ノードの詳細を text に書き換える (空なら引用ブロックを外す)。詳細がなければ、ノード自身の行の末尾 (子の前) に足す。
+// 詳細は frontmatter に markdag のキーがある文書でだけ抜き出されるので、なければ足す
+export function setDetails(ctx: EditContext, id: number, text: string): EditResult {
+    const node = nodeById(ctx, id);
+    if (!node?.lines) return { ok: false, message: 'ノードが見つかりません' };
+    const lines = splitLines(ctx.source);
+    const first = parseFirstLine(lines[node.lines.start] ?? '');
+    if (first?.kind !== 'list') return { ok: false, message: '詳細はリスト項目にだけ書けます (見出しには書けません)' };
+    const body = text.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+    const current = detailsOf(ctx, id) ?? '';
+    if (body === current.replace(/\s+$/, '')) return { ok: false, message: '' };
+    const range = detailsRange(ctx, lines, node);
+    const markerWidth = first.prefix.length - first.indent.length;
+    const indent = range?.indent ?? first.indent + ' '.repeat(Math.max(markerWidth, indentUnit(lines, bodyStart(lines))));
+    const quoted = body === '' ? [] : body.split('\n').map((line) => (line === '' ? `${indent}>` : `${indent}> ${line}`));
+    if (range) lines.splice(range.start, range.end - range.start, ...quoted);
+    else {
+        const firstChild = childrenOf(ctx.parsed.nodes, node)[0]?.lines?.start ?? Infinity;
+        const at = trimBlankTail(lines, node.lines.start + 1, Math.min(node.lines.end, firstChild));
+        lines.splice(at, 0, ...quoted);
+    }
+    // markdag のキーがなければ足す (値のない markdag: でも抜き出しが有効になる)
+    const frontmatter = frontmatterRange(lines);
+    if (!frontmatter) lines.splice(0, 0, '---', 'markdag:', '---', '');
+    else if (!findPath(lines, ['markdag'])) lines.splice(frontmatter.close, 0, 'markdag:');
+    return { ok: true, source: lines.join('\n'), focusId: id, message: body === '' ? '詳細を外しました' : '詳細を書きました' };
+}

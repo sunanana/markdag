@@ -147,3 +147,31 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
 .ed-stage[data-tool='select'] .mdag-viewport:active { cursor: default; }
 .ed-stage[data-tool='pan'] .mdag-viewport, .ed-stage[data-tool='pan'] .mdag-box, .ed-stage.is-space .mdag-viewport, .ed-stage.is-space .mdag-box { cursor: grab; }
 .ed-stage[data-tool='pan'] .mdag-viewport:active, .ed-stage.is-space .mdag-viewport:active, .ed-stage.is-panning, .ed-stage.is-panning * { cursor: grabbing !important; }
+
+/* 詳細の入力欄。選んだノードの右に出す */
+.ed-details-editor { position: absolute; z-index: 24; width: 320px; display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; background: var(--ed-panel); border: 1px solid var(--ed-border); box-shadow: var(--ed-shadow); pointer-events: auto; }
+.ed-details-head { display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--ed-muted); min-width: 0; }
+.ed-details-head b { color: var(--ed-text-strong); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-details-editor textarea { width: 100%; min-height: 110px; resize: vertical; padding: 8px; border: 1px solid var(--ed-border); border-radius: 6px; background: var(--ed-panel-2); color: var(--ed-text-strong); font: var(--ed-mono); outline: none; user-select: text; -webkit-user-select: text; }
+.ed-details-editor textarea:focus { border-color: var(--ed-accent); }
+.ed-details-foot { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ed-muted); }
+.ed-details-foot span { flex: 1; }
+.ed-details-foot button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--ed-border); background: var(--ed-panel-2); cursor: pointer; font-size: 12px; }
+.ed-details-foot .ed-details-save { background: var(--ed-accent); border-color: var(--ed-accent); color: var(--ed-canvas); font-weight: 600; }
+.ed-ctx button:disabled { opacity: 0.4; cursor: default; background: transparent; }
+
+/* 道具箱の「詳細表示」の、右に出す選択肢 */
+.ed-details-mode { position: relative; }
+.ed-flyout { position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); min-width: 220px; display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 10px; background: var(--ed-panel); border: 1px solid var(--ed-border); box-shadow: var(--ed-shadow); }
+/* 道具箱とのすき間でホバーが途切れないよう、左へ透明の橋を渡す */
+.ed-flyout::before { content: ''; position: absolute; right: 100%; top: 0; bottom: 0; width: 14px; }
+.ed-flyout-title { padding: 4px 8px 6px; font-size: 11px; color: var(--ed-muted); letter-spacing: 0.04em; }
+.ed-flyout button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px 7px 28px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; font-size: 13px; color: var(--ed-text-strong); text-align: left; position: relative; }
+.ed-flyout button small { font-size: 11px; color: var(--ed-muted); }
+.ed-flyout button:hover { background: var(--ed-panel-2); }
+.ed-flyout button[aria-checked='true'] { background: var(--ed-accent-soft); }
+.ed-flyout button[aria-checked='true']::before { content: ''; position: absolute; left: 10px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: var(--ed-accent); }
+@media (max-width: 760px) {
+    .ed-flyout { left: 50%; top: auto; bottom: calc(100% + 12px); transform: translateX(-50%); }
+    .ed-flyout::before { right: 0; left: 0; top: 100%; bottom: auto; width: auto; height: 14px; }
+}
