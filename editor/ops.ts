@@ -22,7 +22,8 @@ export const NEW_LABEL = '新しいノード';
 const HEADING = /^(#{1,6})([ \t]+)(.*)$/;
 const LIST = /^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+|$)(.*)$/;
 const TASK = /^\[([ xX/-])\][ \t]+/;
-const MARK = /[ \t]+([%#$][^\s]+)$/;
+// 1 行目の末尾の印 (%グループ、#タグ、$id)。タグの値は "…" で囲めば空白を含められる
+const MARK = /[ \t]+([%#$](?:[^\s"]|"[^"]*")+)$/;
 
 // ノードの 1 行目を分解したもの。prefix + task + text + marks でもとの行に戻る
 export interface FirstLine {
@@ -966,9 +967,166 @@ export function setDetails(ctx: EditContext, id: number, text: string): EditResu
         const at = trimBlankTail(lines, node.lines.start + 1, Math.min(node.lines.end, firstChild));
         lines.splice(at, 0, ...quoted);
     }
-    // markdag のキーがなければ足す (値のない markdag: でも抜き出しが有効になる)
+    ensureMarkdag(lines);
+    return { ok: true, source: lines.join('\n'), focusId: id, message: body === '' ? '詳細を外しました' : '詳細を書きました' };
+}
+
+// frontmatter に markdag のキーがなければ足す。詳細とタグは、markdag のキーがある文書でだけ抜き出される
+// (値のない markdag: でも抜き出しが有効になる)。本文の行より前に行が増えるので、本文を書き換えたあとに呼ぶ
+function ensureMarkdag(lines: string[]): void {
     const frontmatter = frontmatterRange(lines);
     if (!frontmatter) lines.splice(0, 0, '---', 'markdag:', '---', '');
     else if (!findPath(lines, ['markdag'])) lines.splice(frontmatter.close, 0, 'markdag:');
-    return { ok: true, source: lines.join('\n'), focusId: id, message: body === '' ? '詳細を外しました' : '詳細を書きました' };
+}
+
+// ---- タグ (1 行目の末尾の #キー / #キー:値) -------------------------------------------------------------------------
+
+export interface TagValue {
+    key: string;
+    // 値のないタグ (#キー だけ) は null
+    value: string | null;
+}
+
+// タグのキーに使える文字 (空白、:、#、%、$、引用符、カンマは使えない)
+const TAG_KEY = /^[^\s:#%$",]+$/;
+
+export const tagText = (tag: TagValue): string => (tag.value === null ? tag.key : `${tag.key}:${tag.value}`);
+
+// タグの印。値に空白があれば "…" で囲む (カンマは複数の値の区切りのまま残す)
+function tagMark(tag: TagValue): string {
+    if (tag.value === null) return `#${tag.key}`;
+    return /\s/.test(tag.value) ? `#${tag.key}:"${tag.value.replace(/"/g, '')}"` : `#${tag.key}:${tag.value}`;
+}
+
+// 入力されたキーと値をそろえる。キーが使えない文字を含めば null
+export function normalizeTag(key: string, value: string): TagValue | null {
+    const cleanKey = key.trim().replace(/^#/, '');
+    if (!TAG_KEY.test(cleanKey)) return null;
+    const cleanValue = value.replace(/[\r\n]+/g, ' ').trim();
+    return { key: cleanKey, value: cleanValue === '' ? null : cleanValue };
+}
+
+// 1 行目の印を分けたもの。タグの印ならキーも返す
+function splitMarks(marks: string): Array<{ text: string; tagKey: string | null }> {
+    return marks
+        .split(/(?=[ \t]+[%#$])/)
+        .filter((mark) => mark.trim() !== '')
+        .map((mark) => {
+            const trimmed = mark.trim();
+            return { text: mark, tagKey: trimmed.startsWith('#') ? (trimmed.slice(1).split(':')[0] ?? '') : null };
+        });
+}
+
+// ノードに付いたタグ (1 行目の印から読む。同じキーを 2 回書いたときは値をつなげる)
+export function tagsOfNode(ctx: EditContext, id: number): TagValue[] {
+    return (ctx.model.tagsOf.get(id) ?? []).map((tag): TagValue => ({ key: tag.key, value: tag.values.length === 0 ? null : tag.values.join(',') }));
+}
+
+// 文書で使われているタグと、markdag.tags.keys で定義されたキー (値なし) の一覧。キー、値の順に並べる
+export function registeredTags(ctx: EditContext): TagValue[] {
+    const seen = new Map<string, TagValue>();
+    for (const tags of ctx.model.tagsOf.values()) {
+        for (const tag of tags) {
+            if (tag.values.length === 0) seen.set(tag.key, { key: tag.key, value: null });
+            for (const value of tag.values) seen.set(`${tag.key}:${value}`, { key: tag.key, value });
+        }
+    }
+    for (const def of ctx.model.tagKeys) if (![...seen.values()].some((tag) => tag.key === def.key)) seen.set(def.key, { key: def.key, value: null });
+    return [...seen.values()].sort((a, b) => a.key.localeCompare(b.key) || (a.value ?? '').localeCompare(b.value ?? ''));
+}
+
+// ノードごとのタグを change で書き換える。同じキーの印はその位置で置き換え、なくなったキーの印は外し、新しいキーは末尾に足す。
+// タグ以外の印 (%グループ、$id) はそのまま残す
+function rewriteTags(ctx: EditContext, ids: number[], change: (tags: NodeTagValues[]) => NodeTagValues[]): { lines: string[]; changed: number } {
+    const lines = splitLines(ctx.source);
+    let changed = 0;
+    for (const id of new Set(ids)) {
+        const node = nodeById(ctx, id);
+        if (!node?.lines) continue;
+        const first = parseFirstLine(lines[node.lines.start] ?? '');
+        if (!first) continue;
+        const current = (ctx.model.tagsOf.get(id) ?? []).map((tag) => ({ key: tag.key, values: [...tag.values] }));
+        const next = change(current);
+        const same = next.length === current.length && next.every((tag, index) => tag.key === current[index]?.key && tag.values.join('\u0000') === current[index]?.values.join('\u0000'));
+        if (same) continue;
+        const out: string[] = [];
+        const used = new Set<string>();
+        for (const mark of splitMarks(first.marks)) {
+            if (mark.tagKey === null) out.push(mark.text);
+            else if (!used.has(mark.tagKey)) {
+                const tag = next.find((item) => item.key === mark.tagKey);
+                used.add(mark.tagKey);
+                if (tag) out.push(` ${tagMarkOf(tag)}`);
+            }
+        }
+        for (const tag of next) if (!used.has(tag.key)) out.push(` ${tagMarkOf(tag)}`);
+        lines[node.lines.start] = joinFirstLine({ ...first, marks: out.join('') });
+        changed++;
+    }
+    return { lines, changed };
+}
+
+interface NodeTagValues {
+    key: string;
+    values: string[];
+}
+
+const tagMarkOf = (tag: NodeTagValues): string => tagMark({ key: tag.key, value: tag.values.length === 0 ? null : tag.values.join(',') });
+
+// 複数の値を持てるキーか。定義のないキーは自由に書けるので持てる。定義があれば multiple: true のときだけ
+const allowsMultiple = (ctx: EditContext, key: string): boolean => ctx.model.tagKeys.find((def) => def.key === key)?.multiple ?? true;
+
+function finishTags(result: { lines: string[]; changed: number }, message: string, none: string): EditResult {
+    if (result.changed === 0) return { ok: false, message: none };
+    ensureMarkdag(result.lines);
+    return { ok: true, source: result.lines.join('\n'), message: message.replace('{n}', String(result.changed)) };
+}
+
+// 選んだノードに、タグを付ける。同じキーのタグがあれば、その値に置き換える (新規作成と編集)。
+// previousKey は、付いているタグを編集してキーを変えたときの、もとのキー (その印を外す)
+export function setTag(ctx: EditContext, ids: number[], tag: TagValue, previousKey: string | null = null): EditResult {
+    const values = tag.value === null ? [] : tag.value.split(',').map((value) => value.trim()).filter(Boolean);
+    const result = rewriteTags(ctx, ids, (tags) => {
+        const kept = tags.filter((item) => previousKey === null || previousKey === tag.key || item.key !== previousKey);
+        return kept.some((item) => item.key === tag.key) ? kept.map((item) => (item.key === tag.key ? { key: tag.key, values } : item)) : [...kept, { key: tag.key, values }];
+    });
+    return finishTags(result, `{n} 個のノードに #${tagText(tag)} を付けました`, ids.length === 0 ? 'タグを付けるノードを選んでください' : 'そのタグはもう付いています');
+}
+
+// 一覧から選んだタグを付ける。同じキーに別の値があれば、複数の値を持てるキーなら値を足し (#owner:alice,bob)、持てなければ置き換える
+export function addTagValue(ctx: EditContext, ids: number[], tag: TagValue): EditResult {
+    const multiple = allowsMultiple(ctx, tag.key);
+    const result = rewriteTags(ctx, ids, (tags) => {
+        const found = tags.find((item) => item.key === tag.key);
+        if (!found) return [...tags, { key: tag.key, values: tag.value === null ? [] : [tag.value] }];
+        const values = tag.value === null ? found.values : multiple ? [...new Set([...found.values, tag.value])] : [tag.value];
+        return tags.map((item) => (item === found ? { key: tag.key, values } : item));
+    });
+    return finishTags(result, `{n} 個のノードに #${tagText(tag)} を付けました`, 'そのタグはもう付いています');
+}
+
+// 一覧で外したタグを外す。値がほかにもあればその値だけ外し、なくなればキーごと外す
+export function removeTagValue(ctx: EditContext, ids: number[], tag: TagValue): EditResult {
+    const result = rewriteTags(ctx, ids, (tags) =>
+        tags.flatMap((item) => {
+            if (item.key !== tag.key) return [item];
+            if (tag.value === null) return [];
+            const values = item.values.filter((value) => value !== tag.value);
+            return values.length === 0 ? [] : [{ key: item.key, values }];
+        }),
+    );
+    return finishTags(result, `{n} 個のノードから #${tagText(tag)} を外しました`, 'そのタグは付いていません');
+}
+
+// 選んだノードから、キーが key のタグを外す
+export function removeTag(ctx: EditContext, ids: number[], key: string): EditResult {
+    const result = rewriteTags(ctx, ids, (tags) => tags.filter((item) => item.key !== key));
+    return finishTags(result, `{n} 個のノードから #${key} を外しました`, 'そのタグは付いていません');
+}
+
+// ノードがタグ (キーと値) を持っているか。値のないタグはキーだけで見る
+export function hasTag(ctx: EditContext, id: number, tag: TagValue): boolean {
+    const found = ctx.model.tagsOf.get(id)?.find((item) => item.key === tag.key);
+    if (!found) return false;
+    return tag.value === null ? found.values.length === 0 : found.values.includes(tag.value);
 }

@@ -1,7 +1,7 @@
 // 図の側の編集 (editor/ops.ts) が、原文を狙いどおりに書き換えるかを、書き換えたあとの原文を解析し直して確かめる
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { addChild, addGroup, addJoin, detailsOf, setDetails, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
+import { addChild, addGroup, addJoin, detailsOf, normalizeTag, registeredTags, addTagValue, removeTag, removeTagValue, setDetails, setTag, tagsOfNode, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
 import { buildModel } from '../src/model/model';
 import { parseDocument } from '../src/parse/document';
 
@@ -362,5 +362,52 @@ describe('詳細', () => {
         const next = sourceOf(setDetails(ctx, byName(ctx, 'a'), 'メモ'));
         expect(next).toBe('---\nmarkdag:\n---\n\n# R\n\n## A\n- a\n    > メモ\n');
         expect(detailsHtml(next, 'a')).toContain('メモ');
+    });
+});
+
+describe('タグ', () => {
+    const TAGGED = '---\nmarkdag:\n---\n# R\n\n- a #owner:alice $a\n- b #urgent\n- c\n';
+
+    test('選んだノードにタグを付ける。同じキーがあれば値を置き換え、ほかの印は残す', () => {
+        const ctx = contextOf(TAGGED);
+        const next = sourceOf(setTag(ctx, [byName(ctx, 'a'), byName(ctx, 'c')], { key: 'owner', value: 'bob' }));
+        expect(next).toContain('- a #owner:bob $a\n');
+        expect(next).toContain('- c #owner:bob\n');
+        const after = contextOf(next);
+        expect(tagsOfNode(after, byName(after, 'c'))).toEqual([{ key: 'owner', value: 'bob' }]);
+        expect(errorsOf(next)).toEqual([]);
+    });
+
+    test('値のないタグと空白を含む値。markdag のキーがなければ足す', () => {
+        const ctx = contextOf('# R\n\n- a\n');
+        const next = sourceOf(setTag(ctx, [byName(ctx, 'a')], normalizeTag('#reviewer', '山田 太郎')!));
+        expect(next).toBe('---\nmarkdag:\n---\n\n# R\n\n- a #reviewer:"山田 太郎"\n');
+        const after = contextOf(next);
+        expect(tagsOfNode(after, byName(after, 'a'))).toEqual([{ key: 'reviewer', value: '山田 太郎' }]);
+        const flag = sourceOf(setTag(after, [byName(after, 'a')], normalizeTag('done', '')!));
+        expect(flag).toContain('- a #reviewer:"山田 太郎" #done\n');
+        expect(normalizeTag('a b', '')).toBeNull();
+    });
+
+    test('キーを変える編集ではもとの印を外す。タグを外す。使われているタグの一覧', () => {
+        const ctx = contextOf(TAGGED);
+        const renamed = sourceOf(setTag(ctx, [byName(ctx, 'a')], { key: 'assignee', value: 'alice' }, 'owner'));
+        expect(renamed).toContain('- a $a #assignee:alice\n');
+        // 一覧から選ぶと、定義のないキーには値を足し、外すとその値だけ外す
+        const added = sourceOf(addTagValue(ctx, [byName(ctx, 'a'), byName(ctx, 'c')], { key: 'owner', value: 'bob' }));
+        expect(added).toContain('- a #owner:alice,bob $a\n');
+        expect(added).toContain('- c #owner:bob\n');
+        const dropped = sourceOf(removeTagValue(contextOf(added), [byName(ctx, 'a'), byName(ctx, 'c')], { key: 'owner', value: 'alice' }));
+        expect(dropped).toContain('- a #owner:bob $a\n');
+        expect(dropped).toContain('- c #owner:bob\n');
+        // multiple のない定義のキーは置き換える
+        const single = contextOf('---\nmarkdag:\n    tags:\n        keys:\n            owner:\n                type: string\n---\n# R\n\n- a #owner:alice\n');
+        expect(sourceOf(addTagValue(single, [byName(single, 'a')], { key: 'owner', value: 'bob' }))).toContain('- a #owner:bob\n');
+        const removed = sourceOf(removeTag(ctx, [byName(ctx, 'a'), byName(ctx, 'b')], 'urgent'));
+        expect(removed).toContain('- b\n');
+        expect(registeredTags(ctx)).toEqual([
+            { key: 'owner', value: 'alice' },
+            { key: 'urgent', value: null },
+        ]);
     });
 });

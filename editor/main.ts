@@ -86,6 +86,8 @@ const ICONS = {
     reverse: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>',
     group: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><rect x="6.5" y="9" width="6" height="4" rx="1"/><rect x="11.5" y="14" width="6" height="3.5" rx="1"/></svg>',
     ungroup: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><path d="M8 9l8 7M16 9l-8 7"/></svg>',
+    tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M15 3v4M13 5h4"/></svg>',
+    tags: '<svg viewBox="0 0 24 24"><path d="M3 11V4h7l9 9-7 7z"/><circle cx="7" cy="8" r="1.3"/><path d="M13 4l9 9-6 6"/></svg>',
     note: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     join: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7M3 12h12"/><path d="M15 9l4 3-4 3"/><circle cx="20.5" cy="12" r="1.2"/></svg>',
@@ -129,6 +131,7 @@ app.innerHTML = `
                 <div class="ed-handle ed-handle-add ed-handle-child" title="子を足す (Tab)" hidden>+</div>
                 <div class="ed-handle ed-handle-add ed-handle-sibling" title="兄弟を足す (Enter)" hidden>+</div>
                 <div class="ed-ctx" hidden></div>
+                <div class="ed-tag-panel" hidden></div>
                 <div class="ed-details-editor" hidden>
                     <div class="ed-details-head"><span>詳細</span><b></b></div>
                     <textarea spellcheck="false" rows="6" placeholder="詳細を書く (Markdown が使える)"></textarea>
@@ -140,6 +143,8 @@ app.innerHTML = `
                 <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選択でも Space を押しながらドラッグで動かせる">${ICONS.pan}<span>パン</span></button>
                 <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}<span>合流</span></button>
                 <button class="ed-tool ed-group-tool" title="選んだノードをグループにまとめる (${MOD}G)。何もないところからドラッグして囲んで選んでから">${ICONS.group}<span>グループ</span></button>
+                <button class="ed-tool ed-tag-new-tool" title="選んだノードにタグを付ける (T)。キーと値を入れる">${ICONS.tag}<span>タグ追加</span></button>
+                <button class="ed-tool ed-tag-pick-tool" title="選んだノードに、使っているタグから選んで付ける">${ICONS.tags}<span>タグ選択</span></button>
                 <div class="ed-details-mode">
                     <button class="ed-tool ed-details-tool" title="詳細の見せ方を選ぶ" aria-haspopup="menu" aria-expanded="false">${ICONS.eye}<span>詳細表示</span></button>
                     <div class="ed-flyout" role="menu" hidden>
@@ -236,6 +241,8 @@ interface CommitOptions {
     // 原文の欄の入力から来た (欄の中身を書き換えない)
     fromText?: boolean;
     undo?: boolean;
+    // 複数選択を解かない (id の変わらない書き換え)
+    keep?: boolean;
 }
 
 function commit(next: string, options: CommitOptions = {}): void {
@@ -268,7 +275,7 @@ function commit(next: string, options: CommitOptions = {}): void {
         selection = found ? { type: 'node', id: found.id } : null;
     } else if (selection?.type === 'node' && !nodeOf(selection.id)) selection = null;
     // 複数選択は、書き換えで id がずれるので解く
-    else if (selection?.type === 'nodes') selection = null;
+    else if (selection?.type === 'nodes' && !options.keep) selection = null;
     else if (selection?.type === 'edge' && !host.querySelector(`.mdag-edge[data-key="${CSS.escape(selection.key)}"]`)) selection = null;
     else if (selection?.type === 'group' && !ctx.model.groups.some((group) => group.id === (selection as { id: string }).id)) selection = null;
     if (selection?.type === 'node') diagram.view.revealNode(selection.id);
@@ -282,6 +289,7 @@ function commit(next: string, options: CommitOptions = {}): void {
     showDiagnostics(diagnostics);
     updateUndoButtons();
     if (options.message) showToast(options.message);
+    if (tagPanel.mode !== null) renderTagPanel();
     if (options.rename && selection?.type === 'node') {
         const id = selection.id;
         requestAnimationFrame(() => startRename(id, true, true));
@@ -434,7 +442,9 @@ textarea.addEventListener('keyup', (event) => {
 // ---- 選択 --------------------------------------------------------------------------------------------------------
 
 function select(next: Selection, scrollText = true): void {
+    const before = selectedIds().join(',');
     selection = next;
+    if (tagPanel.mode !== null && selectedIds().join(',') !== before) closeTagPanel();
     if (next?.type === 'edge') diagram.view.selectEdge(next.key);
     else diagram.view.selectEdge(null);
     diagram.view.selectGroup(next?.type === 'group' ? next.id : null);
@@ -515,6 +525,8 @@ function renderContextBar(): void {
         const canWrite = ops.detailsOf(ctx, id) !== null;
         const note = button(ICONS.note, '詳細', canWrite ? '詳細を書く (D)' : '詳細はリスト項目にだけ書けます (見出しには書けません)', () => openDetailsEditor(id));
         note.disabled = !canWrite;
+        button(ICONS.tag, 'タグ追加', 'タグを付ける (T)。キーと値を入れる', () => openTagPanel('new'));
+        button(ICONS.tags, 'タグ選択', '使っているタグから選んで付ける', () => openTagPanel('pick'));
         if (!isRoot) {
             separator();
             button(ICONS.trash, '削除', '配下ごと消す (Delete)', () => apply(ops.deleteNode(ctx, id)), true);
@@ -529,6 +541,8 @@ function renderContextBar(): void {
         button(ICONS.merge, '合流ノードを作る', '選んだノードから、新しいノードへ合流させる (J)', joinIntoNewNode);
         button(ICONS.join, '既存のノードへ合流', '選んだノードから、次にクリックするノードへ合流させる', startJoinToExisting);
         button(ICONS.group, 'グループ', `選んだノードをグループにまとめる (${MOD}G)`, groupSelection);
+        button(ICONS.tag, 'タグ追加', '選んだノードにタグを付ける (T)', () => openTagPanel('new'));
+        button(ICONS.tags, 'タグ選択', '選んだノードに、使っているタグから選んで付ける', () => openTagPanel('pick'));
         separator();
         button(ICONS.trash, '削除', '選んだノードを配下ごと消す (Delete)', () => deleteNodes(ids), true);
     } else if (selection?.type === 'group') {
@@ -583,8 +597,10 @@ function updateHint(): void {
     else if (tool === 'pan') text = `ドラッグで図を動かす / ホイールで拡大縮小 ${k('V')} で選ぶ道具へ`;
     else if (renaming?.target.type === 'node') text = `${k('Enter')} 決めて兄弟を足す ${k('Tab')} 決めて子を足す ${k('Esc')} やめる`;
     else if (renaming) text = `${k('Enter')} 決める ${k('Esc')} やめる`;
+    else if (tagPanel.mode === 'new') text = `キーと値を入れて ${k('Enter')} で付ける / 付いているタグを押すと編集 ${k('Esc')} 閉じる`;
+    else if (tagPanel.mode === 'pick') text = `押すたびに付け外し (複数選べる) ${k('Esc')} 閉じる`;
     else if (detailsEditing !== null) text = `${k(`${MOD}Enter`)} 詳細を保存 ${k('Esc')} やめる / 行頭の > は自動で付く`;
-    else if (selection?.type === 'node') text = `${k('Enter')} 名前 ${k('Tab')} 子 ${k('D')} 詳細 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
+    else if (selection?.type === 'node') text = `${k('Enter')} 名前 ${k('Tab')} 子 ${k('D')} 詳細 ${k('T')} タグ ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
     else if (selection?.type === 'group') text = `${k('Enter')} グループの名前を変える / 枠のラベルをダブルクリックでも変えられる`;
     else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る ${k(`${MOD}G`)} グループにまとめる / 右の点をほかのノードへドラッグでそこへ合流 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
@@ -747,14 +763,18 @@ function positionDetailsEditor(): void {
     if (detailsEditing === null) return;
     const box = boxOf(detailsEditing);
     if (!isVisible(box)) return;
-    const rect = localRect(box);
-    const width = detailsEditor.offsetWidth;
-    const height = detailsEditor.offsetHeight;
+    placeNear(detailsEditor, localRect(box));
+}
+
+// 浮かせる入力欄を、rect (図の領域の座標) の右に置く。右に入らなければ下、下にも入らなければ上に置き、図の領域の中に収める
+function placeNear(element: HTMLElement, rect: DOMRect): void {
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
     const clampX = (x: number): number => Math.min(Math.max(8, x), stage.clientWidth - width - 8);
     const clampY = (y: number): number => Math.min(Math.max(8, y), stage.clientHeight - height - 8);
-    if (rect.right + 14 + width <= stage.clientWidth - 8) place(detailsEditor, rect.right + 14, clampY(rect.top - 8));
-    else if (rect.bottom + 12 + height <= stage.clientHeight - 8) place(detailsEditor, clampX(rect.left), rect.bottom + 12);
-    else place(detailsEditor, clampX(rect.left), clampY(rect.top - height - 12));
+    if (rect.right + 14 + width <= stage.clientWidth - 8) place(element, rect.right + 14, clampY(rect.top - 8));
+    else if (rect.bottom + 12 + height <= stage.clientHeight - 8) place(element, clampX(rect.left), rect.bottom + 12);
+    else place(element, clampX(rect.left), clampY(rect.top - height - 12));
 }
 
 detailsText.addEventListener('keydown', (event) => {
@@ -779,6 +799,195 @@ detailsEditor.addEventListener('focusout', (event) => {
 detailsEditor.querySelector('.ed-details-save')?.addEventListener('click', () => closeDetailsEditor(true));
 detailsEditor.querySelector('.ed-details-cancel')?.addEventListener('click', () => closeDetailsEditor(false));
 for (const type of ['pointerdown', 'click', 'dblclick'] as const) detailsEditor.addEventListener(type, (event) => event.stopPropagation());
+
+// ---- タグ --------------------------------------------------------------------------------------------------------
+// new はタグの新規作成 (キーと値の入力。付いているタグを押すと、その編集になる)。pick は付いているタグの一覧から選ぶ。
+// どちらも選んでいるノード (複数可) に付ける。一覧は複数選べ、押すたびに付け外しする
+
+const tagPanelElement = $<HTMLDivElement>('.ed-tag-panel');
+const tagPanel: { mode: 'new' | 'pick' | null; editingKey: string | null; filter: string } = { mode: null, editingKey: null, filter: '' };
+const RECENT_KEY = 'markdag-board.recent-tags';
+let recentTags: string[] = [];
+try {
+    const stored = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? '[]') as unknown;
+    if (Array.isArray(stored)) recentTags = stored.filter((item): item is string => typeof item === 'string').slice(0, 3);
+} catch {
+    recentTags = [];
+}
+
+function rememberTag(tag: ops.TagValue): void {
+    const text = ops.tagText(tag);
+    recentTags = [text, ...recentTags.filter((item) => item !== text)].slice(0, 3);
+    try {
+        window.localStorage.setItem(RECENT_KEY, JSON.stringify(recentTags));
+    } catch {
+        // 保存できない環境では、このページを開いている間だけ覚える
+    }
+}
+
+const parseTagText = (text: string): ops.TagValue => {
+    const at = text.indexOf(':');
+    return at < 0 ? { key: text, value: null } : { key: text.slice(0, at), value: text.slice(at + 1) };
+};
+const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+
+function openTagPanel(mode: 'new' | 'pick'): void {
+    if (selectedIds().length === 0) {
+        showToast('タグを付けるノードを選んでください (クリック、または何もないところからドラッグで囲む)');
+        return;
+    }
+    closeDetailsEditor(true);
+    finishRename(true);
+    tagPanel.mode = mode;
+    tagPanel.editingKey = null;
+    tagPanel.filter = '';
+    tagPanelElement.hidden = false;
+    renderTagPanel();
+    positionTagPanel();
+    tagPanelElement.querySelector<HTMLInputElement>(mode === 'new' ? '.ed-tag-key' : '.ed-tag-filter')?.focus();
+    updateHint();
+}
+
+function closeTagPanel(): void {
+    if (tagPanel.mode === null) return;
+    tagPanel.mode = null;
+    tagPanelElement.hidden = true;
+    updateHint();
+}
+
+function positionTagPanel(): void {
+    if (tagPanel.mode === null) return;
+    let union: DOMRect | null = null;
+    for (const id of selectedIds()) {
+        const box = boxOf(id);
+        if (!isVisible(box)) continue;
+        const rect = localRect(box);
+        union = union === null ? rect : unionRect(union, rect);
+    }
+    if (union) placeNear(tagPanelElement, union);
+}
+
+// 選んだノードの全部に付いていれば 'all'、一部なら 'some'
+function tagState(tag: ops.TagValue): 'all' | 'some' | 'none' {
+    const ids = selectedIds();
+    const has = ids.filter((id) => ops.hasTag(ctx, id, tag)).length;
+    return has === 0 ? 'none' : has === ids.length ? 'all' : 'some';
+}
+
+function applyTag(tag: ops.TagValue, previousKey: string | null = null): void {
+    if (apply(ops.setTag(ctx, selectedIds(), tag, previousKey), { keep: true })) rememberTag(tag);
+}
+
+function renderTagPanel(): void {
+    const ids = selectedIds();
+    if (tagPanel.mode === null || ids.length === 0) return;
+    const target = ids.length === 1 ? `「${escapeHtml(nameOf(ids[0] ?? 0))}」` : `${ids.length} 個のノード`;
+    // 選んだノードに付いているタグ (どれかに付いていれば出す)
+    const attached = new Map<string, ops.TagValue>();
+    for (const id of ids) for (const tag of ops.tagsOfNode(ctx, id)) attached.set(ops.tagText(tag), tag);
+    const chips = [...attached.values()]
+        .map((tag) => `<span class="ed-chip" data-tag="${escapeHtml(ops.tagText(tag))}"><button class="ed-chip-edit" title="このタグを編集">#${escapeHtml(ops.tagText(tag))}</button><button class="ed-chip-remove" title="外す" aria-label="外す">×</button></span>`)
+        .join('');
+    if (tagPanel.mode === 'new') {
+        const keys = [...new Set(ops.registeredTags(ctx).map((tag) => tag.key))];
+        const editing = tagPanel.editingKey;
+        const current = editing === null ? null : (attached.get([...attached.keys()].find((text) => parseTagText(text).key === editing) ?? '') ?? null);
+        tagPanelElement.innerHTML = `
+            <div class="ed-panel-head"><span>${editing === null ? 'タグの新規作成' : 'タグの編集'}</span><b>${target}</b></div>
+            ${chips ? `<div class="ed-chips">${chips}</div>` : '<div class="ed-panel-empty">付いているタグはありません</div>'}
+            <div class="ed-tag-form">
+                <label><span>キー</span><input class="ed-tag-key" list="ed-tag-keys" placeholder="owner" value="${escapeHtml(current?.key ?? '')}"></label>
+                <label><span>値 (なくてもよい)</span><input class="ed-tag-value" placeholder="alice" value="${escapeHtml(current?.value ?? '')}"></label>
+                <datalist id="ed-tag-keys">${keys.map((key) => `<option value="${escapeHtml(key)}">`).join('')}</datalist>
+            </div>
+            <div class="ed-panel-foot"><span>Enter で${editing === null ? '追加' : '更新'} / Esc で閉じる</span>${editing === null ? '' : '<button class="ed-tag-cancel-edit">新規に戻る</button>'}<button class="ed-panel-primary ed-tag-submit">${editing === null ? '追加' : '更新'}</button></div>`;
+    } else {
+        const all = ops.registeredTags(ctx);
+        const filter = tagPanel.filter.trim().toLowerCase();
+        const match = (tag: ops.TagValue): boolean => filter === '' || ops.tagText(tag).toLowerCase().includes(filter);
+        const recent = recentTags.map(parseTagText).filter(match);
+        const row = (tag: ops.TagValue): string => {
+            const state = tagState(tag);
+            return `<button class="ed-tag-row" role="menuitemcheckbox" aria-checked="${state === 'all' ? 'true' : state === 'some' ? 'mixed' : 'false'}" data-tag="${escapeHtml(ops.tagText(tag))}"><i></i><span>#${escapeHtml(ops.tagText(tag))}</span></button>`;
+        };
+        const listed = all.filter(match);
+        tagPanelElement.innerHTML = `
+            <div class="ed-panel-head"><span>タグを選択</span><b>${target}</b></div>
+            <input class="ed-tag-filter" placeholder="絞り込み" value="${escapeHtml(tagPanel.filter)}">
+            <div class="ed-tag-section">最近使ったタグ</div>
+            ${recent.length > 0 ? `<div class="ed-tag-list">${recent.map(row).join('')}</div>` : '<div class="ed-panel-empty">まだありません</div>'}
+            <hr>
+            <div class="ed-tag-section">登録されているタグ</div>
+            <div class="ed-tag-list">${listed.length > 0 ? listed.map(row).join('') : '<div class="ed-panel-empty">タグがありません。「タグ追加」で作れます</div>'}</div>
+            <div class="ed-panel-foot"><span>押すたびに付け外し (複数選べる)</span><button class="ed-panel-primary ed-tag-close">閉じる</button></div>`;
+    }
+}
+
+function submitTagForm(): void {
+    const key = tagPanelElement.querySelector<HTMLInputElement>('.ed-tag-key')?.value ?? '';
+    const value = tagPanelElement.querySelector<HTMLInputElement>('.ed-tag-value')?.value ?? '';
+    const tag = ops.normalizeTag(key, value);
+    if (!tag) {
+        showToast('キーを入れてください (空白と : # % $ " , は使えません)', 'error');
+        return;
+    }
+    const previousKey = tagPanel.editingKey;
+    tagPanel.editingKey = null;
+    applyTag(tag, previousKey);
+    renderTagPanel();
+    tagPanelElement.querySelector<HTMLInputElement>('.ed-tag-key')?.focus();
+}
+
+tagPanelElement.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    const chip = target.closest<HTMLElement>('.ed-chip');
+    if (target.closest('.ed-chip-remove') && chip?.dataset.tag) {
+        apply(ops.removeTag(ctx, selectedIds(), parseTagText(chip.dataset.tag).key), { keep: true });
+    } else if (target.closest('.ed-chip-edit') && chip?.dataset.tag) {
+        tagPanel.mode = 'new';
+        tagPanel.editingKey = parseTagText(chip.dataset.tag).key;
+        renderTagPanel();
+        tagPanelElement.querySelector<HTMLInputElement>('.ed-tag-value')?.focus();
+    } else if (target.closest('.ed-tag-cancel-edit')) {
+        tagPanel.editingKey = null;
+        renderTagPanel();
+    } else if (target.closest('.ed-tag-submit')) {
+        submitTagForm();
+    } else if (target.closest('.ed-tag-close')) {
+        closeTagPanel();
+    } else {
+        const row = target.closest<HTMLElement>('.ed-tag-row');
+        if (!row?.dataset.tag) return;
+        // 全部に付いていれば外し、そうでなければ付ける。同じキーの別の値は、足していく (複数の値を持てるキーのとき)
+        const tag = parseTagText(row.dataset.tag);
+        if (row.getAttribute('aria-checked') === 'true') apply(ops.removeTagValue(ctx, selectedIds(), tag), { keep: true });
+        else if (apply(ops.addTagValue(ctx, selectedIds(), tag), { keep: true })) rememberTag(tag);
+    }
+});
+tagPanelElement.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.isComposing) return;
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeTagPanel();
+        stage.focus({ preventScroll: true });
+    } else if (event.key === 'Enter' && event.target instanceof HTMLInputElement && tagPanel.mode === 'new') {
+        event.preventDefault();
+        submitTagForm();
+    }
+});
+tagPanelElement.addEventListener('input', (event) => {
+    if (!(event.target instanceof HTMLInputElement) || !event.target.classList.contains('ed-tag-filter')) return;
+    tagPanel.filter = event.target.value;
+    const caret = event.target.selectionStart;
+    renderTagPanel();
+    const filter = tagPanelElement.querySelector<HTMLInputElement>('.ed-tag-filter');
+    filter?.focus();
+    if (caret !== null) filter?.setSelectionRange(caret, caret);
+});
+for (const type of ['pointerdown', 'dblclick'] as const) tagPanelElement.addEventListener(type, (event) => event.stopPropagation());
 
 // ---- 詳細の見せ方 ------------------------------------------------------------------------------------------------
 
@@ -914,8 +1123,9 @@ function positionOverlay(): void {
         const label = host.querySelector(`.mdag-frame-label[data-group="${CSS.escape(selection.id)}"]`);
         if (frame) anchor = label ? unionRect(localRect(frame), localRect(label)) : localRect(frame);
     }
-    ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null || detailsEditing !== null;
+    ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null || detailsEditing !== null || tagPanel.mode !== null;
     positionDetailsEditor();
+    positionTagPanel();
     if (anchor && !ctxBar.hidden) {
         const width = ctxBar.offsetWidth;
         const x = Math.min(Math.max(8, anchor.left + anchor.width / 2 - width / 2), stage.clientWidth - width - 8);
@@ -1051,6 +1261,7 @@ stage.addEventListener(
         if (!target) return;
         // 詳細の入力欄の外を押したら保存して閉じる (範囲選択やドラッグで既定の動作を止めると、フォーカスが移らず focusout が来ない)
         if (detailsEditing !== null && !target.closest('.ed-details-editor')) closeDetailsEditor(true);
+        if (tagPanel.mode !== null && !target.closest('.ed-tag-panel, .ed-tools')) closeTagPanel();
         if (renaming) return;
         // 原文の欄などにフォーカスが残ったままだと、Backspace や Enter がそちらへ入るので、キャンバスへ移す
         // (ノードのドラッグで pointerdown の既定の動作を止めるため、ブラウザはフォーカスを移さない)
@@ -1204,7 +1415,7 @@ stage.addEventListener(
     'click',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor, .ed-tag-panel')) return;
         if (suppressClick) {
             event.stopPropagation();
             return;
@@ -1267,7 +1478,7 @@ stage.addEventListener(
     'dblclick',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel')) return;
         event.stopPropagation();
         // ノードのダブルクリックは名前の変更、グループの枠かラベルならグループの名前の変更。
         // 何もないところのダブルクリックでは何もしない (図のズームもしない)
@@ -1421,6 +1632,12 @@ document.addEventListener('keydown', (event) => {
                 if (edge) apply(ops.deleteEdge(ctx, edge));
             }
             break;
+        case 't':
+        case 'T':
+            if (selectedIds().length === 0) return;
+            event.preventDefault();
+            openTagPanel('new');
+            break;
         case 'd':
         case 'D':
             if (nodeId === null) return;
@@ -1429,6 +1646,7 @@ document.addEventListener('keydown', (event) => {
             break;
         case 'Escape':
             setFlyout(false);
+            closeTagPanel();
             setTool('select');
             select(null);
             break;
@@ -1492,6 +1710,8 @@ $('.ed-join-tool').addEventListener('click', () => {
     if (selectedIds().length >= 2) joinIntoNewNode();
     else showToast('何もないところからドラッグして 2 つ以上を囲むと、選んだノードを新しいノードへ合流させます');
 });
+$('.ed-tag-new-tool').addEventListener('click', () => openTagPanel('new'));
+$('.ed-tag-pick-tool').addEventListener('click', () => openTagPanel('pick'));
 $('.ed-group-tool').addEventListener('click', () => {
     if (selectedIds().length >= 1) groupSelection();
     else showToast('何もないところからドラッグしてノードを囲むと、選んだノードをグループにまとめます');
