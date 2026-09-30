@@ -831,7 +831,8 @@ const parseTagText = (text: string): ops.TagValue => {
 };
 const escapeHtml = (text: string): string => text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
-function openTagPanel(mode: 'new' | 'pick'): void {
+// editingKey を渡すと、そのキーのタグの編集で開く (ノードのタグを押したとき)
+function openTagPanel(mode: 'new' | 'pick', editingKey: string | null = null): void {
     if (selectedIds().length === 0) {
         showToast('タグを付けるノードを選んでください (クリック、または何もないところからドラッグで囲む)');
         return;
@@ -839,12 +840,12 @@ function openTagPanel(mode: 'new' | 'pick'): void {
     closeDetailsEditor(true);
     finishRename(true);
     tagPanel.mode = mode;
-    tagPanel.editingKey = null;
+    tagPanel.editingKey = editingKey;
     tagPanel.filter = '';
     tagPanelElement.hidden = false;
     renderTagPanel();
     positionTagPanel();
-    tagPanelElement.querySelector<HTMLInputElement>(mode === 'new' ? '.ed-tag-key' : '.ed-tag-filter')?.focus();
+    tagPanelElement.querySelector<HTMLInputElement>(mode === 'pick' ? '.ed-tag-filter' : editingKey === null ? '.ed-tag-key' : '.ed-tag-value')?.focus();
     updateHint();
 }
 
@@ -988,6 +989,39 @@ tagPanelElement.addEventListener('input', (event) => {
     if (caret !== null) filter?.setSelectionRange(caret, caret);
 });
 for (const type of ['pointerdown', 'dblclick'] as const) tagPanelElement.addEventListener(type, (event) => event.stopPropagation());
+
+// ---- ノードの部分 (ラベル、詳細、タグ) の押し分け -----------------------------------------------------------------
+// 詳細とタグの吹き出しは図の側が 1 つだけ持ち、どのノードのものかを外へ出さないので、最後にポインタが乗ったノードで見る
+
+let hoveredNode: number | null = null;
+host.addEventListener('pointerover', (event) => {
+    const element = event.target instanceof Element ? event.target.closest<HTMLElement>('.mdag-node') : null;
+    if (element && host.contains(element)) hoveredNode = Number(element.dataset.id);
+});
+
+// 押した位置にあるタグのキー。タグの並びは 1 つの文字列なので、押した文字の位置から、その位置を含む #... の塊を探す
+function tagKeyAt(element: Element, x: number, y: number): string | null {
+    const text = element.textContent ?? '';
+    let offset: number | null = null;
+    const range = document.caretRangeFromPoint?.(x, y);
+    if (range && element.contains(range.startContainer)) {
+        const before = document.createRange();
+        before.setStart(element, 0);
+        before.setEnd(range.startContainer, range.startOffset);
+        offset = before.toString().length;
+    }
+    const tokens = [...text.matchAll(/#(?:[^\s"]|"[^"]*")+/g)];
+    const token = offset === null ? tokens[0] : (tokens.find((match) => offset !== null && match.index <= offset && offset <= match.index + match[0].length) ?? tokens[0]);
+    return token ? (token[0].slice(1).split(':')[0] ?? null) : null;
+}
+
+// ノードのタグを押したら、そのノードを選び、押したタグの編集を開く
+function editTagAt(id: number, element: Element, event: MouseEvent): void {
+    if (!nodeOf(id)) return;
+    select({ type: 'node', id }, false);
+    const key = tagKeyAt(element, event.clientX, event.clientY);
+    openTagPanel('new', key !== null && ops.tagsOfNode(ctx, id).some((tag) => tag.key === key) ? key : null);
+}
 
 // ---- 詳細の見せ方 ------------------------------------------------------------------------------------------------
 
@@ -1420,11 +1454,28 @@ stage.addEventListener(
             event.stopPropagation();
             return;
         }
+        // 吹き出しの中: タグを押したらタグの編集。それ以外は図に任せる (選択は変えない)
+        const popover = target.closest('.mdag-popover');
+        if (popover) {
+            const tags = target.closest('.mdag-popover-tags');
+            if (tags && hoveredNode !== null && tool === 'select') {
+                event.stopPropagation();
+                editTagAt(hoveredNode, tags, event);
+            }
+            return;
+        }
         const box = target.closest('.mdag-box');
         const element = box?.closest<HTMLElement>('.mdag-node');
         if (box && element) {
             const id = Number(element.dataset.id);
             if (target.closest('a, .mdag-note-mark')) return;
+            // ノードの中のタグを押したら、そのタグの編集を開く
+            const tags = target.closest('.mdag-tags');
+            if (tags && tool === 'select' && !(event.shiftKey || event.metaKey || event.ctrlKey)) {
+                event.stopPropagation();
+                editTagAt(id, tags, event);
+                return;
+            }
             // タスクの絵のクリックは図に任せる (状態が進み、onChange で原文が届く)。それ以外のクリックは選ぶだけにする
             if (!isTaskIcon(target)) event.stopPropagation();
             if (tool === 'join') {
@@ -1480,12 +1531,32 @@ stage.addEventListener(
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel')) return;
         event.stopPropagation();
-        // ノードのダブルクリックは名前の変更、グループの枠かラベルならグループの名前の変更。
+        // ダブルクリックした部分で分ける。詳細 (ノードの中に開いたものと吹き出しの中のもの) は詳細の編集、
+        // タグはタグの編集、それ以外のノードの部分はラベル (名前) の変更、グループの枠かラベルならグループの名前の変更。
         // 何もないところのダブルクリックでは何もしない (図のズームもしない)
+        const popover = target.closest('.mdag-popover');
+        if (popover) {
+            if (hoveredNode === null || !nodeOf(hoveredNode)) return;
+            const id = hoveredNode;
+            const tags = target.closest('.mdag-popover-tags');
+            if (tags) editTagAt(id, tags, event);
+            else if (target.closest('.mdag-details')) {
+                select({ type: 'node', id }, false);
+                openDetailsEditor(id);
+            }
+            return;
+        }
         const element = target.closest('.mdag-box')?.closest<HTMLElement>('.mdag-node');
         const frame = target.closest<SVGElement>('.mdag-frames [data-group]');
-        if (element) startRename(Number(element.dataset.id), false);
-        else if (frame?.dataset.group) {
+        if (element) {
+            const id = Number(element.dataset.id);
+            const tags = target.closest('.mdag-tags');
+            if (tags) editTagAt(id, tags, event);
+            else if (target.closest('.mdag-details')) {
+                select({ type: 'node', id }, false);
+                openDetailsEditor(id);
+            } else startRename(id, false);
+        } else if (frame?.dataset.group) {
             const id = frame.dataset.group;
             select({ type: 'group', id }, false);
             startGroupRename(id);
