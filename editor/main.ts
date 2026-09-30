@@ -25,6 +25,16 @@ markdag:
     relations:
         depends:
             - 調査 --> 設計
+            - 実装 --> テスト
+    groups:
+        dev:
+            label: 開発
+            color: "#3B7DD8"
+            boundary: true
+        test:
+            label: テスト
+            color: "#E0A100"
+            boundary: true
 ---
 
 # 企画
@@ -37,7 +47,13 @@ markdag:
 - 画面
 - API
 
-## 実装
+## 実装 %dev
+- フロントエンド
+- バックエンド
+
+## テスト %test
+- 単体テスト
+- 結合テスト
 `;
 
 const EMPTY_SAMPLE = `# 新しいボード
@@ -86,6 +102,7 @@ const ICONS = {
     reverse: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>',
     group: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><rect x="6.5" y="9" width="6" height="4" rx="1"/><rect x="11.5" y="14" width="6" height="3.5" rx="1"/></svg>',
     ungroup: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2" stroke-dasharray="3 2.5"/><path d="M8 9l8 7M16 9l-8 7"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M15 3v4M13 5h4"/></svg>',
     tags: '<svg viewBox="0 0 24 24"><path d="M3 11V4h7l9 9-7 7z"/><circle cx="7" cy="8" r="1.3"/><path d="M13 4l9 9-6 6"/></svg>',
     note: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
@@ -159,6 +176,7 @@ app.innerHTML = `
                 <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}<span>進む</span></button>
                 <button class="ed-tool ed-fit" title="全体が収まる倍率に戻す (F)">${ICONS.fit}<span>ズームリセット</span></button>
             </nav>
+            <div class="ed-groups"></div>
             <div class="ed-hint"></div>
             <div class="ed-toast" hidden></div>
         </section>
@@ -290,6 +308,7 @@ function commit(next: string, options: CommitOptions = {}): void {
     updateUndoButtons();
     if (options.message) showToast(options.message);
     if (tagPanel.mode !== null) renderTagPanel();
+    renderGroupList();
     if (options.rename && selection?.type === 'node') {
         const id = selection.id;
         requestAnimationFrame(() => startRename(id, true, true));
@@ -453,6 +472,7 @@ function select(next: Selection, scrollText = true): void {
     if (lines && scrollText) scrollTextTo(lines.start);
     renderContextBar();
     updateHint();
+    renderGroupList();
 }
 
 // Shift / Ctrl / ⌘ クリックで、選択にノードを足す (選んであれば外す)
@@ -523,7 +543,7 @@ function renderContextBar(): void {
         button(ICONS.child, '子', '子を足す (Tab)', () => apply(ops.addChild(ctx, id), { rename: true }));
         if (!isRoot) button(ICONS.sibling, '兄弟', '兄弟を足す (名前の入力中に Enter)', () => apply(ops.addSibling(ctx, id), { rename: true }));
         const canWrite = ops.detailsOf(ctx, id) !== null;
-        const note = button(ICONS.note, '詳細', canWrite ? '詳細を書く (D)' : '詳細はリスト項目にだけ書けます (見出しには書けません)', () => openDetailsEditor(id));
+        const note = button(ICONS.note, '詳細編集', canWrite ? '詳細を書く (D)' : '詳細はリスト項目にだけ書けます (見出しには書けません)', () => openDetailsEditor(id));
         note.disabled = !canWrite;
         button(ICONS.tag, 'タグ追加', 'タグを付ける (T)。キーと値を入れる', () => openTagPanel('new'));
         button(ICONS.tags, 'タグ選択', '使っているタグから選んで付ける', () => openTagPanel('pick'));
@@ -1023,6 +1043,124 @@ function editTagAt(id: number, element: Element, event: MouseEvent): void {
     openTagPanel('new', key !== null && ops.tagsOfNode(ctx, id).some((tag) => tag.key === key) ? key : null);
 }
 
+// ---- グループの一覧 (右上。図の側の凡例の代わりに出し、編集もできるようにする) ---------------------------------------
+
+const groupList = $<HTMLDivElement>('.ed-groups');
+let groupListRenaming: string | null = null;
+let groupListCollapsed = false;
+
+function renderGroupList(): void {
+    if (!ctx) return;
+    const ids = selectedIds();
+    const counts = new Map<string, number>();
+    for (const groups of ctx.model.groupsOf.values()) for (const id of groups) counts.set(id, (counts.get(id) ?? 0) + 1);
+    const rows = ctx.model.groups
+        .map((group) => {
+            const color = group.color ?? '#888888';
+            const hex = /^#[0-9a-f]{6}$/i.test(color) ? color : '#888888';
+            const selected = selection?.type === 'group' && selection.id === group.id;
+            const name =
+                groupListRenaming === group.id
+                    ? `<input class="ed-group-input" value="${escapeHtml(group.label)}" aria-label="グループの名前">`
+                    : `<span class="ed-group-name" title="ダブルクリックで名前を変える">${escapeHtml(group.label)}</span>`;
+            return `<div class="ed-group-row${selected ? ' is-selected' : ''}" data-group="${escapeHtml(group.id)}">
+                <label class="ed-group-color" title="色を変える" style="--swatch:${escapeHtml(color)}"><input type="color" value="${hex}"></label>
+                ${name}
+                <span class="ed-group-count" title="入っているノードの数">${counts.get(group.id) ?? 0}</span>
+                <button class="ed-group-add" title="選んだノードをこのグループに入れる" ${ids.length === 0 ? 'disabled' : ''}>${ICONS.plus}</button>
+                <button class="ed-group-frame" title="枠を出す / 出さない" aria-pressed="${group.boundary}">枠</button>
+                <button class="ed-group-rename" title="名前を変える">${ICONS.rename}</button>
+                <button class="ed-group-delete" title="グループを解く (ノードは残る)">${ICONS.trash}</button>
+            </div>`;
+        })
+        .join('');
+    groupList.classList.toggle('is-collapsed', groupListCollapsed);
+    groupList.innerHTML = `
+        <div class="ed-groups-head">
+            <button class="ed-groups-toggle" title="一覧を畳む / 開く" aria-expanded="${!groupListCollapsed}">${ICONS.group}<span>グループ</span><small>${ctx.model.groups.length}</small></button>
+            <button class="ed-groups-new" title="新しいグループを作る (選んだノードがあれば入れる)">${ICONS.plus}<span>新規</span></button>
+        </div>
+        <div class="ed-groups-list">${rows || '<div class="ed-panel-empty">グループはまだありません</div>'}</div>`;
+    const input = groupList.querySelector<HTMLInputElement>('.ed-group-input');
+    if (input && document.activeElement !== input) {
+        input.focus();
+        input.select();
+    }
+}
+
+function finishGroupListRename(save: boolean): void {
+    const id = groupListRenaming;
+    if (id === null) return;
+    const value = groupList.querySelector<HTMLInputElement>('.ed-group-input')?.value ?? '';
+    groupListRenaming = null;
+    if (save) {
+        const result = ops.renameGroup(ctx, id, value);
+        if (result.ok) apply(result, { keep: true });
+        else if (result.message) showToast(result.message, 'error');
+    }
+    renderGroupList();
+}
+
+groupList.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest('.ed-groups-toggle')) {
+        groupListCollapsed = !groupListCollapsed;
+        renderGroupList();
+        return;
+    }
+    if (target.closest('.ed-groups-new')) {
+        if (selectedIds().length > 0) {
+            groupSelection();
+            return;
+        }
+        const result = ops.defineGroup(ctx);
+        if (apply(result) && result.ok && result.groupId) {
+            groupListRenaming = result.groupId;
+            renderGroupList();
+        }
+        return;
+    }
+    const row = target.closest<HTMLElement>('.ed-group-row');
+    const id = row?.dataset.group;
+    if (!row || !id || target.closest('.ed-group-input, .ed-group-color')) return;
+    const group = ctx.model.groups.find((item) => item.id === id);
+    if (target.closest('.ed-group-add')) apply(ops.addToGroup(ctx, selectedIds(), id), { keep: true });
+    else if (target.closest('.ed-group-frame')) apply(ops.setGroupField(ctx, id, 'boundary', !(group?.boundary ?? false)), { keep: true });
+    else if (target.closest('.ed-group-rename')) {
+        groupListRenaming = id;
+        renderGroupList();
+    } else if (target.closest('.ed-group-delete')) {
+        if (apply(ops.ungroup(ctx, id)) && selection?.type === 'group' && selection.id === id) select(null);
+    } else if (event.detail >= 2 && target.closest('.ed-group-name')) {
+        // 名前のダブルクリックで名前を変える。1 回目のクリックで一覧を描き直すので、dblclick ではなくクリックの回数で見る
+        groupListRenaming = id;
+        renderGroupList();
+    } else if (event.detail < 2) select(selection?.type === 'group' && selection.id === id ? null : { type: 'group', id });
+});
+groupList.addEventListener('dblclick', (event) => event.stopPropagation());
+groupList.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (!(event.target instanceof HTMLInputElement) || !event.target.classList.contains('ed-group-input') || event.isComposing) return;
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        finishGroupListRename(true);
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        finishGroupListRename(false);
+    }
+});
+groupList.addEventListener('focusout', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.classList.contains('ed-group-input') && groupListRenaming !== null) finishGroupListRename(true);
+});
+groupList.addEventListener('change', (event) => {
+    const input = event.target instanceof HTMLInputElement && event.target.type === 'color' ? event.target : null;
+    const id = input?.closest<HTMLElement>('.ed-group-row')?.dataset.group;
+    if (input && id) apply(ops.setGroupField(ctx, id, 'color', input.value), { keep: true });
+});
+for (const type of ['pointerdown', 'mousedown', 'wheel'] as const) groupList.addEventListener(type, (event) => event.stopPropagation());
+
 // ---- 詳細の見せ方 ------------------------------------------------------------------------------------------------
 
 const detailsModeBox = $<HTMLDivElement>('.ed-details-mode');
@@ -1296,6 +1434,7 @@ stage.addEventListener(
         // 詳細の入力欄の外を押したら保存して閉じる (範囲選択やドラッグで既定の動作を止めると、フォーカスが移らず focusout が来ない)
         if (detailsEditing !== null && !target.closest('.ed-details-editor')) closeDetailsEditor(true);
         if (tagPanel.mode !== null && !target.closest('.ed-tag-panel, .ed-tools')) closeTagPanel();
+        if (target.closest('.ed-groups')) return;
         if (renaming) return;
         // 原文の欄などにフォーカスが残ったままだと、Backspace や Enter がそちらへ入るので、キャンバスへ移す
         // (ノードのドラッグで pointerdown の既定の動作を止めるため、ブラウザはフォーカスを移さない)
@@ -1449,7 +1588,7 @@ stage.addEventListener(
     'click',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor, .ed-tag-panel')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor, .ed-tag-panel, .ed-groups')) return;
         if (suppressClick) {
             event.stopPropagation();
             return;
@@ -1529,7 +1668,7 @@ stage.addEventListener(
     'dblclick',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel, .ed-groups')) return;
         event.stopPropagation();
         // ダブルクリックした部分で分ける。詳細 (ノードの中に開いたものと吹き出しの中のもの) は詳細の編集、
         // タグはタグの編集、それ以外のノードの部分はラベル (名前) の変更、グループの枠かラベルならグループの名前の変更。
@@ -1858,6 +1997,7 @@ renderMirror();
 showDiagnostics(diagram.diagnostics);
 setTool('select');
 setDetailsMode(detailsMode, false);
+renderGroupList();
 updateUndoButtons();
 fitView();
 requestAnimationFrame(positionOverlay);

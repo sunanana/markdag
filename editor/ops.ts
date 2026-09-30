@@ -850,11 +850,7 @@ export function addGroup(ctx: EditContext, ids: number[]): EditResult & { groupI
         for (let parent = node.parent; parent !== null; parent = nodes[parent - 1]?.parent ?? null) if (chosen.has(parent)) return true;
         return false;
     };
-    const taken = new Set(ctx.model.groups.map((group) => group.id));
-    let index = 1;
-    while (taken.has(`group${index}`)) index++;
-    const id = `group${index}`;
-    const label = `グループ ${index}`;
+    const { id, label, index } = nextGroupId(ctx);
     const lines = splitLines(ctx.source);
     for (const nodeId of chosen) {
         const node = nodeById(ctx, nodeId);
@@ -868,6 +864,66 @@ export function addGroup(ctx: EditContext, ids: number[]): EditResult & { groupI
         return { ok: false, message: 'frontmatter の markdag.groups が flow 形式などで、書き足せません' };
     }
     return { ok: true, source: lines.join('\n'), message: `${chosen.size} 個のノードを「${label}」にまとめました`, groupId: id };
+}
+
+// 使われていないグループの名前 (group1, group2, ...) と、既定のラベル
+function nextGroupId(ctx: EditContext): { id: string; label: string; index: number } {
+    const taken = new Set(ctx.model.groups.map((group) => group.id));
+    let index = 1;
+    while (taken.has(`group${index}`)) index++;
+    return { id: `group${index}`, label: `グループ ${index}`, index };
+}
+
+// メンバーのいないグループを定義だけ作る (一覧の「新規」)。あとからノードを入れる
+export function defineGroup(ctx: EditContext): EditResult & { groupId?: string } {
+    const { id, label, index } = nextGroupId(ctx);
+    const lines = splitLines(ctx.source);
+    const color = GROUP_COLORS[(index - 1) % GROUP_COLORS.length] ?? GROUP_COLORS[0];
+    if (!appendGroup(lines, id, [`label: ${yamlScalar(label)}`, `color: "${color}"`, 'boundary: true'])) {
+        return { ok: false, message: 'frontmatter の markdag.groups が flow 形式などで、書き足せません' };
+    }
+    return { ok: true, source: lines.join('\n'), message: `「${label}」を作りました`, groupId: id };
+}
+
+// 選んだノードを、あるグループに入れる。1 行目に %名前 を足す。すでに (祖先から引き継いで) 入っているノードと、
+// 選んだノードの子孫には足さない
+export function addToGroup(ctx: EditContext, ids: number[], groupId: string): EditResult {
+    const nodes = ctx.parsed.nodes;
+    const chosen = new Set(ids.filter((id) => nodeById(ctx, id)?.parent !== null && !(ctx.model.groupsOf.get(id) ?? []).includes(groupId)));
+    const lines = splitLines(ctx.source);
+    let added = 0;
+    for (const id of chosen) {
+        const node = nodeById(ctx, id);
+        if (!node?.lines) continue;
+        let inherited = false;
+        for (let parent = node.parent; parent !== null; parent = nodes[parent - 1]?.parent ?? null) if (chosen.has(parent)) inherited = true;
+        if (inherited) continue;
+        const first = parseFirstLine(lines[node.lines.start] ?? '');
+        if (!first) continue;
+        lines[node.lines.start] = joinFirstLine({ ...first, marks: `${first.marks} %${groupId}` });
+        added++;
+    }
+    if (added === 0) return { ok: false, message: 'そのノードはもうグループに入っています' };
+    const label = ctx.model.groups.find((group) => group.id === groupId)?.label ?? groupId;
+    return { ok: true, source: lines.join('\n'), message: `${added} 個のノードを「${label}」に入れました` };
+}
+
+// グループの定義の項目 (color、boundary) を書き換える。定義がなければ足す
+export function setGroupField(ctx: EditContext, id: string, field: 'color' | 'boundary', value: string | boolean): EditResult {
+    const lines = splitLines(ctx.source);
+    const text = typeof value === 'boolean' ? String(value) : `"${value.replace(/"/g, '')}"`;
+    const block = findPath(lines, ['markdag', 'groups', id]);
+    if (!block) {
+        if (!appendGroup(lines, id, [`${field}: ${text}`])) return { ok: false, message: 'frontmatter の markdag.groups が flow 形式などで、書き足せません' };
+        return { ok: true, source: lines.join('\n') };
+    }
+    if (block.inline !== '') return { ok: false, message: 'このグループの定義は flow 形式で、書き換えられません' };
+    const fieldIndent = childIndentOf(lines, block) ?? block.indent + 4;
+    const found = findKey(lines, block.line + 1, block.end, fieldIndent, field);
+    const line = `${' '.repeat(fieldIndent)}${field}: ${text}`;
+    if (found) lines[found.line] = line;
+    else lines.splice(block.end, 0, line);
+    return { ok: true, source: lines.join('\n') };
 }
 
 // グループの名前 (枠と凡例に出る label) を変える。定義がなければ label だけの定義を足す

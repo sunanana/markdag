@@ -1,7 +1,7 @@
 // 図の側の編集 (editor/ops.ts) が、原文を狙いどおりに書き換えるかを、書き換えたあとの原文を解析し直して確かめる
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { addChild, addGroup, addJoin, detailsOf, normalizeTag, registeredTags, addTagValue, removeTag, removeTagValue, setDetails, setTag, tagsOfNode, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
+import { addChild, addGroup, addJoin, addToGroup, defineGroup, setGroupField, detailsOf, normalizeTag, registeredTags, addTagValue, removeTag, removeTagValue, setDetails, setTag, tagsOfNode, addJoinNode, addRelation, addSibling, deleteEdge, deleteNode, moveNode, renameGroup, renameNode, reverseEdge, ungroup, type EditContext, type EditResult } from '../editor/ops';
 import { buildModel } from '../src/model/model';
 import { parseDocument } from '../src/parse/document';
 
@@ -320,6 +320,26 @@ describe('グループ', () => {
         // 定義がない (印だけの) グループには label の定義を足す
         const markOnly = sourceOf(renameGroup(contextOf('# R\n\n## a %team\n'), 'team', 'チーム'));
         expect(labelOfGroup(markOnly, 'team')).toBe('チーム');
+    });
+
+    test('メンバーのいないグループを作り、あとからノードを入れる。色と枠の有無を変える', () => {
+        const created = defineGroup(contextOf(SIMPLE));
+        const defined = sourceOf(created);
+        expect(created.ok && created.groupId).toBe('group1');
+        expect(labelOfGroup(defined, 'group1')).toBe('グループ 1');
+        const ctx = contextOf(defined);
+        const added = sourceOf(addToGroup(ctx, [byName(ctx, 'A'), byName(ctx, 'x'), byName(ctx, 'B')], 'group1'));
+        expect(added).toContain('## A %group1\n- x\n');
+        expect(groupsOf(added, 'y')).toEqual(['group1']);
+        expect(groupsOf(added, 'C')).toEqual(['group1']);
+        // もう入っているノードには足さない
+        expect(addToGroup(contextOf(added), [byName(contextOf(added), 'x')], 'group1').ok).toBe(false);
+        const colored = sourceOf(setGroupField(contextOf(added), 'group1', 'color', '#123456'));
+        expect(colored).toContain('            color: "#123456"\n');
+        const unframed = sourceOf(setGroupField(contextOf(colored), 'group1', 'boundary', false));
+        expect(unframed).toContain('            boundary: false\n');
+        expect(contextOf(unframed).model.groups.find((group) => group.id === 'group1')).toMatchObject({ color: '#123456', boundary: false });
+        expect(errorsOf(unframed)).toEqual([]);
     });
 
     test('グループを解くと、印と定義が外れ、空になった groups も外れる', () => {
