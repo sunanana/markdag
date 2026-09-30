@@ -133,3 +133,9 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--ed-accent)
     .ed-tools { left: 50%; top: auto; bottom: 10px; transform: translateX(-50%); flex-direction: row; }
     .ed-tools hr { width: 1px; height: auto; margin: 0 4px; border-top: 0; border-left: 1px solid var(--ed-border); }
 }
+
+/* 複数選択と範囲選択 (合流させるノードを選ぶ) */
+.ed-multi .ed-sel::after { content: attr(data-order); position: absolute; left: -9px; top: -9px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--ed-accent); color: var(--ed-canvas); font: 700 10px/16px system-ui; text-align: center; }
+.ed-marquee { position: absolute; border: 1.5px dashed var(--ed-accent); background: var(--ed-accent-soft); border-radius: 2px; }
+.ed-stage[data-tool='join'] .mdag-box { cursor: crosshair; }
+.ed-stage[data-tool='join'] .mdag-box:hover { outline: 2px dashed var(--ed-accent); outline-offset: 3px; }

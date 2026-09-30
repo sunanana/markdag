@@ -62,8 +62,10 @@ const SAMPLES: Record<string, { label: string; text: string }> = {
     empty: { label: '空のボード', text: EMPTY_SAMPLE },
 };
 
-type Tool = 'select' | 'connect' | 'add';
-type Selection = { type: 'node'; id: number } | { type: 'edge'; key: string } | null;
+// join は「既存のノードへ合流」で、合流先のノードを選んでいるところ
+type Tool = 'select' | 'connect' | 'add' | 'join';
+// nodes は Shift / Ctrl / ⌘ クリックか Shift ドラッグで 2 つ以上選んだとき (選んだ順)
+type Selection = { type: 'node'; id: number } | { type: 'nodes'; ids: number[] } | { type: 'edge'; key: string } | null;
 
 const ICONS = {
     select: '<svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg>',
@@ -77,6 +79,8 @@ const ICONS = {
     sibling: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="6" rx="1.5"/><path d="M12 13v7M8.5 16.5h7"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13"/></svg>',
     reverse: '<svg viewBox="0 0 24 24"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>',
+    join: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7M3 12h12"/><path d="M15 9l4 3-4 3"/><circle cx="20.5" cy="12" r="1.2"/></svg>',
+    merge: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7"/><rect x="15" y="9" width="6" height="6" rx="1.5"/></svg>',
 };
 
 // ---- 画面の組み立て ----------------------------------------------------------------------------------------------
@@ -109,6 +113,8 @@ app.innerHTML = `
                 <svg class="ed-wire" style="display:none"><path/><circle r="4"/></svg>
                 <div class="ed-target" hidden></div>
                 <div class="ed-sel" hidden></div>
+                <div class="ed-multi"></div>
+                <div class="ed-marquee" hidden></div>
                 <div class="ed-handle ed-handle-connect" title="ドラッグしてほかのノードへ線を引く" hidden></div>
                 <div class="ed-handle ed-handle-add ed-handle-child" title="子を足す (Tab)" hidden>+</div>
                 <div class="ed-handle ed-handle-add ed-handle-sibling" title="兄弟を足す (Enter)" hidden>+</div>
@@ -118,6 +124,7 @@ app.innerHTML = `
                 <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)">${ICONS.select}</button>
                 <button class="ed-tool" data-tool="connect" title="線を引く (C)">${ICONS.connect}</button>
                 <button class="ed-tool" data-tool="add" title="ノードを足す (N)">${ICONS.add}</button>
+                <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。Shift+クリックか Shift+ドラッグで 2 つ以上選んでから">${ICONS.join}</button>
                 <hr>
                 <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}</button>
                 <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}</button>
@@ -142,6 +149,8 @@ const mirror = $<HTMLDivElement>('.ed-mirror');
 const diagBox = $<HTMLDivElement>('.ed-diag');
 const linesLabel = $<HTMLSpanElement>('.ed-lines');
 const selFrame = $<HTMLDivElement>('.ed-sel');
+const multiLayer = $<HTMLDivElement>('.ed-multi');
+const marqueeBox = $<HTMLDivElement>('.ed-marquee');
 const targetFrame = $<HTMLDivElement>('.ed-target');
 const connectHandle = $<HTMLDivElement>('.ed-handle-connect');
 const childHandle = $<HTMLDivElement>('.ed-handle-child');
@@ -169,6 +178,8 @@ const undoStack: string[] = [];
 const redoStack: string[] = [];
 // 線を引く道具で、1 回目のクリックで選んだ始点
 let connectFrom: number | null = null;
+// 「既存のノードへ合流」で、合流させるノード
+let joinSources: number[] = [];
 let renaming: { id: number; input: HTMLInputElement } | null = null;
 
 function contextOf(text: string): ops.EditContext {
@@ -224,9 +235,13 @@ function commit(next: string, options: CommitOptions = {}): void {
         const found = ctx.parsed.nodes.find((node) => node.lines?.start === options.focusLine);
         selection = found ? { type: 'node', id: found.id } : null;
     } else if (selection?.type === 'node' && !nodeOf(selection.id)) selection = null;
+    // 複数選択は、書き換えで id がずれるので解く
+    else if (selection?.type === 'nodes') selection = null;
     else if (selection?.type === 'edge' && !host.querySelector(`.mdag-edge[data-key="${CSS.escape(selection.key)}"]`)) selection = null;
     if (selection?.type === 'node') diagram.view.revealNode(selection.id);
     if (selection?.type !== 'edge') diagram.view.selectEdge(null);
+    renderContextBar();
+    updateHint();
 
     if (!options.fromText) writeText(next, changedLines(previous, next));
     else renderMirror(changedLines(previous, next));
@@ -328,7 +343,7 @@ function renderMirror(changed: Set<number> = new Set()): void {
         ...lines.map((line, index) => {
             const row = document.createElement('div');
             row.textContent = line || ' ';
-            if (selected && index >= selected.start && index < selected.end) row.className = 'is-selected';
+            if (selected.some((range) => index >= range.start && index < range.end)) row.className = 'is-selected';
             if (flashLines.has(index)) row.classList.add('is-flash');
             return row;
         }),
@@ -339,13 +354,18 @@ function renderMirror(changed: Set<number> = new Set()): void {
 
 // 選んだノードの行だけを塗り直す (変わった行の点滅は残す)
 function paintSelectedLines(): void {
-    const selected = selectedLines();
-    [...mirror.children].forEach((row, index) => row.classList.toggle('is-selected', selected !== null && index >= selected.start && index < selected.end));
+    const ranges = selectedLines();
+    [...mirror.children].forEach((row, index) => row.classList.toggle('is-selected', ranges.some((range) => index >= range.start && index < range.end)));
 }
 
-function selectedLines(): { start: number; end: number } | null {
-    if (selection?.type !== 'node') return null;
-    return nodeOf(selection.id)?.lines ?? null;
+function selectedIds(): number[] {
+    if (selection?.type === 'node') return [selection.id];
+    if (selection?.type === 'nodes') return selection.ids;
+    return [];
+}
+
+function selectedLines(): Array<{ start: number; end: number }> {
+    return selectedIds().flatMap((id) => nodeOf(id)?.lines ?? []);
 }
 
 function syncMirrorScroll(): void {
@@ -384,10 +404,52 @@ function select(next: Selection, scrollText = true): void {
     if (next?.type === 'edge') diagram.view.selectEdge(next.key);
     else diagram.view.selectEdge(null);
     paintSelectedLines();
-    const lines = selectedLines();
+    const lines = selectedLines()[0];
     if (lines && scrollText) scrollTextTo(lines.start);
     renderContextBar();
     updateHint();
+}
+
+// Shift / Ctrl / ⌘ クリックで、選択にノードを足す (選んであれば外す)
+function toggleNode(id: number): void {
+    const ids = selectedIds();
+    const next = ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id];
+    select(next.length === 0 ? null : next.length === 1 ? { type: 'node', id: next[0] ?? id } : { type: 'nodes', ids: next });
+}
+
+// 選んだノードを、新しく作る合流先へ合流させる。合流先はすぐ名前を入れられるようにする
+function joinIntoNewNode(): void {
+    const ids = selectedIds();
+    if (ids.length < 2) {
+        showToast('Shift+クリックか Shift+ドラッグで、合流させるノードを 2 つ以上選んでください', 'error');
+        return;
+    }
+    apply(ops.addJoinNode(ctx, ids, '合流点', contextOf), { rename: true });
+}
+
+// 選んだノードを、次にクリックする既存のノードへ合流させる
+function startJoinToExisting(): void {
+    joinSources = selectedIds();
+    if (joinSources.length === 0) return;
+    setTool('join');
+}
+
+// 複数のノードを消す。後ろのノードから消せば、前のノードの id は変わらない。1 回の取り消しで戻せるよう、まとめて反映する
+function deleteNodes(ids: number[]): void {
+    let current = ctx;
+    let removed = 0;
+    for (const id of [...ids].sort((a, b) => b - a)) {
+        const result = ops.deleteNode(current, id);
+        if (!result.ok) continue;
+        current = contextOf(result.source);
+        removed++;
+    }
+    if (removed === 0) {
+        showToast('消せるノードがありません', 'error');
+        return;
+    }
+    select(null);
+    commit(current.source, { message: `${removed} 個のノードを消しました` });
 }
 
 function renderContextBar(): void {
@@ -423,6 +485,17 @@ function renderContextBar(): void {
             separator();
             button(ICONS.trash, '削除', '配下ごと消す (Delete)', () => apply(ops.deleteNode(ctx, id)), true);
         }
+    } else if (selection?.type === 'nodes') {
+        const ids = selection.ids;
+        const label = document.createElement('span');
+        label.style.cssText = 'align-self:center;padding:0 8px;font-size:12px;color:var(--ed-muted)';
+        label.textContent = `${ids.length} 個を選択`;
+        ctxBar.append(label);
+        separator();
+        button(ICONS.merge, '合流ノードを作る', '選んだノードから、新しいノードへ合流させる (J)', joinIntoNewNode);
+        button(ICONS.join, '既存のノードへ合流', '選んだノードから、次にクリックするノードへ合流させる', startJoinToExisting);
+        separator();
+        button(ICONS.trash, '削除', '選んだノードを配下ごと消す (Delete)', () => deleteNodes(ids), true);
     } else if (selection?.type === 'edge') {
         const edge = ops.parseEdgeKey(selection.key);
         if (!edge) return;
@@ -450,6 +523,7 @@ function fitView(): void {
 function setTool(next: Tool): void {
     tool = next;
     connectFrom = null;
+    if (next !== 'join') joinSources = [];
     stage.dataset.tool = next;
     for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool[data-tool]')) button.setAttribute('aria-pressed', String(button.dataset.tool === next));
     updateHint();
@@ -458,11 +532,13 @@ function setTool(next: Tool): void {
 function updateHint(): void {
     const k = (key: string): string => `<kbd>${key}</kbd>`;
     let text: string;
-    if (tool === 'connect') text = connectFrom === null ? '線の始点のノードをクリック (またはノードからドラッグ)' : `「${nameOf(connectFrom)}」から線を引く先のノードをクリック ${k('Esc')} でやめる`;
+    if (tool === 'join') text = `${joinSources.length} 個のノードを合流させる先のノードをクリック ${k('Esc')} でやめる`;
+    else if (tool === 'connect') text = connectFrom === null ? '線の始点のノードをクリック (またはノードからドラッグ)' : `「${nameOf(connectFrom)}」から線を引く先のノードをクリック ${k('Esc')} でやめる`;
     else if (tool === 'add') text = 'ノードをクリックで子を足す / 何もないところをクリックで最上位に足す';
-    else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 ${k('←↑↓→')} 移動 / ドラッグでほかのノードの下へ`;
+    else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ ${k('Shift')}+クリックで複数選んで合流`;
+    else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 ${k('Shift')}+クリックで追加・解除 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
-    else text = `クリックで選ぶ / ダブルクリックでノードを足す / ノードの右の点をドラッグで線を引く ${k('Ctrl+Z')} 戻す`;
+    else text = `クリックで選ぶ ${k('Shift')}+クリック / ${k('Shift')}+ドラッグで複数選ぶ / ダブルクリックでノードを足す / 右の点をドラッグで線を引く`;
     hint.innerHTML = text;
 }
 
@@ -561,24 +637,50 @@ function positionOverlay(): void {
     const box = selection?.type === 'node' ? boxOf(selection.id) : null;
     const showNode = isVisible(box) && !drag;
     selFrame.hidden = !showNode;
-    connectHandle.hidden = !showNode || tool !== 'select';
     childHandle.hidden = !showNode || tool !== 'select';
     siblingHandle.hidden = !showNode || tool !== 'select' || nodeOf(selection?.type === 'node' ? selection.id : 0)?.parent === null;
     let anchor: DOMRect | null = null;
+    let connectAt: { x: number; y: number } | null = null;
     if (showNode && box) {
         const rect = localRect(box);
         anchor = rect;
         Object.assign(selFrame.style, { left: `${rect.left - 5}px`, top: `${rect.top - 4}px`, width: `${rect.width + 10}px`, height: `${rect.height + 8}px` });
         // 右下には開閉の円が来るので、つまみは右上に並べる
-        place(connectHandle, rect.right + 7, rect.top);
+        connectAt = { x: rect.right + 7, y: rect.top };
         place(childHandle, rect.right + 30, rect.top);
         place(siblingHandle, rect.left + rect.width / 2, rect.bottom + 18);
     }
+    // 複数選択は、選んだノードごとに枠を出し、線を引くつまみは全体の右端の中ほどに置く
+    const multi = selection?.type === 'nodes' && (!drag || drag.kind === 'connect') ? selection.ids : [];
+    while (multiLayer.children.length < multi.length) {
+        const frame = document.createElement('div');
+        frame.className = 'ed-sel';
+        multiLayer.append(frame);
+    }
+    let union: DOMRect | null = null;
+    [...multiLayer.children].forEach((child, index) => {
+        const frame = child as HTMLElement;
+        const id = multi[index];
+        const found = id === undefined ? null : boxOf(id);
+        frame.hidden = !isVisible(found);
+        if (frame.hidden || !found) return;
+        const rect = localRect(found);
+        Object.assign(frame.style, { left: `${rect.left - 5}px`, top: `${rect.top - 4}px`, width: `${rect.width + 10}px`, height: `${rect.height + 8}px` });
+        frame.dataset.order = String(index + 1);
+        union = union === null ? rect : unionRect(union, rect);
+    });
+    if (union !== null && !drag && !marquee) {
+        const rect: DOMRect = union;
+        anchor = rect;
+        connectAt = { x: rect.right + 18, y: rect.top + rect.height / 2 };
+    }
+    connectHandle.hidden = connectAt === null || tool !== 'select';
+    if (connectAt) place(connectHandle, connectAt.x, connectAt.y);
     if (selection?.type === 'edge') {
         const path = host.querySelector(`path.mdag-edge[data-key="${CSS.escape(selection.key)}"]`);
         if (path) anchor = localRect(path);
     }
-    ctxBar.hidden = anchor === null || drag !== null || renaming !== null;
+    ctxBar.hidden = anchor === null || drag !== null || renaming !== null || marquee !== null;
     if (anchor && !ctxBar.hidden) {
         const width = ctxBar.offsetWidth;
         const x = Math.min(Math.max(8, anchor.left + anchor.width / 2 - width / 2), stage.clientWidth - width - 8);
@@ -586,8 +688,13 @@ function positionOverlay(): void {
         place(ctxBar, x, above > 8 ? above : anchor.bottom + (selection?.type === 'node' ? 34 : 12));
     }
     positionRename();
-    fitView();
-requestAnimationFrame(positionOverlay);
+    requestAnimationFrame(positionOverlay);
+}
+
+function unionRect(a: DOMRect, b: DOMRect): DOMRect {
+    const left = Math.min(a.left, b.left);
+    const top = Math.min(a.top, b.top);
+    return new DOMRect(left, top, Math.max(a.right, b.right) - left, Math.max(a.bottom, b.bottom) - top);
 }
 
 // ---- ドラッグ (線を引く / ほかのノードの下へ移す) -----------------------------------------------------------------
@@ -595,6 +702,8 @@ requestAnimationFrame(positionOverlay);
 interface Drag {
     kind: 'connect' | 'move';
     from: number;
+    // 線を引くときの始点。複数選択から引くと 2 つ以上になり、離したノードへ合流させる
+    sources: number[];
     start: { x: number; y: number };
     active: boolean;
     target: number | null;
@@ -603,6 +712,8 @@ interface Drag {
 }
 let drag: Drag | null = null;
 let suppressClick = false;
+// Shift+ドラッグの範囲選択。base はドラッグを始める前に選んでいたノード
+let marquee: { start: { x: number; y: number }; base: number[]; pointerId: number; moved: boolean } | null = null;
 
 function nodeIdAt(x: number, y: number): number | null {
     const hit = document.elementFromPoint(x, y);
@@ -610,8 +721,8 @@ function nodeIdAt(x: number, y: number): number | null {
     return element && host.contains(element) ? Number(element.dataset.id) : null;
 }
 
-function beginDrag(kind: Drag['kind'], from: number, event: PointerEvent): void {
-    drag = { kind, from, start: { x: event.clientX, y: event.clientY }, active: kind === 'connect', target: null, ghost: null, pointerId: event.pointerId };
+function beginDrag(kind: Drag['kind'], from: number, event: PointerEvent, sources: number[] = [from]): void {
+    drag = { kind, from, sources, start: { x: event.clientX, y: event.clientY }, active: kind === 'connect', target: null, ghost: null, pointerId: event.pointerId };
     if (kind === 'connect') stage.classList.add('is-dragging');
 }
 
@@ -632,7 +743,7 @@ function moveDrag(event: PointerEvent): void {
     const y = event.clientY - stageRect.top;
     if (drag.ghost) place(drag.ghost, x, y);
     const over = nodeIdAt(event.clientX, event.clientY);
-    drag.target = over !== null && over !== drag.from ? over : null;
+    drag.target = over !== null && over !== drag.from && !drag.sources.includes(over) ? over : null;
     const targetBox = drag.target !== null ? boxOf(drag.target) : null;
     targetFrame.hidden = !targetBox;
     if (targetBox) {
@@ -640,16 +751,27 @@ function moveDrag(event: PointerEvent): void {
         Object.assign(targetFrame.style, { left: `${rect.left - 5}px`, top: `${rect.top - 4}px`, width: `${rect.width + 10}px`, height: `${rect.height + 8}px` });
     }
     if (drag.kind === 'connect') {
-        const fromBox = boxOf(drag.from);
-        if (!fromBox) return;
-        const rect = localRect(fromBox);
-        const sx = rect.right + 7;
-        const sy = rect.top;
         const tx = targetBox ? localRect(targetBox).left - 4 : x;
         const ty = targetBox ? localRect(targetBox).top + localRect(targetBox).height / 2 : y;
-        const bend = Math.max(40, Math.abs(tx - sx) / 2);
+        // 1 つからなら右上のつまみから、複数からならそれぞれの右端の中ほどから、1 点へ集まる線を引く
+        const starts = drag.sources.flatMap((id) => {
+            const found = boxOf(id);
+            if (!isVisible(found)) return [];
+            const rect = localRect(found);
+            return drag && drag.sources.length === 1 ? [{ x: rect.right + 7, y: rect.top }] : [{ x: rect.right + 2, y: rect.top + rect.height / 2 }];
+        });
+        const paths = wire.querySelectorAll('path');
+        for (let index = paths.length; index < starts.length; index++) wire.insertBefore(document.createElementNS('http://www.w3.org/2000/svg', 'path'), wire.querySelector('circle'));
+        wire.querySelectorAll('path').forEach((path, index) => {
+            const start = starts[index];
+            if (!start) {
+                path.setAttribute('d', '');
+                return;
+            }
+            const bend = Math.max(40, Math.abs(tx - start.x) / 2);
+            path.setAttribute('d', `M${start.x},${start.y} C${start.x + bend},${start.y} ${tx - bend},${ty} ${tx},${ty}`);
+        });
         wire.style.display = '';
-        wire.querySelector('path')?.setAttribute('d', `M${sx},${sy} C${sx + bend},${sy} ${tx - bend},${ty} ${tx},${ty}`);
         const dot = wire.querySelector('circle');
         dot?.setAttribute('cx', String(tx));
         dot?.setAttribute('cy', String(ty));
@@ -671,7 +793,9 @@ function endDrag(event: PointerEvent): void {
         if (finished.kind === 'move') showToast('ほかのノードの上で離すと、その下へ移ります');
         return;
     }
-    if (finished.kind === 'connect') {
+    if (finished.kind === 'connect' && finished.sources.length > 1) {
+        apply(ops.addJoin(ctx, finished.sources, finished.target));
+    } else if (finished.kind === 'connect') {
         if (apply(ops.addRelation(ctx, finished.from, finished.target))) selectNewEdge(finished.from, finished.target);
     } else {
         apply(ops.moveNode(ctx, finished.from, finished.target), {});
@@ -696,10 +820,31 @@ stage.addEventListener(
             beginDrag('connect', selection.id, event);
             return;
         }
+        if (target === connectHandle && selection?.type === 'nodes') {
+            event.preventDefault();
+            event.stopPropagation();
+            beginDrag('connect', selection.ids[selection.ids.length - 1] ?? 0, event, selection.ids);
+            return;
+        }
         const box = target.closest('.mdag-box');
         const element = box?.closest<HTMLElement>('.mdag-node');
-        if (!box || !element || target.closest('a, .mdag-note-mark, input, button')) return;
+        if (!box || !element) {
+            // 何もないところからの Shift+ドラッグは、図を動かさずに範囲で選ぶ
+            if (event.shiftKey && tool === 'select' && target.closest('.mdag-viewport') && !target.closest('.mdag-edge-hit, .mdag-fold, .mdag-legend, .mdag-popover')) {
+                event.preventDefault();
+                event.stopPropagation();
+                marquee = { start: { x: event.clientX, y: event.clientY }, base: selectedIds(), pointerId: event.pointerId, moved: false };
+            }
+            return;
+        }
+        if (target.closest('a, .mdag-note-mark, input, button')) return;
         const id = Number(element.dataset.id);
+        // Shift / Ctrl / ⌘ を押しながらのクリックは選択に足すだけにする (ドラッグで付け替えず、文字の選択も広げない)
+        if (event.shiftKey || event.metaKey || event.ctrlKey) {
+            event.preventDefault();
+            window.getSelection()?.removeAllRanges();
+            return;
+        }
         if (tool === 'connect') {
             event.preventDefault();
             beginDrag('connect', connectFrom ?? id, event);
@@ -710,9 +855,65 @@ stage.addEventListener(
     },
     { capture: true },
 );
-window.addEventListener('pointermove', moveDrag);
-window.addEventListener('pointerup', endDrag);
+// 範囲選択の間は、図のパン (d3-zoom は mousedown で始まる) を止める
+stage.addEventListener(
+    'mousedown',
+    (event) => {
+        if (marquee) event.stopPropagation();
+    },
+    { capture: true },
+);
+
+function moveMarquee(event: PointerEvent): void {
+    if (!marquee || event.pointerId !== marquee.pointerId) return;
+    if (!marquee.moved && Math.hypot(event.clientX - marquee.start.x, event.clientY - marquee.start.y) < 4) return;
+    marquee.moved = true;
+    const stageRect = stage.getBoundingClientRect();
+    const left = Math.min(marquee.start.x, event.clientX);
+    const top = Math.min(marquee.start.y, event.clientY);
+    const right = Math.max(marquee.start.x, event.clientX);
+    const bottom = Math.max(marquee.start.y, event.clientY);
+    marqueeBox.hidden = false;
+    Object.assign(marqueeBox.style, { left: `${left - stageRect.left}px`, top: `${top - stageRect.top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+    // 範囲にかかったノードを、選んでいたノードの後ろに足す (ルートは合流の始点にならないので外す)
+    const hits = [...host.querySelectorAll<HTMLElement>('.mdag-node')]
+        .filter((element) => {
+            const found = element.querySelector('.mdag-box');
+            if (!isVisible(found)) return false;
+            const rect = found.getBoundingClientRect();
+            return rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top;
+        })
+        .map((element) => Number(element.dataset.id))
+        .filter((id) => nodeOf(id)?.parent !== null && !marquee?.base.includes(id))
+        .sort((a, b) => a - b);
+    const ids = [...marquee.base, ...hits];
+    selection = ids.length === 0 ? null : ids.length === 1 ? { type: 'node', id: ids[0] ?? 0 } : { type: 'nodes', ids };
+}
+
+function endMarquee(event: PointerEvent): void {
+    if (!marquee || event.pointerId !== marquee.pointerId) return;
+    const finished = marquee;
+    marquee = null;
+    marqueeBox.hidden = true;
+    if (!finished.moved) return;
+    suppressClick = true;
+    window.setTimeout(() => (suppressClick = false), 0);
+    select(selection);
+}
+
+window.addEventListener('pointermove', (event) => {
+    moveDrag(event);
+    moveMarquee(event);
+});
+window.addEventListener('pointerup', (event) => {
+    endDrag(event);
+    endMarquee(event);
+});
 window.addEventListener('pointercancel', (event) => {
+    if (marquee && event.pointerId === marquee.pointerId) {
+        marquee = null;
+        marqueeBox.hidden = true;
+    }
     if (drag && event.pointerId === drag.pointerId) {
         drag.ghost?.remove();
         drag = null;
@@ -744,7 +945,14 @@ stage.addEventListener(
             if (target.closest('a, .mdag-note-mark')) return;
             // タスクの絵のクリックは図に任せる (状態が進み、onChange で原文が届く)。それ以外のクリックは選ぶだけにする
             if (!isTaskIcon(target)) event.stopPropagation();
-            if (tool === 'add') {
+            if (tool === 'join') {
+                const sources = joinSources;
+                setTool('select');
+                apply(ops.addJoin(ctx, sources, id));
+            } else if (tool === 'select' && (event.shiftKey || event.metaKey || event.ctrlKey)) {
+                if (nodeOf(id)?.parent === null) showToast('ルートは合流の始点にできません', 'error');
+                else toggleNode(id);
+            } else if (tool === 'add') {
                 apply(ops.addChild(ctx, id), { rename: true });
                 setTool('select');
             } else if (tool === 'connect') {
@@ -776,7 +984,9 @@ stage.addEventListener(
             setTool('select');
             return;
         }
-        if (tool === 'connect') setTool('select');
+        if (tool === 'connect' || tool === 'join') setTool('select');
+        // Shift を押しながら何もないところを押しても、選んだものは解かない
+        if (event.shiftKey && tool === 'select') return;
         select(null);
     },
     { capture: true },
@@ -865,6 +1075,7 @@ document.addEventListener('keydown', (event) => {
         case 'Backspace':
             event.preventDefault();
             if (nodeId !== null) apply(ops.deleteNode(ctx, nodeId));
+            else if (selection?.type === 'nodes') deleteNodes(selection.ids);
             else if (selection?.type === 'edge') {
                 const edge = ops.parseEdgeKey(selection.key);
                 if (edge) apply(ops.deleteEdge(ctx, edge));
@@ -897,6 +1108,10 @@ document.addEventListener('keydown', (event) => {
         case 'N':
             setTool('add');
             break;
+        case 'j':
+        case 'J':
+            joinIntoNewNode();
+            break;
         case 'f':
         case 'F':
             fitView();
@@ -911,6 +1126,10 @@ document.addEventListener('keydown', (event) => {
 for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool[data-tool]')) {
     button.addEventListener('click', () => setTool((button.dataset.tool ?? 'select') as Tool));
 }
+$('.ed-join-tool').addEventListener('click', () => {
+    if (selectedIds().length >= 2) joinIntoNewNode();
+    else showToast('Shift+クリックか Shift+ドラッグで 2 つ以上選ぶと、選んだノードを新しいノードへ合流させます');
+});
 undoButton.addEventListener('click', undo);
 redoButton.addEventListener('click', redo);
 $('.ed-fit').addEventListener('click', fitView);

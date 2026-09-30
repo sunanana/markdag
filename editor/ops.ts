@@ -200,12 +200,15 @@ const isBlockStart = (line: string): boolean => {
     return plain.trim() === '' || HEADING.test(plain) || LIST.test(plain);
 };
 
-// 行を差し込む。リスト項目の直後に段落が続くと、その段落が項目に吸い込まれる (遅延継続行) ので、間に空行を入れる
+// 行を差し込む。リスト項目の直後に段落が続くと、その段落が項目に吸い込まれる (遅延継続行) ので、間に空行を入れる。
+// 見出しをリスト項目や段落のすぐ後ろに差し込むときは、読みやすさのため間に空行を入れる (見出しの直後なら詰めたまま)
 function insertLines(lines: string[], at: number, inserted: string[]): number {
     const next = lines[at];
+    const previous = at > 0 ? (lines[at - 1] ?? '') : '';
+    const head = HEADING.test(inserted[0] ?? '') && previous.trim() !== '' && !HEADING.test(previous) ? [''] : [];
     const tail = next !== undefined && !isBlockStart(next) ? [''] : [];
-    lines.splice(at, 0, ...inserted, ...tail);
-    return at;
+    lines.splice(at, 0, ...head, ...inserted, ...tail);
+    return at + head.length;
 }
 
 function nodeById(ctx: EditContext, id: number): OutlineNode | null {
@@ -644,6 +647,85 @@ export function addRelation(ctx: EditContext, sourceId: number, targetId: number
     if (!a || !b) return { ok: false, message: 'このノードは relations から指せません' };
     if (!appendRelation(lines, kind, `${a} --> ${b}`)) return { ok: false, message: 'frontmatter の markdag.relations が flow 形式などで、書き足せません' };
     return { ok: true, source: lines.join('\n') };
+}
+
+// ---- 合流 (複数のノードから 1 つへ) -----------------------------------------------------------------------------
+
+// target から (木の親子と relations をたどって) 届くノード。ここにある始点から target へ線を引くと閉路になる
+function reachableFrom(ctx: EditContext, target: number): Set<number> {
+    const next = new Map<number, number[]>();
+    const push = (from: number, to: number): void => {
+        const list = next.get(from);
+        if (list) list.push(to);
+        else next.set(from, [to]);
+    };
+    for (const node of ctx.parsed.nodes) if (node.parent !== null) push(node.parent, node.id);
+    for (const relation of ctx.model.relations) push(relation.source, relation.target);
+    const seen = new Set<number>([target]);
+    const stack = [target];
+    while (stack.length > 0) {
+        for (const id of next.get(stack.pop() ?? 0) ?? []) {
+            if (!seen.has(id)) {
+                seen.add(id);
+                stack.push(id);
+            }
+        }
+    }
+    return seen;
+}
+
+// sources のそれぞれから target へ合流する線を足す。始点が 2 つ以上なら join (`a & b --> t`)、1 つなら depends。
+// target から届く始点 (線を引くと閉路になる) と、もう線のある始点は外し、外した数を知らせる
+export function addJoin(ctx: EditContext, sources: number[], target: number): EditResult {
+    const to = nodeById(ctx, target);
+    if (!to) return { ok: false, message: 'ノードが見つかりません' };
+    const reachable = reachableFrom(ctx, target);
+    const unique = [...new Set(sources)];
+    const cyclic = unique.filter((id) => reachable.has(id));
+    const existing = unique.filter((id) => !reachable.has(id) && ctx.model.relations.some((relation) => relation.source === id && relation.target === target));
+    const kept = unique.filter((id) => !cyclic.includes(id) && !existing.includes(id));
+    if (kept.length === 0) {
+        return { ok: false, message: cyclic.length > 0 ? '合流先の後ろにあるノードからは、線を引けません (循環になる)' : 'その線はもうあります' };
+    }
+    const lines = splitLines(ctx.source);
+    const refs: string[] = [];
+    for (const id of kept) {
+        const node = nodeById(ctx, id);
+        const ref = node ? referenceFor(ctx, lines, node) : null;
+        if (!ref) return { ok: false, message: `「${node?.refText ?? id}」は relations から指せません` };
+        refs.push(ref);
+    }
+    const b = referenceFor(ctx, lines, to);
+    if (!b) return { ok: false, message: '合流先は relations から指せません' };
+    const kind = refs.length >= 2 ? 'join' : 'depends';
+    if (!appendRelation(lines, kind, `${refs.join(' & ')} --> ${b}`)) return { ok: false, message: 'frontmatter の markdag.relations が flow 形式などで、書き足せません' };
+    const skipped = [
+        cyclic.length > 0 ? `循環になる ${cyclic.length} 個` : '',
+        existing.length > 0 ? `線のある ${existing.length} 個` : '',
+    ].filter(Boolean);
+    const message = `${refs.length} 個から「${to.refText}」へ合流する線を足しました${skipped.length > 0 ? ` (${skipped.join('、')}は外しました)` : ''}`;
+    return { ok: true, source: lines.join('\n'), focusId: target, message };
+}
+
+// 新しい合流先のノードを作り、sources から合流させる。合流先は、始点のうち文書でいちばん後ろのものが入っている
+// 最上位の枝のすぐ後ろに、最上位の兄弟として置く (最上位のノードへの relations の線は、始点の後ろに並べて描かれる)
+export function addJoinNode(ctx: EditContext, sources: number[], label: string, contextOf: (source: string) => EditContext): EditResult {
+    const nodes = ctx.parsed.nodes;
+    if (sources.length === 0) return { ok: false, message: '合流させるノードを選んでください' };
+    let top = nodeById(ctx, Math.max(...sources));
+    if (!top || top.parent === null) return { ok: false, message: 'ルートからは合流できません' };
+    while (top.parent !== null && nodes[top.parent - 1]?.parent !== null) top = nodes[top.parent - 1] ?? top;
+    const inserted = addSibling(ctx, top.id, label);
+    if (!inserted.ok) return inserted;
+    // 足したノードより後ろのノードは id が 1 つずれるので、relations ごと読み直してから線を足す。
+    // 合流先は始点より後ろに足すので、始点の id は変わらない
+    const next = contextOf(inserted.source);
+    const created = next.parsed.nodes.find((node) => node.lines?.start === inserted.focusLine);
+    if (!created) return { ok: false, message: '合流先のノードを作れませんでした' };
+    const joined = addJoin(next, sources, created.id);
+    if (!joined.ok) return joined;
+    // frontmatter に行が増えると本文の行がずれるので、選び直しは id で行う (frontmatter の変更では id は変わらない)
+    return { ok: true, source: joined.source, focusId: created.id, message: joined.message };
 }
 
 // ---- 線の削除と向きの反転 ------------------------------------------------------------------------------------------
