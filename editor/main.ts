@@ -123,14 +123,13 @@ app.innerHTML = `
                 <div class="ed-ctx" hidden></div>
             </div>
             <nav class="ed-tools" aria-label="道具">
-                <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}</button>
-                <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選ぶ道具でも Space を押しながらドラッグで動かせる">${ICONS.pan}</button>
-                <button class="ed-tool" data-tool="connect" title="線を引く (C)">${ICONS.connect}</button>
-                <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}</button>
+                <button class="ed-tool" data-tool="select" title="選ぶ・動かす (V)。何もないところからドラッグで範囲選択">${ICONS.select}<span>選択</span></button>
+                <button class="ed-tool" data-tool="pan" title="図を動かす (H)。選択でも Space を押しながらドラッグで動かせる">${ICONS.pan}<span>パン</span></button>
+                <button class="ed-tool ed-join-tool" title="選んだノードを合流させる (J)。何もないところからドラッグして、2 つ以上を囲んで選んでから">${ICONS.join}<span>合流</span></button>
                 <hr>
-                <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}</button>
-                <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}</button>
-                <button class="ed-tool ed-fit" title="全体を表示 (F)">${ICONS.fit}</button>
+                <button class="ed-tool ed-undo" title="元に戻す (Ctrl+Z)">${ICONS.undo}<span>戻る</span></button>
+                <button class="ed-tool ed-redo" title="やり直す (Ctrl+Shift+Z)">${ICONS.redo}<span>進む</span></button>
+                <button class="ed-tool ed-fit" title="全体が収まる倍率に戻す (F)">${ICONS.fit}<span>ズームリセット</span></button>
             </nav>
             <div class="ed-hint"></div>
             <div class="ed-toast" hidden></div>
@@ -520,7 +519,7 @@ function fitView(): void {
     const { k } = diagram.view.getTransform();
     const limit = 1.1;
     if (k > limit) diagram.view.zoomBy(limit / k, { x: stage.clientWidth / 2, y: stage.clientHeight / 2 });
-    diagram.view.panBy(28, 0);
+    diagram.view.panBy(48, 0);
 }
 
 function setTool(next: Tool): void {
@@ -541,7 +540,7 @@ function updateHint(): void {
     else if (selection?.type === 'node') text = `${k('Tab')} 子 ${k('Enter')} 兄弟 ${k('F2')} 名前 ${k('Del')} 削除 / ドラッグでほかのノードの下へ 何もないところからドラッグで囲んで複数選ぶ`;
     else if (selection?.type === 'nodes') text = `${k('J')} 合流ノードを作る / 右の点をほかのノードへドラッグでそこへ合流 / ${k('Shift')}+クリックかドラッグで追加 ${k('Del')} 削除`;
     else if (selection?.type === 'edge') text = `${k('Del')} 線を削除`;
-    else text = `何もないところからドラッグで範囲選択 / ${k('Space')}+ドラッグで図を動かす / ダブルクリックでノードを足す / 右の点をドラッグで線を引く`;
+    else text = `何もないところからドラッグで範囲選択 / ${k('Space')}+ドラッグで図を動かす / 右の点をドラッグで線を引く ${k('Tab')} で子を足す`;
     hint.innerHTML = text;
 }
 
@@ -1028,9 +1027,9 @@ stage.addEventListener(
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename')) return;
         event.stopPropagation();
+        // ノードのダブルクリックは名前の変更。何もないところのダブルクリックでは何もしない (図のズームもしない)
         const element = target.closest('.mdag-box')?.closest<HTMLElement>('.mdag-node');
         if (element) startRename(Number(element.dataset.id), false);
-        else if (!target.closest('.mdag-edge-hit, .mdag-fold')) apply(ops.addChild(ctx, 1), { rename: true });
     },
     { capture: true },
 );
@@ -1203,6 +1202,9 @@ document.addEventListener('keydown', (event) => {
         default:
             return;
     }
+    // キーで操作したら、道具箱のボタンに残ったフォーカスの枠を消す (今の道具の強調だけを見せる)
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && focused.closest('.ed-tools')) focused.blur();
 });
 
 document.addEventListener('keyup', (event) => {
@@ -1215,6 +1217,9 @@ window.addEventListener('blur', () => setSpaceHeld(false));
 for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool[data-tool]')) {
     button.addEventListener('click', () => setTool((button.dataset.tool ?? 'select') as Tool));
 }
+// 道具箱のボタンは押したあとフォーカスを外す。残すと、あとでキーで道具を替えたときに、
+// 押された道具とは別のボタンにフォーカスの枠が出て、どちらが今の道具か分かりにくい
+for (const button of app.querySelectorAll<HTMLButtonElement>('.ed-tool')) button.addEventListener('click', () => button.blur());
 $('.ed-join-tool').addEventListener('click', () => {
     if (selectedIds().length >= 2) joinIntoNewNode();
     else showToast('何もないところからドラッグして 2 つ以上を囲むと、選んだノードを新しいノードへ合流させます');
