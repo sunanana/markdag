@@ -106,6 +106,7 @@ const ICONS = {
     tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/><path d="M15 3v4M13 5h4"/></svg>',
     tags: '<svg viewBox="0 0 24 24"><path d="M3 11V4h7l9 9-7 7z"/><circle cx="7" cy="8" r="1.3"/><path d="M13 4l9 9-6 6"/></svg>',
     note: '<svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+    eyeOff: '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.8 10.8 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6C3.9 8.3 2 12 2 12s3.5 7 10 7c1.9 0 3.5-.6 4.9-1.4"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     join: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7M3 12h12"/><path d="M15 9l4 3-4 3"/><circle cx="20.5" cy="12" r="1.2"/></svg>',
     merge: '<svg viewBox="0 0 24 24"><path d="M3 5c6 0 7 7 12 7M3 19c6 0 7-7 12-7"/><rect x="15" y="9" width="6" height="6" rx="1.5"/></svg>',
@@ -1064,12 +1065,11 @@ function renderGroupList(): void {
                     ? `<input class="ed-group-input" value="${escapeHtml(group.label)}" aria-label="グループの名前">`
                     : `<span class="ed-group-name" title="ダブルクリックで名前を変える">${escapeHtml(group.label)}</span>`;
             return `<div class="ed-group-row${selected ? ' is-selected' : ''}" data-group="${escapeHtml(group.id)}">
-                <label class="ed-group-color" title="色を変える" style="--swatch:${escapeHtml(color)}"><input type="color" value="${hex}"></label>
+                <button class="ed-group-color" title="色を変える" aria-haspopup="dialog" style="--swatch:${escapeHtml(color)}" data-color="${hex}"></button>
                 ${name}
                 <span class="ed-group-count" title="入っているノードの数">${counts.get(group.id) ?? 0}</span>
                 <button class="ed-group-add" title="選んだノードをこのグループに入れる" ${ids.length === 0 ? 'disabled' : ''}>${ICONS.plus}</button>
-                <button class="ed-group-frame" title="枠を出す / 出さない" aria-pressed="${group.boundary}">枠</button>
-                <button class="ed-group-rename" title="名前を変える">${ICONS.rename}</button>
+                <button class="ed-group-frame" title="${group.boundary ? '枠を隠す' : '枠を出す'}" aria-pressed="${group.boundary}">${group.boundary ? ICONS.eye : ICONS.eyeOff}</button>
                 <button class="ed-group-delete" title="グループを解く (ノードは残る)">${ICONS.trash}</button>
             </div>`;
         })
@@ -1124,14 +1124,14 @@ groupList.addEventListener('click', (event) => {
     }
     const row = target.closest<HTMLElement>('.ed-group-row');
     const id = row?.dataset.group;
-    if (!row || !id || target.closest('.ed-group-input, .ed-group-color')) return;
+    if (!row || !id || target.closest('.ed-group-input')) return;
     const group = ctx.model.groups.find((item) => item.id === id);
-    if (target.closest('.ed-group-add')) apply(ops.addToGroup(ctx, selectedIds(), id), { keep: true });
+    const swatch = target.closest<HTMLElement>('.ed-group-color');
+    if (!swatch) closeColorPicker();
+    if (swatch) openColorPicker(id, swatch);
+    else if (target.closest('.ed-group-add')) apply(ops.addToGroup(ctx, selectedIds(), id), { keep: true });
     else if (target.closest('.ed-group-frame')) apply(ops.setGroupField(ctx, id, 'boundary', !(group?.boundary ?? false)), { keep: true });
-    else if (target.closest('.ed-group-rename')) {
-        groupListRenaming = id;
-        renderGroupList();
-    } else if (target.closest('.ed-group-delete')) {
+    else if (target.closest('.ed-group-delete')) {
         if (apply(ops.ungroup(ctx, id)) && selection?.type === 'group' && selection.id === id) select(null);
     } else if (event.detail >= 2 && target.closest('.ed-group-name')) {
         // 名前のダブルクリックで名前を変える。1 回目のクリックで一覧を描き直すので、dblclick ではなくクリックの回数で見る
@@ -1154,10 +1154,65 @@ groupList.addEventListener('keydown', (event) => {
 groupList.addEventListener('focusout', (event) => {
     if (event.target instanceof HTMLInputElement && event.target.classList.contains('ed-group-input') && groupListRenaming !== null) finishGroupListRename(true);
 });
-groupList.addEventListener('change', (event) => {
-    const input = event.target instanceof HTMLInputElement && event.target.type === 'color' ? event.target : null;
-    const id = input?.closest<HTMLElement>('.ed-group-row')?.dataset.group;
-    if (input && id) apply(ops.setGroupField(ctx, id, 'color', input.value), { keep: true });
+// 色の四角を押すと出すカラーピッカー。よく使う色の見本と、16 進の入力、ブラウザの色選び (その他の色) を置く
+const COLOR_SWATCHES = ['#3B7DD8', '#1FA2B8', '#2E9E6B', '#6B8E23', '#E0A100', '#E8833A', '#D64545', '#E0569B', '#8A5FC2', '#8D6E63', '#607D8B', '#9E9E9E'];
+const colorPop = document.createElement('div');
+colorPop.className = 'ed-color-pop';
+colorPop.hidden = true;
+stage.append(colorPop);
+let colorTarget: string | null = null;
+
+function openColorPicker(id: string, anchor: HTMLElement): void {
+    if (colorTarget === id && !colorPop.hidden) {
+        closeColorPicker();
+        return;
+    }
+    colorTarget = id;
+    const current = (anchor.dataset.color ?? '').toUpperCase();
+    colorPop.innerHTML = `
+        <div class="ed-color-grid">${COLOR_SWATCHES.map((color) => `<button class="ed-color-swatch${color.toUpperCase() === current ? ' is-current' : ''}" data-color="${color}" style="--swatch:${color}" title="${color}"></button>`).join('')}</div>
+        <div class="ed-color-row"><span class="ed-color-preview" style="--swatch:${current}"></span><input class="ed-color-hex" value="${current}" maxlength="7" spellcheck="false" aria-label="16 進の色"><label class="ed-color-native" title="その他の色">その他<input type="color" value="${current.toLowerCase() || '#888888'}"></label></div>`;
+    colorPop.hidden = false;
+    const stageRect = stage.getBoundingClientRect();
+    const rect = anchor.getBoundingClientRect();
+    const x = Math.min(rect.left - stageRect.left, stage.clientWidth - colorPop.offsetWidth - 8);
+    place(colorPop, Math.max(8, x), rect.bottom - stageRect.top + 6);
+}
+
+function closeColorPicker(): void {
+    colorTarget = null;
+    colorPop.hidden = true;
+}
+
+function pickColor(color: string): void {
+    const id = colorTarget;
+    if (!id || !/^#[0-9a-f]{6}$/i.test(color)) return;
+    closeColorPicker();
+    apply(ops.setGroupField(ctx, id, 'color', color.toUpperCase()), { keep: true });
+}
+
+colorPop.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const swatch = event.target instanceof Element ? event.target.closest<HTMLElement>('.ed-color-swatch') : null;
+    if (swatch?.dataset.color) pickColor(swatch.dataset.color);
+});
+colorPop.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    const input = event.target instanceof HTMLInputElement && event.target.classList.contains('ed-color-hex') ? event.target : null;
+    if (event.key === 'Escape') closeColorPicker();
+    else if (input && event.key === 'Enter') pickColor(input.value.startsWith('#') ? input.value : `#${input.value}`);
+});
+colorPop.addEventListener('input', (event) => {
+    const input = event.target instanceof HTMLInputElement && event.target.classList.contains('ed-color-hex') ? event.target : null;
+    const preview = colorPop.querySelector<HTMLElement>('.ed-color-preview');
+    if (input && preview && /^#?[0-9a-f]{6}$/i.test(input.value)) preview.style.setProperty('--swatch', input.value.startsWith('#') ? input.value : `#${input.value}`);
+});
+colorPop.addEventListener('change', (event) => {
+    if (event.target instanceof HTMLInputElement && event.target.type === 'color') pickColor(event.target.value);
+});
+for (const type of ['pointerdown', 'mousedown', 'dblclick', 'wheel'] as const) colorPop.addEventListener(type, (event) => event.stopPropagation());
+document.addEventListener('pointerdown', (event) => {
+    if (!colorPop.hidden && event.target instanceof Node && !colorPop.contains(event.target) && !(event.target instanceof Element && event.target.closest('.ed-group-color'))) closeColorPicker();
 });
 for (const type of ['pointerdown', 'mousedown', 'wheel'] as const) groupList.addEventListener(type, (event) => event.stopPropagation());
 
@@ -1588,7 +1643,7 @@ stage.addEventListener(
     'click',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor, .ed-tag-panel, .ed-groups')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-toast, .ed-details-editor, .ed-tag-panel, .ed-groups, .ed-color-pop')) return;
         if (suppressClick) {
             event.stopPropagation();
             return;
@@ -1668,7 +1723,7 @@ stage.addEventListener(
     'dblclick',
     (event) => {
         const target = event.target instanceof Element ? event.target : null;
-        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel, .ed-groups')) return;
+        if (!target || target.closest('.ed-tools, .ed-ctx, .ed-handle, .ed-rename, .ed-details-editor, .ed-tag-panel, .ed-groups, .ed-color-pop')) return;
         event.stopPropagation();
         // ダブルクリックした部分で分ける。詳細 (ノードの中に開いたものと吹き出しの中のもの) は詳細の編集、
         // タグはタグの編集、それ以外のノードの部分はラベル (名前) の変更、グループの枠かラベルならグループの名前の変更。
@@ -1856,6 +1911,7 @@ document.addEventListener('keydown', (event) => {
             break;
         case 'Escape':
             setFlyout(false);
+            closeColorPicker();
             closeTagPanel();
             setTool('select');
             select(null);
