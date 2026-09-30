@@ -1,0 +1,30 @@
+kind: 正常
+checks: >-
+    完了で薄く表示のノードでは、色のあるグループの色の帯 (.mdag-bands) と、詳細の印 (.mdag-note-mark。詳細をノードの中に開かないときに出る i の丸) を要素ごと opacity 0.35 で薄くする。
+    作業中のノードでは 1。ポインタを載せると 1 に戻る
+combos: []
+decisions: [F5-1]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        details.display は既定 (hover) なので、詳細はノードの中に開かず、詳細の印が出る
+    theme: light
+reference: 作業中の行
+steps:
+    - measure: 初め
+    - hover: 完了の行
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        作業中の行:
+            色の帯: { opacity: 1 }
+            詳細の印: { opacity: 1 }
+        完了の行:
+            ノード: { opacity: 1, 薄く表示: true }
+            色の帯: { opacity: 0.35 }
+            詳細の印: { opacity: 0.35 }
+    載せた:
+        完了の行:
+            色の帯: { opacity: 1 }
+            詳細の印: { opacity: 1 }

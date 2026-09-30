@@ -24,7 +24,32 @@
 /* ノードの要素は .mdag-outer と同じ幅の透明な帯になる。クリックを受けると、relations の配置で同じ高さの右側に来たノードを覆うので、受けるのは箱だけにする */
 .mdag-node { position: absolute; left: 0; top: 0; cursor: auto; pointer-events: none; }
 .mdag-outer { width: var(--markmap-max-width); text-align: left; pointer-events: none; }
-.mdag-box { position: relative; display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto; }
+/* 線の層はノードの層の下にあり、ノードは背景を持たないので、線がノードの下を通ると文字に重なって読みにくい。
+   文字を図の背景の色で縁取り (テロップの袋文字)、文字の形の周りだけ線を隠す。字と字の間では線が見えるので、線をたどれる。
+   縁取りは文字の輪郭の中心に引かれるので、paint-order で塗りの下に置き、外側の半分だけを見せる。どちらも子へ継承される */
+.mdag-box {
+    position: relative; display: inline-flex; align-items: stretch; gap: 4px; pointer-events: auto;
+    -webkit-text-stroke: var(--mdag-halo-width, 4px) var(--markdag-bg); paint-order: stroke fill;
+}
+/* 地の色を持つ要素は下の線を自分で隠すので縁取らない (図の背景の色の縁が地の上に浮いて見えるため) */
+.mdag-box :is(code, mark, pre) { -webkit-text-stroke-color: transparent; }
+/* 詳細の印は小さな記号で、出したまま (data-pinned) は字が図の背景の色になり、同じ色の縁で「i」がつぶれるので縁取らない */
+.mdag-note-mark { -webkit-text-stroke-color: transparent; }
+/* 詳細に HTML で書ける UI を持つ要素は自分の地と枠を持ち、縁が字を太らせてにじむので縁取らない (中の字も継いで縁なし) */
+.mdag-box :is(input, select, button, textarea, iframe, video, audio, canvas) { -webkit-text-stroke-color: transparent; }
+/* 文字を選んでいる間は、選択の地の上に背景の色の縁が輪になって出るので縁取らない */
+.mdag-box::selection, .mdag-box ::selection { -webkit-text-stroke-color: transparent; }
+/* Chromium と WebKit は、要素が引く線 (下線、取り消し線) にもその要素の縁取りを重ねるので、線が図の背景の色に塗りつぶされて見えなくなる。
+   線を引く要素では縁取りをやめ、代わりに背景の色の影を上下左右と斜めに重ねて (filter の drop-shadow。字と線の形をなぞる) 同じ太さの縁にする。
+   影は字と線の下に描かれるので、線は文字の色のまま字の上に見える */
+.mdag-box :is(a, s, del, ins, u, abbr, strike), .mdag-node[data-task="canceled"] .mdag-task-label {
+    --mdag-halo-a: calc(var(--mdag-halo-width, 4px) * 0.19); --mdag-halo-d: calc(var(--mdag-halo-width, 4px) * 0.135);
+    -webkit-text-stroke-color: transparent;
+    filter: drop-shadow(var(--mdag-halo-a) 0 0 var(--markdag-bg)) drop-shadow(calc(-1 * var(--mdag-halo-a)) 0 0 var(--markdag-bg))
+        drop-shadow(0 var(--mdag-halo-a) 0 var(--markdag-bg)) drop-shadow(0 calc(-1 * var(--mdag-halo-a)) 0 var(--markdag-bg))
+        drop-shadow(var(--mdag-halo-d) var(--mdag-halo-d) 0 var(--markdag-bg)) drop-shadow(calc(-1 * var(--mdag-halo-d)) calc(-1 * var(--mdag-halo-d)) 0 var(--markdag-bg))
+        drop-shadow(var(--mdag-halo-d) calc(-1 * var(--mdag-halo-d)) 0 var(--markdag-bg)) drop-shadow(calc(-1 * var(--mdag-halo-d)) var(--mdag-halo-d) 0 var(--markdag-bg));
+}
 .mdag-bands { display: inline-flex; gap: 2px; }
 .mdag-bands i { display: block; width: 4px; border-radius: 2px; }
 .mdag-labels, .mdag-tags, .mdag-badge { align-self: center; font-size: 11px; color: var(--markdag-muted); }
@@ -41,9 +66,30 @@
 .markdag[data-tasks="readonly"] .mdag-node[data-task] .mdag-content { cursor: auto; }
 /* 中止のタスクは文字に取り消し線を引く (詳細には引かない) */
 .mdag-node[data-task="canceled"] .mdag-task-label { text-decoration: line-through; }
-/* 薄く表示するタスク (markdag.tasks.dim)。強調から外れたノードと同じ濃さにし、ポインタを載せている間だけ元に戻す */
-.mdag-node[data-dimmed] { opacity: 0.35; }
-.mdag-node[data-dimmed]:hover { opacity: 1; }
+/* 薄く表示するタスク (markdag.tasks.dim)。強調から外れたノードと同じ濃さ (0.35) にし、ポインタを載せている間だけ元に戻す。
+   ノードごと opacity で薄くすると文字の縁取りも透けて下を通る線が文字に重なるので、文字は背景の色と混ぜた不透明な色で薄くし、
+   縁取りは濃いまま残す。文字の色で薄くならない部品 (UI を持つ要素、元の色のロゴ、絵文字、画像、色の帯、印) だけを opacity で薄くする。
+   強調から外れたノード (data-faded) は描画の側がノードごと opacity 0.35 で薄くするので、ここでは薄くしない (二重に薄くしない) */
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) { --mdag-dim: 35%; }
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-box { color: color-mix(in srgb, currentColor var(--mdag-dim), var(--markdag-bg)); }
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) :is(.mdag-labels, .mdag-tags) { color: color-mix(in srgb, var(--markdag-muted) var(--mdag-dim), var(--markdag-bg)); }
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-content a { color: color-mix(in srgb, var(--markmap-a-color) var(--mdag-dim), var(--markdag-bg)); }
+.mdag-node[data-dimmed][data-milestone]:not(:hover):not([data-faded]) .mdag-content::before { color: color-mix(in srgb, var(--markdag-accent) var(--mdag-dim), var(--markdag-bg)); }
+/* 地の色を持つ code と mark (pre の中の code も) は、opacity で薄くすると地も字と同じだけ透けて下の線が字に重なる。地と字の色をそれぞれ背景の色と混ぜ、
+   地で線を隠す (code の地は薄くしないときと同じ割合だけ透かす)。混ぜる元は、薄くしないときに効いている色 (code は変数、mark の字はブラウザの既定の MarkText) */
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-content code {
+    color: color-mix(in srgb, var(--markmap-code-color) var(--mdag-dim), var(--markdag-bg));
+    background-color: color-mix(in srgb, color-mix(in srgb, var(--markmap-code-bg) var(--mdag-dim), var(--markdag-bg)) var(--mdag-code-ground), transparent);
+}
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-content mark {
+    color: color-mix(in srgb, MarkText var(--mdag-dim), var(--markdag-bg));
+    background: color-mix(in srgb, var(--markmap-highlight-bg) var(--mdag-dim), var(--markdag-bg));
+}
+/* highlight.js のテーマは色の付いた span に色を直接付けるので、code の混ぜた色が届かない。span は code の色を継がせて薄くする (ハイライトの色は消える) */
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-content code [class*="hljs-"] { color: inherit; }
+/* 開いた詳細の左の縦線は枠の色で描かれ、字の色の混ぜ合わせが届かないので、同じ割合で背景の色と混ぜる */
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) .mdag-details { border-left-color: color-mix(in srgb, var(--markdag-border) var(--mdag-dim), var(--markdag-bg)); }
+.mdag-node[data-dimmed]:not(:hover):not([data-faded]) :is(input, select, button, textarea, iframe, video, audio, canvas, img, .mdag-bands, .mdag-note-mark, .mdag-badge, .mdag-emoji, .mdag-icon[data-icon-color="original"], .mdag-icon[data-icon-kind="emoji"]) { opacity: 0.35; }
 .mdag-node[data-milestone] .mdag-content::before { content: '◆ '; color: var(--markdag-accent); }
 /* 詳細かタグを持つノードの印と、その吹き出し (タグは hover と click のときだけ吹き出しに入る)。
    詳細をノードの中に開いているときと、出さない (never) ときは印を出さない */
@@ -75,17 +121,24 @@
 .mdag-content code { padding: 0.25em; font-size: calc(1em - 2px); color: var(--markmap-code-color); background-color: var(--markmap-code-bg); border-radius: 2px; }
 .mdag-content pre { margin: 0; }
 .mdag-content pre > code { display: block; }
+/* ノードの code の地 (pre の中の code も) は少し透かし、下を通る線が地の下でも見えるようにする。線を選んでいる間は、強調した線をたどれるようにもっと透かす。
+   透かすのは地の色だけにする (要素の opacity では字も薄くなる)。吹き出しの詳細は下を線が通らないので透かさない */
+.markdag { --mdag-code-ground: 90%; }
+.markdag[data-edge-selected] { --mdag-code-ground: 30%; }
+.mdag-node .mdag-content code { background-color: color-mix(in srgb, var(--markmap-code-bg) var(--mdag-code-ground), transparent); }
 .mdag-content del { text-decoration: line-through; }
 .mdag-content em { font-style: italic; }
 .mdag-content strong { font-weight: bold; }
 .mdag-content mark { background: var(--markmap-highlight-bg); }
 .mdag-content table, .mdag-content th, .mdag-content td { border-collapse: collapse; border: var(--markmap-table-border); }
+/* 字の縁は罫線より上に描かれるので、字が罫線に接すると罫線が切れる。縁が罫線に届かないだけの余白を上下左右に取る */
+.mdag-content :is(th, td) { padding: 0.2em 0.25em; }
 .mdag-content img { display: inline-block; }
 .mdag-content svg { fill: currentColor; }
 /* ロゴ (markdag.icons)。本文の :alias: とタグに、呼び出し側が解決した SVG を inline で置く。引けなかったものは文字のまま (この規則は当たらない)。
    大きさは本文で 1em、タグと凡例で 14px。枠のラベルの前のロゴ (.mdag-frame-icon) は入れ子の svg で、位置と大きさは描画の側が属性で、
    mono の色 (グループの色) は color で付ける。凡例の mono は薄い色。mono は文字の色 (currentColor) で塗り、書かれた色も上書きする。original は書かれた色のまま。
-   薄く表示するノード (data-dimmed) ではノードごと薄くなるので、ロゴに別の規則は要らない */
+   薄く表示するノード (data-dimmed) では、mono と引けずに文字のままのものは文字の色が薄くなるのに合わせて薄くなり、original と絵文字の alias は薄く表示の規則が opacity で薄くする */
 .mdag-icon[data-icon-color] { display: inline-block; line-height: 0; vertical-align: -0.18em; }
 .mdag-icon[data-icon-color] > svg { width: 1em; height: 1em; }
 .mdag-content .mdag-icon[data-icon-color] { margin-right: 0.15em; }

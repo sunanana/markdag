@@ -1,0 +1,32 @@
+kind: 正常
+checks: >-
+    単体 HTML でも、色のないグループの文字ラベルの絵文字 (🔥、ZWJ の並び) は、薄く表示で要素ごと opacity 0.35 になり、ラベルの文字は色を混ぜて薄くなる。
+    開いた詳細は opacity 0.85 で文字の縁が付き、薄く表示で色を混ぜる。ポインタを載せると戻る
+combos: [B グループのラベル 薄く表示, B 絵文字 薄く表示, B 開いた詳細 縁 (U1)]
+decisions: [F1-5, F2-1, Q5]
+render:
+    api: >-
+        buildStandaloneHtml({ source: input.md, view: { theme: 'dark', animate: false } }) の HTML を開き (iframe)、ページの中のノードの getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 担当を決める
+steps:
+    - measure: 初め
+    - hover: 期限を決める
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        担当を決める:
+            ラベルの絵文字: { opacity: 1 }
+            詳細: { opacity: 0.85, 文字の縁: 4px 背景 }
+        期限を決める:
+            ノード: { opacity: 1, 薄く表示: true }
+            ラベル: { 色: 違う, 文字の縁: 4px 背景 }
+            ラベルの絵文字: { opacity: 0.35 }
+            詳細: { 色: 違う, opacity: 0.85 }
+    載せた:
+        期限を決める:
+            ラベル: { 色: 同じ }
+            ラベルの絵文字: { opacity: 1 }
+            詳細: { 色: 同じ }

@@ -319,6 +319,7 @@ markdag:
     - `details`: `keep` (default: as `details.display` says), `hover` (not inside the node; a popover when the pointer is over it), `click` (a popover from the `i` button), `never` (not shown at all, no button).
     - `tags`: `keep` (default: as `tags.display` says), `hover` and `click` (in the popover), `never`. When `tags.display` is `never`, they stay hidden.
     - Pointing at a faded node shows it at full strength while the pointer is there. The popover is never faded. A faded node stays faded while a line or a group is highlighted.
+    - Everything markdag draws in a faded node fades, emoji and logos included. Text that a `decorateNode` hook colors through its own class keeps that color: the hook's stylesheet fades it (see [usage.md](usage.md)).
 - `[/]` and `[-]` are recognized whether or not `tasks` is written. `[/]` is drawn as a half-filled box, `[-]` as a box with a bar and the label struck through.
 
 ### hooks

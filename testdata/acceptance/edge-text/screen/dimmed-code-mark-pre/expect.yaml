@@ -1,0 +1,44 @@
+kind: 正常
+checks: >-
+    薄く表示のノードの code、mark、pre の中の code は、字の色と地の色を背景の色と混ぜて薄くする (作業中と違う色、opacity 1)。
+    code (pre の中の code も) の地は、作業中と同じく 90% に透かす (地の不透明さ 0.9。下の線が地の下でも少し見える。Q12)。mark の地は不透明のまま。
+    縁の色は透明のまま。ポインタを載せると作業中と同じ色に戻る。
+    code と mark と pre の中の絵文字 (span.mdag-emoji) は、本文の絵文字と同じく完了で opacity 0.35、ポインタを載せると 1 に戻る (F3-3、F4-2)
+combos: [B code 薄く表示, B mark 薄く表示, B pre 薄く表示, B 絵文字 薄く表示]
+decisions: [Q5, Q7, U2, Q12, F3-3]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色と地は reference のノードの同じ部品と比べ (同じ / 違う)、地の不透明さは地の色の α を値で見る
+    theme: light
+reference: 作業中の
+steps:
+    - measure: 初め
+    - hover: 完了の
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        作業中の:
+            code: { 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明 }
+            mark: { 地の不透明さ: 1, opacity: 1, 文字の縁: 4px 透明 }
+            pre の中の code: { 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明 }
+            code の中の絵文字: { opacity: 1 }
+            mark の中の絵文字: { opacity: 1 }
+            pre の中の絵文字: { opacity: 1 }
+        完了の:
+            ノード: { opacity: 1, 薄く表示: true }
+            code: { 色: 違う, 地: 違う, 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+            mark: { 色: 違う, 地: 違う, 地の不透明さ: 1, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+            pre の中の code: { 色: 違う, 地: 違う, 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+            code の中の絵文字: { opacity: 0.35 }
+            mark の中の絵文字: { opacity: 0.35 }
+            pre の中の絵文字: { opacity: 0.35 }
+    載せた:
+        完了の:
+            code: { 色: 同じ, 地: 同じ, 地の不透明さ: 0.9, opacity: 1 }
+            mark: { 色: 同じ, 地: 同じ, 地の不透明さ: 1, opacity: 1 }
+            pre の中の code: { 色: 同じ, 地: 同じ, 地の不透明さ: 0.9, opacity: 1 }
+            code の中の絵文字: { opacity: 1 }
+            mark の中の絵文字: { opacity: 1 }
+            pre の中の絵文字: { opacity: 1 }

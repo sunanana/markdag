@@ -13,6 +13,7 @@ import { DEFAULT_TASK_CYCLE, taskMarkOf, type TaskMark } from '../parse/task';
 import { frameOutline, LABEL_HEIGHT, projectAndFrames, type Frame } from './frames';
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
+import { wrapEmoji } from './emoji';
 import { frameLabelParts, groupIconRefs, IconSvgStore, iconMarkHtml, legendLogoHtml, nodeIconRefs, tagLineContent, withIconMarks, type IconRenderContext } from './icons';
 
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
@@ -427,6 +428,8 @@ export class MarkdagView {
         cancelAnimationFrame(this.animation);
         window.clearTimeout(this.popoverTimer);
         this.root.innerHTML = '';
+        // 線を選んでいる目印は図を置いた要素に付けているので、要素を別の用途に使い回しても code の地の透かしが残らないよう外す
+        this.root.removeAttribute('data-edge-selected');
     }
 
     expandAll(): void {
@@ -717,6 +720,7 @@ export class MarkdagView {
         content.className = 'mdag-content';
         content.innerHTML = withIconMarks(node.html, this.iconContext());
         if (node.task) wrapTaskLabel(content);
+        wrapEmoji(content);
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
         for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
@@ -730,6 +734,7 @@ export class MarkdagView {
             const groupLabels = document.createElement('span');
             groupLabels.className = 'mdag-labels';
             groupLabels.textContent = plain.join(' ');
+            wrapEmoji(groupLabels);
             box.append(groupLabels);
         }
         // タグは本文に書いたとおりに見せる。always ならノードの中、hover と click なら詳細と同じ吹き出しの中 (どちらに出すかは CSS が決める)
@@ -830,6 +835,7 @@ export class MarkdagView {
         const content = tagLineContent(this.model?.tagsOf.get(id) ?? [], this.model?.tagKeys ?? [], this.iconContext());
         if ('html' in content) tagLabels.innerHTML = content.html;
         else tagLabels.textContent = content.text;
+        wrapEmoji(tagLabels);
     }
 
     // 飾りを付け直す。フックの外の状態が変わって、返す飾りが変わったときに呼ぶ
@@ -1255,6 +1261,9 @@ export class MarkdagView {
         const anchorKey = picked ? this.selectedEdge : this.hoveredEdge;
         // 薄くするのは、線かグループを選んでいるときだけ。重ねているだけでほかを薄くすると、動かすたびに図が明滅する
         const dim = picked !== undefined || this.selectedGroup !== null;
+        // 線を選んでいる間は図の要素にも示す。code の地をより透かして、強調した線を地の下でもたどれるようにするため (CSS が見る)。
+        // グループを選んだときは線を強調せず薄くするだけなので含めない
+        this.root.toggleAttribute('data-edge-selected', picked !== undefined);
         // 線を太くするのは、線を起点にしたときだけ。グループは範囲が広いので、薄くするだけにする
         this.thicken = anchor !== undefined;
         if (anchor) {
@@ -1330,8 +1339,11 @@ export class MarkdagView {
         const dim = this.selectedEdge !== null || this.selectedGroup !== null;
         const hovered = this.thicken ? this.find(this.hoveredEdge) : undefined;
         const touched = new Set(hovered ? [hovered.edge.source, hovered.edge.target] : []);
+        // 強調から外れたノードは data-faded でも示す。薄く表示のノードの色と部品の薄さを、この opacity と重ねないため (CSS が見る)
         for (const [id, element] of this.elements) {
-            element.style.opacity = dim && !this.nodeLevels.has(id) ? '0.35' : '';
+            const faded = dim && !this.nodeLevels.has(id);
+            element.style.opacity = faded ? '0.35' : '';
+            element.toggleAttribute('data-faded', faded);
         }
         const bold = (id: number): boolean => this.thicken && (this.nodeLevels.has(id) || touched.has(id));
         // 薄く表示するタスクの下線と円は、強調から外れたときと同じ濃さにする

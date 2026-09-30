@@ -1,0 +1,29 @@
+kind: 境界
+checks: >-
+    本文のリンクは文字の縁の色を透明にし、背景の色の drop-shadow 8 つで縁を作る (下線は文字の色)。
+    code と mark は地の色で下の線を隠すので縁を付けない (縁の色は透明、drop-shadow もなし。code の地は 90% に透かし、mark の地は不透明。Q12)。リンクの中の code も同じで、drop-shadow はリンクの側にだけ付く。
+    薄く表示では、リンクは色を混ぜて薄くし (drop-shadow は残る)、code と mark とリンクの中の code は字と地の色を混ぜて薄くする (opacity 1。U2 で変えた)
+combos: [B リンク 縁, B リンク 薄く表示, B code 縁, B mark 縁]
+decisions: [Q11, Q5, Q7, U2, Q12]
+render:
+    api: >-
+        render(element, input.md, { theme: 'dark', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べ (同じ / 違う)、地の不透明さは地の色の α を値で見る
+    theme: dark
+reference: 作業中の
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        作業中の:
+            リンク: { opacity: 1, 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: underline, 線の色: 文字の色 }
+            code: { 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+            mark: { 地の不透明さ: 1, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+            リンクの中の code: { 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }
+        完了の:
+            ノード: { opacity: 1, 薄く表示: true }
+            リンク: { 色: 違う, opacity: 1, 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線の色: 文字の色 }
+            code: { 色: 違う, 地: 違う, 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明 }
+            mark: { 色: 違う, 地: 違う, 地の不透明さ: 1, opacity: 1, 文字の縁: 4px 透明 }
+            リンクの中の code: { 地の不透明さ: 0.9, opacity: 1, 文字の縁: 4px 透明, 影の縁: なし }

@@ -1,0 +1,45 @@
+kind: 正常
+checks: >-
+    線を選んで強調すると、強調から外れたノードに data-faded が付き、ノードごと opacity 0.35 になる (縁も 0.35 になり線が透ける。Q1 は直さない)。
+    強調から外れた薄く表示のノードは文字の色を混ぜず、部品の opacity も 1 のまま (二重に薄くしない。変更前と同じ濃さ)。
+    強調した薄く表示のノードは色を混ぜて薄いまま。強調から外れた薄く表示のノードにポインタを載せても 0.35 のまま
+combos: [A 強調から外れた ダーク, A 強調から外れた + 薄く表示 ダーク, A 強調した + 薄く表示 ダーク, 注 A4]
+decisions: [Q1, Q6, Q11]
+render:
+    api: >-
+        render(element, input.md, { theme: 'dark', animate: false }) で描き、線の当たりの帯 (path.mdag-edge-hit) をクリックして強調する。
+        ノードの要素と部品の getComputedStyle を読む。色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 残りの論点を洗い出す
+steps:
+    - measure: 初め
+    - click_edge: 設計の方針を決める --> 結合テストを通す
+    - measure: 強調
+    - hover: 部品を作る
+    - measure: 強調 + 載せた
+expect:
+    diagnostics: []
+    初め:
+        部品を作る:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う }
+            絵文字: { opacity: 0.35 }
+    強調:
+        設計の方針を決める:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景 }
+        画面に組み込む:
+            ノード: { opacity: 0.35, 薄く表示: false, 強調から外れた: true }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 背景, paint-order: stroke }
+        部品を作る:
+            ノード: { opacity: 0.35, 薄く表示: true, 強調から外れた: true }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 背景 }
+            絵文字: { opacity: 1 }
+            印: { 色: 同じ }
+        古い画面を直す:
+            ノード: { opacity: 0.35, 薄く表示: true, 強調から外れた: true }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景, 線: line-through }
+    強調 + 載せた:
+        部品を作る:
+            ノード: { opacity: 0.35, 強調から外れた: true }
+            タスクの文字: { 色: 同じ }

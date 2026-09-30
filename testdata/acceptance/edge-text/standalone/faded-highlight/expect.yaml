@@ -1,0 +1,31 @@
+kind: 正常
+checks: >-
+    単体 HTML で線を選んで強調しても、画面と同じく、強調から外れた薄く表示のノードは data-faded でノードごと opacity 0.35 になり、色を混ぜず部品も薄くしない。
+    強調した薄く表示のノードは色を混ぜて薄いまま
+combos: [A 強調から外れた + 薄く表示 ダーク, A 強調した + 薄く表示 ダーク]
+decisions: [Q1, Q6]
+render:
+    api: >-
+        buildStandaloneHtml({ source: input.md, view: { theme: 'dark', animate: false } }) の HTML を開き (iframe)、線の当たりの帯をクリックして強調する。
+        ページの中のノードの getComputedStyle を読む。色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 残りの論点を洗い出す
+steps:
+    - measure: 初め
+    - click_edge: 設計の方針を決める --> 結合テストを通す
+    - measure: 強調
+expect:
+    diagnostics: []
+    初め:
+        部品を作る:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う, 文字の縁: 4px 背景 }
+            絵文字: { opacity: 0.35 }
+    強調:
+        設計の方針を決める:
+            ノード: { opacity: 1, 薄く表示: true, 強調から外れた: false }
+            タスクの文字: { 色: 違う }
+        部品を作る:
+            ノード: { opacity: 0.35, 薄く表示: true, 強調から外れた: true }
+            タスクの文字: { 色: 同じ, 文字の縁: 4px 背景 }
+            絵文字: { opacity: 1 }

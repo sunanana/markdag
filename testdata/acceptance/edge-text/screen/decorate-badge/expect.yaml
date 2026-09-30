@@ -1,0 +1,33 @@
+kind: 未決
+checks: >-
+    未決 U3 のマス。decorateNode の飾りは、アプリの CSS で色を付けた本文は薄く表示でも薄くならない (Q7 (a)。グレーアウトはアプリが data-dimmed を見て行う)。
+    バッジ (.mdag-badge) は薄く表示で要素ごと opacity 0.35 になり、文字の縁 (4px、背景の色) も 0.35 になって下の線が透ける
+combos: [B decorateNode の飾り 縁, B decorateNode の飾り 薄く表示 (U3)]
+decisions: [Q7, U3 (未回答)]
+render:
+    api: >-
+        render(element, input.md, { theme: 'light', animate: false, hooks: { decorateNode } }) で描く。decorateNode は本文が decorate.startsWith で始まるノードに
+        className と badge を返す。decorate.css をページに足す。色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: light
+    decorate:
+        startsWith: 至急
+        className: app-urgent
+        badge: 要確認
+        css: '.mdag-node.app-urgent .mdag-content { color: #d64545; }'
+reference: 至急 作業中の行
+steps:
+    - measure: 初め
+    - hover: 至急 完了の行
+    - measure: 載せた
+expect:
+    diagnostics: []
+    初め:
+        至急 作業中の行:
+            バッジ: { opacity: 1, 文字の縁: 4px 背景 }
+        至急 完了の行:
+            ノード: { opacity: 1, 薄く表示: true }
+            本文: { 色: 同じ, opacity: 1, 文字の縁: 4px 背景 }
+            バッジ: { 色: 同じ, opacity: 0.35, 文字の縁: 4px 背景 }
+    載せた:
+        至急 完了の行:
+            バッジ: { opacity: 1 }

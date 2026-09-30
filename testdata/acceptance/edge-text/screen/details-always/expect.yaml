@@ -1,0 +1,26 @@
+kind: 未決
+checks: >-
+    ノードの中に開いた詳細 (details: always) にも文字の縁 (4px、背景の色) が継承で付く。詳細の中のリンクは drop-shadow の縁、入れ子のリストの項目も文字の縁。
+    詳細は既存の規則で opacity 0.85 なので、縁も 0.85 になり下の線が 15% 透ける (未決 U1)。薄く表示でも詳細の opacity は 0.85 のまま (掛け合わせない) で、文字の色を混ぜて薄くする
+combos: [B 開いた詳細 縁 (U1), B 開いた詳細 薄く表示]
+decisions: [Q4, Q5, Q11, U1 (未回答)]
+render:
+    api: >-
+        render(element, input.md, { theme: 'dark', animate: false }) で描き、ノードの要素と部品の getComputedStyle を読む。
+        色は reference のノードの同じ部品と比べる (同じ / 違う)
+    theme: dark
+reference: 作業中の行
+steps:
+    - measure: 初め
+expect:
+    diagnostics: []
+    初め:
+        作業中の行:
+            詳細: { opacity: 0.85, 文字の縁: 4px 背景, paint-order: stroke }
+            詳細のリンク: { 文字の縁: 4px 透明, 影の縁: drop-shadow 8 背景 }
+            詳細の入れ子の項目: { 文字の縁: 4px 背景, paint-order: stroke }
+        完了の行:
+            ノード: { opacity: 1, 薄く表示: true }
+            詳細: { 色: 違う, opacity: 0.85, 文字の縁: 4px 背景 }
+            詳細のリンク: { 色: 違う, 影の縁: drop-shadow 8 背景 }
+            詳細の入れ子の項目: { 色: 違う, opacity: 1, 文字の縁: 4px 背景 }
