@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    GUI 編集の中でもタスクの印を押すと状態が進み (未完了 → 完了)、その書き換えも ⌘Z / Ctrl+Z で戻せる。
+    見出しのない文書のルート (原文の行を持たない。名前は title の「作業」) は名前を変えられないので、Enter でも帯の「名前」でも名前の入力を開かず理由を知らせる
+behaviors: [B-010, B-008, B-036]
+states: [C2.c14, D1.d2]
+steps:
+    - click: { task: 準備 }
+      expect: { source: after-toggle.md }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - click: { node: 作業 }
+      expect: { selection: nodes:作業, bar: node, bar_buttons: [rename(off), child, details(off), tag-add(off), tag-select(off)] }
+    - key: Enter
+      expect: { input: none, notice: { kind: error } }

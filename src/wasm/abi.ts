@@ -18,7 +18,9 @@ export type JsonFunction =
     | 'replace_leading_mark'
     | 'suggest_tag_keys'
     | 'suggest_tag_values'
-    | 'standalone_page';
+    | 'standalone_page'
+    | 'edit_source'
+    | 'inspect_node';
 
 // 封筒に包まずバイト列をそのまま返す関数 (疎通の確認用)
 export type RawFunction = 'echo';

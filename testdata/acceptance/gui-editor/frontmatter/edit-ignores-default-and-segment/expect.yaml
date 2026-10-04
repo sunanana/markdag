@@ -1,0 +1,8 @@
+kind: 境界
+checks: >-
+    mode が edit (switch でない) のとき、default と segment は書いてあっても診断を出さずに読むが、使わない。mount すると GUI 編集だけで、セグメントは出さない
+behaviors: [B-173, B-174, B-180, B-181]
+expect:
+    diagnostics: []
+    editor: { mode: edit, default: view, segment: { display: true, position: top-right } }
+    screen: { mode: edit, segment: null, toolbox: true }

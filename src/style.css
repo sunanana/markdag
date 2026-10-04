@@ -182,3 +182,373 @@
 .mdag-legend li { display: flex; align-items: center; gap: 6px; }
 .mdag-legend-note { color: var(--markdag-muted); margin-bottom: 4px; }
 .mdag-legend-chip { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--markdag-border); }
+
+/* 図の出口の目印 (外の層が図のメソッドで付ける。閲覧の図には付かない)。
+   選んだノードと付け替え先のノードは、箱の外に描く枠 (outline と box-shadow) で示す。
+   文字の縁取り、filter、色は変えない (線と重なる文字を読みやすくする規則をそのまま効かせる) */
+.mdag-node[data-selected] .mdag-box { outline: 2px solid var(--markdag-accent); outline-offset: 3px; border-radius: 3px; }
+.mdag-node[data-drop-target] .mdag-box {
+    outline: 2px dashed var(--markdag-accent); outline-offset: 4px; border-radius: 3px;
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--markdag-accent) 18%, transparent);
+}
+/* 重ね置きの層。図の領域と同じ大きさで、押下は中の要素だけが受ける (何もないところの押下は下の図の領域へ通す)。
+   中の要素の位置と倍率は描画の側が transform で付ける。図の領域と同じく、中の入力欄へのフォーカスでスクロールされないよう clip にする */
+.mdag-overlays { position: absolute; inset: 0; overflow: hidden; overflow: clip; pointer-events: none; }
+.mdag-overlays > * { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; }
+.mdag-overlays > [hidden] { display: none; }
+/* 中ボタンだけでパンする図では、主ボタンのドラッグでパンしないので、何もないところに掴む形のカーソルを出さない */
+.markdag[data-drag-to-pan="middle"] .mdag-viewport, .markdag[data-drag-to-pan="middle"] .mdag-viewport:active { cursor: default; }
+/* GUI 編集では、タスクを切り替えるのは先頭の状態の絵のクリックだけなので、文字は指の形にせず、絵だけを指の形にする */
+.markdag[data-interaction="edit"] .mdag-node[data-task] .mdag-content { cursor: auto; }
+.markdag[data-interaction="edit"] .mdag-node[data-task]:not([data-task-fixed]) .mdag-task-label > svg:first-child { cursor: pointer; }
+
+/* ---- 編集の層 (markdag/editor) ---- */
+/* GUI 編集の層の見た目。この区画の外に編集の層の規則を書かない (切り出すときは区画ごと移す)。
+   色は公開の変数だけを使い、編集の層の内部の値は --mdag-editor- の変数に置く。暗い背景で変える値は .markdag-dark の下で上書きする */
+.markdag {
+    --mdag-editor-edge: 10px;
+    --mdag-editor-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+    --mdag-editor-hover: color-mix(in srgb, var(--markdag-text) 8%, transparent);
+    --mdag-editor-selected: color-mix(in srgb, var(--markdag-accent) 18%, transparent);
+    --mdag-editor-danger: #c4362c;
+}
+.markdag.markdag-dark { --mdag-editor-shadow: 0 1px 4px rgb(0 0 0 / 0.5); --mdag-editor-danger: #e5675e; }
+/* 図の要素そのもののフォーカスは枠を出さない (押したボタンからフォーカスを戻す先。今の道具は押された印で示す) */
+.markdag[data-editor-mode]:focus { outline: none; }
+/* 編集の層は図の要素と同じ大きさで、押下は中の部品だけが受ける (何もないところは下の図へ通す)。吹き出しと凡例より上に出す。
+   中の部品が図の領域の高さで詰め方を変えられるよう、大きさの問い合わせの相手にする */
+.mdag-editor { position: absolute; inset: 0; z-index: 6; pointer-events: none; container-type: size; }
+/* 出さない部品 (閲覧の道具箱と案内、消えた通知)。部品の display の指定より強くする */
+.mdag-editor [hidden] { display: none; }
+/* 隅の入れ物。辺から --mdag-editor-edge だけ離し、上の隅は上から下へ、下の隅は下から上へ部品を積む。中央の隅は左右の中央に置く (幅は中身に合わせ、図の領域の幅を超えない) */
+.mdag-editor-corner { position: absolute; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.mdag-editor-corner > * { pointer-events: auto; }
+.mdag-editor-corner[data-corner^="top-"] { top: var(--mdag-editor-edge); }
+.mdag-editor-corner[data-corner^="bottom-"] { bottom: var(--mdag-editor-edge); flex-direction: column-reverse; }
+.mdag-editor-corner[data-corner$="-left"] { left: var(--mdag-editor-edge); align-items: flex-start; }
+.mdag-editor-corner[data-corner$="-right"] { right: var(--mdag-editor-edge); align-items: flex-end; }
+.mdag-editor-corner[data-corner$="-center"] { left: 50%; transform: translateX(-50%); align-items: center; width: max-content; max-width: calc(100% - 2 * var(--mdag-editor-edge)); }
+/* 閲覧と GUI 編集のセグメント。今のモードのボタンを押された印 (aria-pressed) で示す */
+.mdag-editor-segment {
+    display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--markdag-border); border-radius: 6px;
+    background: color-mix(in srgb, var(--markdag-panel) 92%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-muted);
+}
+.mdag-editor-segment > button { appearance: none; margin: 0; padding: 2px 10px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.mdag-editor-segment > button:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-segment > button[aria-pressed="true"] { background: var(--mdag-editor-selected); color: var(--markdag-text); cursor: default; }
+.mdag-editor-segment > button:focus { outline: none; }
+.mdag-editor-segment > button:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+/* 道具箱。図の領域の左の辺の上下の中央に縦に並べ、アイコンの下に名前を出す。今の道具は押された印 (aria-pressed) で示す */
+.mdag-editor-toolbox {
+    position: absolute; left: var(--mdag-editor-edge); top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 94%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.3 system-ui, sans-serif; color: var(--markdag-muted); pointer-events: auto;
+}
+.mdag-editor-tool {
+    appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 52px;
+    margin: 0; padding: 4px 4px 3px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer;
+}
+.mdag-editor-tool:hover:not(:disabled) { background: var(--mdag-editor-hover); color: var(--markdag-text); }
+.mdag-editor-tool[aria-pressed="true"] { background: var(--mdag-editor-selected); color: var(--markdag-text); }
+.mdag-editor-tool:disabled { opacity: 0.4; cursor: default; }
+.mdag-editor-tool:focus { outline: none; }
+.mdag-editor-tool:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+.mdag-editor-toolbox-sep { height: 1px; margin: 3px 4px; background: var(--markdag-border); }
+/* 図の領域が低く、左の上の隅の部品 (既定の置き場のセグメント) と重ねずに道具箱を置けないときは、ボタンの間と余白を詰める (アイコンと名前の大きさは変えない) */
+@container (max-height: 660px) {
+    .mdag-editor-toolbox { gap: 2px; padding: 4px; }
+    .mdag-editor-tool { padding-top: 2px; padding-bottom: 1px; }
+}
+/* ボタンの絵 (24 四方の線画)。色は文字の色を使う。道具箱と操作の帯では大きくする */
+.mdag-editor-icon { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.mdag-editor-toolbox .mdag-editor-icon, .mdag-editor-bar .mdag-editor-icon { width: 21.6px; height: 21.6px; }
+/* 操作の案内。押下は下の図へ通す */
+.mdag-editor-hint {
+    padding: 3px 10px; border: 1px solid var(--markdag-border); border-radius: 6px;
+    background: color-mix(in srgb, var(--markdag-panel) 92%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.6 system-ui, sans-serif; color: var(--markdag-muted); text-align: center; pointer-events: none;
+}
+.mdag-editor-hint kbd {
+    display: inline-block; margin: 0 2px; padding: 0 4px; border: 1px solid var(--markdag-border); border-radius: 3px;
+    background: var(--markdag-bg); color: var(--markdag-text); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* 通知。案内の上に出す。失敗は --mdag-editor-danger の地で出す */
+.mdag-editor-snackbar {
+    padding: 6px 12px; border-radius: 6px; box-shadow: var(--mdag-editor-shadow);
+    background: var(--markdag-text); color: var(--markdag-bg); font: 12px/1.5 system-ui, sans-serif;
+}
+.mdag-editor-snackbar[data-kind="error"] { background: var(--mdag-editor-danger); color: var(--markdag-bg); }
+/* 操作の帯。選んだノードの上 (入らなければ下) に重ね、アイコンの下に名前を出す。2 つ以上なら先頭に選んだ数を出す */
+.mdag-editor-bar {
+    display: flex; align-items: stretch; gap: 2px; padding: 7px; white-space: nowrap;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 96%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.3 system-ui, sans-serif; color: var(--markdag-muted);
+}
+.mdag-editor-bar-title { align-self: center; padding: 0 8px; font-size: 14.4px; color: var(--markdag-text); }
+.mdag-editor-bar-button {
+    appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px;
+    margin: 0; padding: 4px 5px 3px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer;
+}
+.mdag-editor-bar-button:hover:not(:disabled) { background: var(--mdag-editor-hover); color: var(--markdag-text); }
+.mdag-editor-bar-button[data-command="delete"] { color: var(--mdag-editor-danger); }
+.mdag-editor-bar-button:disabled { opacity: 0.4; cursor: default; }
+.mdag-editor-bar-button:focus { outline: none; }
+.mdag-editor-bar-button:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+.mdag-editor-bar-sep { width: 1px; margin: 4px 2px; background: var(--markdag-border); }
+/* 2 つ以上を選んだときの全体の外枠。選んだノードの全体の矩形に重ね、少し外側に破線を描く。押下は下のノードへ通す */
+.mdag-editor-selection-bounds { pointer-events: none; outline: 1px dashed var(--markdag-accent); outline-offset: 6px; border-radius: 4px; }
+/* 矩形選択の矩形。押下は受けない */
+.mdag-editor-marquee {
+    position: absolute; pointer-events: none;
+    border: 1px solid var(--markdag-accent); background: color-mix(in srgb, var(--markdag-accent) 10%, transparent);
+}
+/* 付け替えのドラッグでポインタに付いてくる、動かすノードの名前の影。押下は受けない (ポインタの下のノードを隠さない) */
+.mdag-editor-ghost {
+    position: absolute; pointer-events: none; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 2px 8px; border: 1px solid var(--markdag-accent); border-radius: 4px; opacity: 0.9;
+    background: color-mix(in srgb, var(--markdag-panel) 94%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text);
+}
+/* 名前の入力。ノードの文字の上に重ね、図の倍率で拡大する (幅と高さは図の座標で、字は図の字をそのまま使う)。
+   幅と高さは文字の箱に合わせるので、枠と余白はその外に出し (content-box と負の margin)、打つ文字が名前の文字と同じ所に来るようにする。
+   短い名前でも打てる幅を残し、詳細を開いたノードでも 1 行目の高さにとどめる */
+.mdag-editor-name-input {
+    box-sizing: content-box; min-width: 6em; max-height: 1.25em; margin: -2px 0 0 -4px; padding: 1px 3px;
+    border: 1px solid var(--markdag-accent); border-radius: 3px; outline: none;
+    background: var(--markdag-bg); color: var(--markdag-text); font: inherit;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--markdag-accent) 18%, transparent);
+}
+/* グループの名前の入力。字は枠のラベルと同じにする (枠のラベルの上では図の倍率で拡大し、枠がないときはメンバーの上に画面の大きさで置く) */
+.mdag-editor-name-input[data-for="group"] { font: 11px sans-serif; }
+/* 選んだノードのまわりの点とつまみ。押してほかのノードへドラッグする点と、押すとノードを足す +。
+   位置は描画の側が transform で付け、選択の枠から離す量 (図の倍率で変わる) は編集の層が translate と left / top で付ける。大きさと形は中の絵が決める */
+.mdag-editor-handle { box-sizing: border-box; cursor: crosshair; touch-action: none; }
+/* 2 つ以上を選んだときの全体の右の、選択全体の点 */
+.mdag-editor-handle[data-handle="join"] {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--markdag-accent); background: var(--markdag-bg); box-shadow: var(--mdag-editor-shadow);
+}
+.mdag-editor-handle[data-handle="join"]:hover { background: var(--markdag-accent); }
+/* 子を足す + (ノードの右の縦の中央) と兄弟を足す + (ノードの下)。丸の中に + の印。乗せたら丸を塗り、印を地の色にする */
+.mdag-editor-handle[data-handle="child"], .mdag-editor-handle[data-handle="sibling"] {
+    border-radius: 50%; color: var(--markdag-accent); box-shadow: var(--mdag-editor-shadow); cursor: pointer;
+}
+.mdag-editor-plus { display: block; overflow: visible; }
+.mdag-editor-plus-ring { fill: var(--markdag-bg); stroke: currentColor; }
+.mdag-editor-plus-mark { fill: none; stroke: currentColor; stroke-linecap: round; }
+.mdag-editor-handle:hover > .mdag-editor-plus .mdag-editor-plus-ring { fill: currentColor; }
+.mdag-editor-handle:hover > .mdag-editor-plus .mdag-editor-plus-mark { stroke: var(--markdag-bg); }
+/* 線を引く点。ノードの箱を覆う入れ物 (押下は下へ通す) の中で、丸を選択の枠の右下の角 (縮小して + に近づく倍率では右下へずらした所) に置く。
+   丸から右下へ浅く曲がる線と矢尻が伸びる。押下を受けるのは丸の範囲と、描いた丸と線と矢尻と、そのまわりへ広げた当たり判定。
+   乗せたら丸の中心を止めて 1.1 倍にし (矢印の方向へ伸びる)、丸を塗る */
+.mdag-overlays > .mdag-editor-handle-anchor { pointer-events: none; }
+.mdag-editor-handle[data-handle="link"] { position: absolute; color: var(--markdag-accent); pointer-events: auto; }
+.mdag-editor-link-mark { position: absolute; overflow: visible; pointer-events: none; }
+.mdag-editor-link-mark > * { pointer-events: visiblePainted; }
+.mdag-editor-link-tail { fill: none; stroke: currentColor; stroke-linecap: round; }
+.mdag-editor-link-head { fill: currentColor; stroke: currentColor; stroke-linejoin: round; }
+.mdag-editor-link-dot { fill: var(--markdag-bg); stroke: currentColor; }
+.mdag-editor-handle[data-handle="link"]:hover > .mdag-editor-link-mark { transform: scale(1.1); }
+.mdag-editor-handle[data-handle="link"]:hover .mdag-editor-link-dot { fill: currentColor; }
+/* 子の +、兄弟の +、線を引く点の、絵のまわりへ広げた当たり判定。透明な長方形の並びで、位置と大きさは編集の層が付ける。
+   つまみの要素の中に置くので、乗せたときのカーソルと強調はつまみの絵の上と同じ */
+.mdag-editor-handle-hit { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.mdag-editor-handle-hit > div { position: absolute; }
+/* 線を引くドラッグと合流させるドラッグの途中の引く線。図の領域と同じ大きさの入れ物に描き、押下は受けない (ポインタの下のノードを隠さない) */
+.mdag-editor-link-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.mdag-editor-link-preview { fill: none; stroke: var(--markdag-accent); stroke-width: 2; stroke-dasharray: 6 4; }
+.mdag-editor-link-layer > circle { fill: var(--markdag-accent); }
+/* 合流先を選ぶ途中は、ノードの上を十字のカーソルにする */
+.markdag[data-editor-tool="join-target"] .mdag-box { cursor: crosshair; }
+/* 隅の入れ物は図の領域の高さを超えない。凡例のパネルだけが縮み、中の段をスクロールさせる (ほかの部品は中身の高さのまま) */
+.mdag-editor-corner { max-height: calc(100% - 2 * var(--mdag-editor-edge)); }
+/* 凡例のパネル (線の色・グループ)。見出しの下に、上から線の色の段とグループの段を並べる。閉じているときは見出しだけを出す */
+.mdag-editor-legend {
+    display: flex; flex-direction: column; min-height: 0; min-width: 180px; max-width: 280px; overflow: hidden;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 94%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text);
+}
+.mdag-editor-legend-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; font-weight: 600; }
+.mdag-editor-legend[data-open] .mdag-editor-legend-head { border-bottom: 1px solid var(--markdag-border); }
+.mdag-editor-legend-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdag-editor-legend-new, .mdag-editor-legend-toggle, .mdag-editor-legend-action {
+    appearance: none; display: inline-flex; align-items: center; justify-content: center; margin: 0; border: 0; border-radius: 5px;
+    background: transparent; color: var(--markdag-muted); font: inherit; font-weight: normal; cursor: pointer;
+}
+.mdag-editor-legend-new { gap: 2px; padding: 1px 6px 1px 3px; color: var(--markdag-accent); }
+.mdag-editor-legend-toggle { width: 22px; height: 22px; padding: 0; }
+.mdag-editor-legend-new .mdag-editor-icon { width: 14px; height: 14px; }
+.mdag-editor-legend-toggle .mdag-editor-icon { width: 16px; height: 16px; transition: transform 0.15s; }
+.mdag-editor-legend:not([data-open]) .mdag-editor-legend-toggle .mdag-editor-icon { transform: rotate(-90deg); }
+.mdag-editor-legend-new:hover, .mdag-editor-legend-toggle:hover, .mdag-editor-legend-action:hover:not(:disabled) { background: var(--mdag-editor-hover); color: var(--markdag-text); }
+.mdag-editor-legend-new:focus, .mdag-editor-legend-toggle:focus, .mdag-editor-legend-action:focus, .mdag-editor-legend-chip:focus { outline: none; }
+.mdag-editor-legend-new:focus-visible, .mdag-editor-legend-toggle:focus-visible, .mdag-editor-legend-action:focus-visible, .mdag-editor-legend-chip:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+.markdag[data-editor-mode="edit"] .mdag-editor-legend-head { cursor: pointer; }
+.mdag-editor-legend-body { min-height: 0; overflow-y: auto; padding: 2px 0 4px; }
+.mdag-editor-legend:not([data-open]) .mdag-editor-legend-body { display: none; }
+.mdag-editor-legend-section { padding: 2px 4px; }
+.mdag-editor-legend-section + .mdag-editor-legend-section { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--markdag-border); }
+.mdag-editor-legend-caption { padding: 2px 6px; font-size: 11px; color: var(--markdag-muted); }
+.mdag-editor-legend-guide { padding: 2px 6px 4px; font-size: 11px; color: var(--markdag-muted); }
+.mdag-editor-legend-guide code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--markdag-text); }
+/* 行。線の色の段は 1 行に 1 つ縦に並べる。グループの行は GUI 編集でだけ、ポインタを乗せると地を変え、選んだ行は選んだ地にする */
+.mdag-editor-legend-row { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 1px 4px 1px 6px; border-radius: 5px; }
+.mdag-editor-legend-line { flex: none; width: 28px; height: 10px; overflow: visible; }
+.mdag-editor-legend-line > line { stroke-width: 2; stroke-linecap: round; }
+.mdag-editor-legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdag-editor-legend-row .mdag-icon[data-icon-color] { flex: none; }
+.mdag-editor-legend-row .mdag-icon[data-icon-color] > svg { width: 14px; height: 14px; }
+.mdag-editor-legend-chip { flex: none; box-sizing: border-box; width: 12px; height: 12px; margin: 0; padding: 0; border: 1px solid var(--markdag-border); border-radius: 3px; }
+button.mdag-editor-legend-chip { appearance: none; width: 14px; height: 14px; cursor: pointer; }
+.mdag-editor-legend-count {
+    flex: none; min-width: 18px; padding: 0 5px; border-radius: 999px; box-sizing: border-box;
+    background: var(--mdag-editor-hover); color: var(--markdag-muted); font-size: 11px; line-height: 16px; text-align: center;
+}
+.markdag[data-editor-mode="edit"] .mdag-editor-legend { user-select: none; -webkit-user-select: none; }
+.markdag[data-editor-mode="edit"] .mdag-editor-legend-row[data-group] { cursor: pointer; }
+.markdag[data-editor-mode="edit"] .mdag-editor-legend-row[data-group]:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-legend-row[data-selected] { background: var(--mdag-editor-selected); }
+/* 行の操作ボタン (+、目、ごみ箱)。ポインタを乗せた行と選んだ行にだけ見せ、枠を隠しているグループの目は出したままにする。
+   隠している間も場所は取る (ポインタを乗せても行の幅が変わらない) */
+.mdag-editor-legend-action { flex: none; width: 22px; height: 22px; padding: 0; visibility: hidden; }
+.mdag-editor-legend-action .mdag-editor-icon { width: 15px; height: 15px; }
+.mdag-editor-legend-row[data-group]:hover .mdag-editor-legend-action,
+.mdag-editor-legend-row[data-selected] .mdag-editor-legend-action,
+.mdag-editor-legend-action[data-action="boundary"][aria-pressed="false"] { visibility: visible; }
+.mdag-editor-legend-action[data-action="delete"]:hover:not(:disabled) { color: var(--mdag-editor-danger); }
+.mdag-editor-legend-action:disabled { opacity: 0.4; cursor: default; }
+/* 行の中のグループの名前の入力。名前の文字の場所に、行の字のまま置く (幅は名前の場所の幅。開いてもパネルの幅をなるべく変えない) */
+.mdag-editor-legend-row .mdag-editor-name-input[data-for="group"] {
+    flex: 1 1 0; width: 0; min-width: 5em; max-height: none; margin: 0; font: inherit; user-select: text; -webkit-user-select: text;
+}
+/* カラーピッカー。色の四角の下 (入らなければ上) に、編集の層の中で置く */
+.mdag-editor-color-picker {
+    position: absolute; z-index: 1; display: flex; flex-direction: column; gap: 8px; padding: 8px; pointer-events: auto;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 98%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text);
+}
+.mdag-editor-swatches { display: grid; grid-template-columns: repeat(6, 22px); gap: 6px; }
+.mdag-editor-swatch { appearance: none; width: 22px; height: 22px; margin: 0; padding: 0; border: 1px solid var(--markdag-border); border-radius: 5px; cursor: pointer; }
+.mdag-editor-swatch:hover { transform: scale(1.1); }
+.mdag-editor-swatch[aria-pressed="true"] { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+.mdag-editor-swatch:focus { outline: none; }
+.mdag-editor-swatch:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+.mdag-editor-color-line { display: flex; align-items: center; gap: 8px; }
+.mdag-editor-hex {
+    box-sizing: border-box; width: 7.5em; padding: 2px 6px; border: 1px solid var(--markdag-border); border-radius: 4px;
+    background: var(--markdag-bg); color: var(--markdag-text); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.mdag-editor-hex:focus { outline: none; border-color: var(--markdag-accent); }
+.mdag-editor-hex[aria-invalid="true"] { border-color: var(--mdag-editor-danger); }
+.mdag-editor-color-native { display: inline-flex; align-items: center; gap: 4px; color: var(--markdag-muted); cursor: pointer; }
+.mdag-editor-color-native > input { box-sizing: border-box; width: 26px; height: 22px; margin: 0; padding: 0 1px; border: 1px solid var(--markdag-border); border-radius: 4px; background: var(--markdag-bg); cursor: pointer; }
+/* 詳細表示の選択肢。道具箱の「詳細表示」のボタンの右に、ボタンの上の辺にそろえて開く (上の位置は描画の側が付ける)。
+   ボタンとの隙間にも押下の場所を広げ、ポインタがボタンから選択肢へ移る途中で離れたことにならないようにする。今の見せ方に点を付ける */
+.mdag-editor-flyout {
+    position: absolute; left: calc(100% + 6px); top: 0; display: flex; flex-direction: column; gap: 2px; padding: 4px;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 98%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text); white-space: nowrap;
+}
+.mdag-editor-flyout::before { content: ''; position: absolute; top: 0; bottom: 0; right: 100%; width: 8px; }
+.mdag-editor-flyout-item {
+    appearance: none; display: flex; align-items: center; gap: 6px; margin: 0; padding: 3px 10px 3px 6px; border: 0; border-radius: 5px;
+    background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.mdag-editor-flyout-item::before { content: ''; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--markdag-accent); visibility: hidden; }
+.mdag-editor-flyout-item[aria-checked="true"]::before { visibility: visible; }
+.mdag-editor-flyout-item:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-flyout-item[aria-checked="true"] { background: var(--mdag-editor-selected); }
+.mdag-editor-flyout-item:focus { outline: none; }
+.mdag-editor-flyout-item:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+/* 詳細の入力。選んだノードの右 (入らなければ下、下にも入らなければ上) に画面の大きさのまま重ねる。
+   大きさは決まった値にする (置く向きを決めるのに、開く前と同じ大きさで測れるように) */
+.mdag-editor-details-editor {
+    box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; width: 300px; padding: 8px;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 98%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text);
+}
+.mdag-editor-details-editor > textarea {
+    box-sizing: border-box; display: block; width: 100%; margin: 0; padding: 4px 6px; resize: none;
+    border: 1px solid var(--markdag-border); border-radius: 4px; outline: none;
+    background: var(--markdag-bg); color: var(--markdag-text); font: 12px/1.5 system-ui, sans-serif;
+}
+.mdag-editor-details-editor > textarea:focus { border-color: var(--markdag-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--markdag-accent) 18%, transparent); }
+.mdag-editor-details-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.mdag-editor-details-button {
+    appearance: none; margin: 0; padding: 2px 12px; border: 1px solid var(--markdag-border); border-radius: 5px;
+    background: transparent; color: var(--markdag-text); font: inherit; cursor: pointer;
+}
+.mdag-editor-details-button:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-details-button[data-action="save"] { border-color: var(--markdag-accent); background: var(--markdag-accent); color: var(--markdag-bg); }
+.mdag-editor-details-button[data-action="save"]:hover { background: color-mix(in srgb, var(--markdag-accent) 85%, var(--markdag-text)); }
+.mdag-editor-details-button:focus { outline: none; }
+.mdag-editor-details-button:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
+/* タグのパネル (タグ追加とタグ選択)。選んだノード (2 つ以上なら全体) の右 (入らなければ下) に画面の大きさのまま重ねる。
+   幅は決まった値にし (置く向きを決めるのに、開く前と同じ幅で測れるように)、高さは図の領域を超えない (行の並びをスクロールする) */
+.mdag-editor-tag-panel {
+    box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; width: 240px; max-height: calc(100% - 2 * var(--mdag-editor-edge)); padding: 8px;
+    border: 1px solid var(--markdag-border); border-radius: 8px;
+    background: color-mix(in srgb, var(--markdag-panel) 98%, transparent); box-shadow: var(--mdag-editor-shadow);
+    font: 12px/1.5 system-ui, sans-serif; color: var(--markdag-text);
+}
+.mdag-editor-tag-form { flex: none; display: flex; flex-direction: column; gap: 6px; }
+.mdag-editor-tag-fields { display: flex; align-items: center; gap: 4px; }
+.mdag-editor-tag-colon { flex: none; color: var(--markdag-muted); }
+.mdag-editor-tag-field, .mdag-editor-tag-filter {
+    box-sizing: border-box; min-width: 0; margin: 0; padding: 3px 6px; border: 1px solid var(--markdag-border); border-radius: 4px; outline: none;
+    background: var(--markdag-bg); color: var(--markdag-text); font: inherit;
+}
+.mdag-editor-tag-field { flex: 1 1 0; }
+.mdag-editor-tag-field[data-field="value"] { flex-grow: 1.4; }
+.mdag-editor-tag-filter { flex: none; width: 100%; }
+.mdag-editor-tag-field:focus, .mdag-editor-tag-filter:focus { border-color: var(--markdag-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--markdag-accent) 18%, transparent); }
+.mdag-editor-tag-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.mdag-editor-tag-button {
+    appearance: none; margin: 0; padding: 2px 12px; border: 1px solid var(--markdag-border); border-radius: 5px;
+    background: transparent; color: var(--markdag-text); font: inherit; cursor: pointer;
+}
+.mdag-editor-tag-button:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-tag-button[data-action="add"], .mdag-editor-tag-button[data-action="update"] { border-color: var(--markdag-accent); background: var(--markdag-accent); color: var(--markdag-bg); }
+.mdag-editor-tag-button[data-action="add"]:hover, .mdag-editor-tag-button[data-action="update"]:hover { background: color-mix(in srgb, var(--markdag-accent) 85%, var(--markdag-text)); }
+/* 行の並び。付いているタグ、最近使ったタグ、登録されているタグ。行を押すと、タグ追加は編集、タグ選択は付け外し */
+.mdag-editor-tag-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.mdag-editor-tag-body:empty { display: none; }
+.mdag-editor-tag-caption { padding: 2px 2px 0; font-size: 11px; color: var(--markdag-muted); }
+.mdag-editor-tag-list { display: flex; flex-direction: column; }
+.mdag-editor-tag-sep { flex: none; height: 1px; margin: 4px 2px; background: var(--markdag-border); }
+.mdag-editor-tag-empty { padding: 4px 2px; font-size: 11px; color: var(--markdag-muted); }
+.mdag-editor-tag-row { display: flex; align-items: center; min-height: 22px; border-radius: 5px; cursor: pointer; }
+.mdag-editor-tag-row:hover { background: var(--mdag-editor-hover); }
+.mdag-editor-tag-row[data-editing] { background: var(--mdag-editor-selected); }
+.mdag-editor-tag-pick {
+    appearance: none; display: block; flex: 1; min-width: 0; margin: 0; padding: 2px 6px; border: 0; border-radius: 5px; background: transparent;
+    color: inherit; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+/* タグ選択の行の印。全部に付いていれば塗った四角、一部なら横線、どれにもなければ空の四角 */
+.mdag-editor-tag-pick[role="menuitemcheckbox"]::before {
+    content: ''; display: inline-block; box-sizing: border-box; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px;
+    border: 1px solid var(--markdag-border); border-radius: 3px; background: var(--markdag-bg);
+}
+.mdag-editor-tag-row[data-state="all"] > .mdag-editor-tag-pick[role="menuitemcheckbox"]::before { border-color: var(--markdag-accent); background: var(--markdag-accent); box-shadow: inset 0 0 0 2px var(--markdag-bg); }
+.mdag-editor-tag-row[data-state="some"] > .mdag-editor-tag-pick[role="menuitemcheckbox"]::before {
+    border-color: var(--markdag-accent); background: linear-gradient(var(--markdag-accent), var(--markdag-accent)) center / 6px 2px no-repeat var(--markdag-bg);
+}
+/* 付いているタグの行のうち、選んだノードの一部にだけ付いているもの */
+.mdag-editor-tag-row[data-state="some"] > .mdag-editor-tag-pick:not([role])::after {
+    content: '一部'; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--mdag-editor-hover); color: var(--markdag-muted); font: 10px/1.5 system-ui, sans-serif;
+}
+.mdag-editor-tag-remove {
+    appearance: none; flex: none; width: 22px; height: 22px; margin: 0; padding: 0; border: 0; border-radius: 5px;
+    background: transparent; color: var(--markdag-muted); font: 14px/1 system-ui, sans-serif; cursor: pointer;
+}
+.mdag-editor-tag-remove:hover { background: var(--mdag-editor-hover); color: var(--mdag-editor-danger); }
+.mdag-editor-tag-button:focus, .mdag-editor-tag-pick:focus, .mdag-editor-tag-remove:focus { outline: none; }
+.mdag-editor-tag-button:focus-visible, .mdag-editor-tag-pick:focus-visible, .mdag-editor-tag-remove:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }

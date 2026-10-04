@@ -1,0 +1,32 @@
+kind: 正常
+decided: [U-03]
+checks: >-
+    セグメントの「閲覧」で閲覧へ移ると、開いている名前の入力を決めて閉じ (U-03 で決まった)、選択を解き、道具箱と帯を出さない。閲覧の凡例のパネルには操作のボタンも開閉のボタンも出さず、中身のない段 (線の色。markdag.branches がない) は出さない。
+    閲覧ではノードを押しても選ばず、キーで原文を変えない。「GUI 編集」で戻ると最初の道具 (選択) で始まる
+behaviors: [B-169, B-171, B-155, B-153, B-154, B-172, B-179]
+states: [A2.a1, D3.d13, C2.c16, A1.a2]
+decisions: [F-04]
+steps:
+    - click: { node: 画面 }
+    - key: Enter
+    - type: 画面設計
+    - click: { segment: view }
+      expect:
+          mode: view
+          editor_mode: view
+          segment_pressed: view
+          source: after-commit.md
+          input: none
+          selection: none
+          toolbox: null
+          bar: none
+          legend_actions: 0
+          legend_toggle: false
+          legend_new: false
+          legend_sections: [groups]
+    - click: { node: 公開 }
+      expect: { selection: none, bar: none }
+    - key: Delete
+      expect: { source: after-commit.md }
+    - click: { segment: edit }
+      expect: { mode: edit, segment_pressed: edit, tool: select, toolbox: [select, hand, join, group, tag-add, tag-select, details, undo, redo, fit], legend_toggle: true, selection: none }

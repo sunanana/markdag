@@ -163,6 +163,16 @@ impl<'a, 's> Tokens<'a, 's> {
         self.ranges.get(&key_of(node)).copied()
     }
 
+    /// 本文の行のうち、comrak の sourcepos の行 after より後ろで before より前のもの (どちらも 1 始まりで、両端は含めない) が
+    /// 全部空行 (空白とタブだけ) か。AST のノードにならない行 (参照の定義など) も空行に数えない
+    pub(super) fn blank_between(&self, after: usize, before: usize) -> bool {
+        (after..before.saturating_sub(1)).all(|index| {
+            self.lines
+                .get(index)
+                .is_none_or(|text| is_blank(text, false))
+        })
+    }
+
     /// ノードの開きのトークンの map (data-lines に書く行の範囲)
     pub(super) fn map_of_node(&self, node: &'a AstNode<'a>) -> Option<(usize, usize)> {
         let (open, _) = self.range_of(node)?;

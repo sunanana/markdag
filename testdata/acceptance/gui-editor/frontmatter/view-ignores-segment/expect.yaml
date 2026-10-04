@@ -1,0 +1,8 @@
+kind: 境界
+checks: >-
+    mode が view のとき、default: edit と segment は診断を出さずに読むが、使わない。mount すると閲覧だけで、セグメントも道具箱も出さない
+behaviors: [B-173, B-174, B-180]
+expect:
+    diagnostics: []
+    editor: { mode: view, default: edit, segment: { display: true, position: bottom-right } }
+    screen: { mode: view, segment: null, toolbox: false }

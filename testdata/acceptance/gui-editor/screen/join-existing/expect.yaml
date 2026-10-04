@@ -1,0 +1,28 @@
+kind: 正常
+checks: >-
+    2 つ以上を選んで帯の「既存のノードへ合流」を押すと合流先を選ぶ途中になり (案内が替わる)、次に押したノードへ合流させて合流先を選ぶ。
+    何もないところを押すとやめ (選択は残す)、始点を押すと案内してやめない。選択全体の右の点を合流先へドラッグしても合流し、合流先へもう線のある始点は外して数を知らせる
+    (残った始点が 1 つなら depends に書く)
+behaviors: [B-099, B-100, B-101, B-102, B-103, B-104, B-065]
+states: [B1.b7, B3.b12, B3.b11, E3.e3]
+steps:
+    - click: { node: フロント }
+    - click: { node: バック }
+      mod: Shift
+    - click: { bar: join-existing }
+      expect: { tool: join-target, hint: { contains: 合流させる先のノードをクリック } }
+    - click: { blank: true }
+      expect: { tool: select, selection: 'nodes:フロント,バック' }
+    - click: { bar: join-existing }
+    - click: { node: フロント }
+      expect: { tool: join-target, notice: { kind: info, text: 合流させるノード (始点) は合流先にできません。ほかのノードを選んでください } }
+    - click: { node: 公開 }
+      expect: { source: after-join.md, selection: nodes:公開, tool: select, notice: { kind: info, text: 2 個のノードを「公開」へ合流させました } }
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+    - drag: { from: { handle: join }, to: { node: 公開 } }
+      expect:
+          source: after-join2.md
+          selection: nodes:公開
+          notice: { kind: info, text: 1 個のノードを「公開」へ合流させました。合流先へもう線がある始点が 1 個あったので外しました }

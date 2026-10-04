@@ -1,0 +1,30 @@
+kind: 正常
+checks: >-
+    D で選んだノードの詳細の入力を開き (帯と + と点は隠す)、⌘Enter / Ctrl+Enter で保存すると行ごとに > の引用ブロックとして書く。帯の「詳細編集」で書いた詳細を > を外して出し、Esc で保存せずに閉じる。
+    見出しでも D で詳細の入力を開く (見出しも詳細を持てる)。吹き出しの中の詳細をダブルクリックすると、そのノードを選んで詳細の入力を開く
+behaviors: [B-043, B-117, B-118, B-119, B-120, B-121, B-124, B-050, B-011]
+states: [D1.d1, D6.d3, D6.d5, D6.v1, D6.v2, D6.v3]
+decisions: [最後の関門 原文の都合で断る 6 (見出しも詳細を持てる。触る F-11 を改めた), F-15]
+steps:
+    - click: { node: バック }
+    - key: d
+      expect: { input: details, input_value: '', focus: details, bar: none, handles: [], hint: { contains: 保存 } }
+    - type: "担当: 佐藤\n期限: 金曜"
+    - key: ControlOrMeta+Enter
+      expect: { source: after-details.md, input: none, selection: nodes:バック, bar: node }
+    - click: { bar: details }
+      expect: { input: details, input_value: "担当: 佐藤\n期限: 金曜" }
+    - key: Escape
+      expect: { input: none, source: after-details.md, selection: nodes:バック }
+    - key: Escape
+    - click: { node: 設計 }
+    - key: d
+      expect: { input: details, input_value: '' }
+    - key: Escape
+      expect: { input: none, source: after-details.md, selection: nodes:設計 }
+    - hover: { node: API }
+      expect: { popover: true }
+    - dblclick: { popover_details: true }
+      expect: { selection: nodes:API, input: details, input_value: 認証つき }
+    - key: Escape
+      expect: { input: none, source: after-details.md }

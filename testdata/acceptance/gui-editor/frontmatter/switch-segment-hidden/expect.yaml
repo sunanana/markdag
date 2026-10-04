@@ -1,0 +1,8 @@
+kind: 正常
+checks: >-
+    segment.display: false は診断を出さない。default を書かなければ view。mount すると閲覧で始まり、セグメントは出さない (切り替えはアプリの setMode だけ)
+behaviors: [B-174, B-180]
+expect:
+    diagnostics: []
+    editor: { mode: switch, default: view, segment: { display: false, position: top-left } }
+    screen: { mode: view, segment: null, toolbox: false }

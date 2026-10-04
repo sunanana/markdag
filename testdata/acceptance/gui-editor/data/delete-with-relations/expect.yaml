@@ -1,0 +1,13 @@
+kind: 正常
+checks: >-
+    ノードを消すと、その行を消し、消したノードを指す markdag.relations の項目を外して外した数を知らせる。消したノードの親 (設計) を選ぶ
+behaviors: [B-016, B-038, B-039, B-004]
+op:
+    kind: deleteNodes
+    nodes: [画面]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [設計] }
+    rename: null
+    notes: [{ code: relations-removed, count: 1 }]

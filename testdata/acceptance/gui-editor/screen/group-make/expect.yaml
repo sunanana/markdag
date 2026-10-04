@@ -1,0 +1,25 @@
+kind: 正常
+checks: >-
+    2 つを選んで ⌘G / Ctrl+G を押すと、%group1 の印と markdag.groups の定義 (グループ 1、決まった色、枠あり) を足し、そのグループを選んで枠のラベルの上に名前の入力を開く。
+    Enter で名前 (label) を決め、グループは選んだまま。Esc で選択を解く
+behaviors: [B-046, B-106, B-107, B-108, B-109, B-110, B-114, B-115, B-113, B-162]
+states: [C3.c13, D4.d2, C5.c11]
+steps:
+    - click: { node: フロント }
+    - click: { node: バック }
+      mod: Shift
+    - key: ControlOrMeta+g
+      expect:
+          source: after-group.md
+          selection: group:group1
+          input: group-name
+          input_value: グループ 1
+          focus: 'name-input:group'
+          frames: { g1: 1, group1: 1 }
+          legend_rows: [g1, group1]
+          legend_counts: { g1: 3, group1: 2 }
+    - type: 開発班
+    - key: Enter
+      expect: { source: after-group-name.md, input: none, selection: group:group1, bar: group, bar_title: グループ「開発班」 }
+    - key: Escape
+      expect: { selection: none, bar: none }

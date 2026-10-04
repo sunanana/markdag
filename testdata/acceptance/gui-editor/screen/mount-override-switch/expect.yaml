@@ -1,0 +1,13 @@
+kind: 正常
+checks: >-
+    mount のオプションの mode (switch) は文書の mode (edit) を上書きし、文書に default がないので閲覧で始まりセグメントを出す。セグメントと setMode で切り替えられる
+behaviors: [B-183, B-174, B-179]
+states: [M4.m3, A1.a2, A2.a3]
+decisions: [Q4]
+mount: { mode: switch }
+steps:
+    - expect: { mode: view, segment: top-left, segment_pressed: view, toolbox: null }
+    - click: { segment: edit }
+      expect: { mode: edit, segment_pressed: edit, tool: select }
+    - set_mode: view
+      expect: { returned: true, mode: view, toolbox: null }

@@ -1,0 +1,53 @@
+kind: 正常
+decided: [U-08]
+checks: >-
+    Shift / ⌘ +クリックでノードを足す・外す。2 つ以上で、帯 (選んだ数、合流ノードを作る、既存のノードへ合流、グループ、タグ追加、タグ選択、削除)、
+    合流させる点、全体の外枠を出す。ルートは足さず理由を知らせる。何もないところからのドラッグで矩形選択、修飾キーつきの矩形は足す。
+    矩形の途中の Esc は矩形をやめ (矩形が消え)、離しても何も選ばない。選択は Esc の前のまま (U-08 で決まった)。2 つ以上を選んで Delete を押すと全部を消し、1 回の元に戻すで戻る
+behaviors: [B-041, B-062, B-063, B-064, B-065, B-060, B-061, B-047, B-085, B-100]
+states: [C2.c2, C3.c2, C3.c11, C1.c3, C3.c4, C3.c3, E4.e2, E4.e5, E4.e3]
+decisions: [F-01 (修飾キーは Shift と ⌘)]
+steps:
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+      expect:
+          selection: 'nodes:画面,API'
+          selected: [画面, API]
+          bar: nodes
+          bar_title: 2 個を選択
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, delete]
+          handles: [join]
+          bounds: 1
+          hint: { contains: 合流ノードを作る }
+    - click: { node: フロント }
+      mod: ControlOrMeta
+      expect: { selection: 'nodes:画面,API,フロント', bar_title: 3 個を選択 }
+    - click: { node: 画面 }
+      mod: Shift
+      expect: { selection: 'nodes:API,フロント' }
+    - click: { node: 計画 }
+      mod: Shift
+      expect: { selection: 'nodes:API,フロント', notice: { kind: error, text: ルートは合流の始点にできません } }
+    - key: Escape
+      expect: { selection: none, bar: none, bounds: 0, handles: [] }
+    - marquee: [画面, API]
+      expect: { selection: 'nodes:画面,API', marquee: false }
+    - marquee: [バック]
+      mod: Shift
+      expect: { selection: 'nodes:画面,API,バック' }
+    - marquee: [フロント]
+      expect: { selection: nodes:フロント }
+    - marquee: { nodes: [バック], release: false }
+      expect: { marquee: true }
+    - key: Escape
+      expect: { selection: nodes:フロント, marquee: false }
+    - up: true
+      expect: { selection: nodes:フロント, marquee: false }
+    - key: Escape
+    - marquee: [フロント, バック]
+      expect: { selection: 'nodes:フロント,バック' }
+    - key: Delete
+      expect: { source: after-multi-delete.md, selection: nodes:実装, notice: { kind: info, text: 選んだ 2 個のノードを消しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }

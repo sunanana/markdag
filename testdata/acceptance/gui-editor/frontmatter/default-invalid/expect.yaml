@@ -1,0 +1,7 @@
+kind: 誤り
+checks: default に使えない値 (switch) は option-invalid で知らせ、default は既定 (view) にする。mode switch は読むので、閲覧で始まりセグメントを出す
+behaviors: [B-177, B-174]
+expect:
+    diagnostics: [{ severity: warning, code: option-invalid }]
+    editor: { mode: switch, default: view, segment: { display: true, position: top-left } }
+    screen: { mode: view, segment: top-left, toolbox: false }

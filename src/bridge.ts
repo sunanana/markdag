@@ -194,6 +194,16 @@ export function createHookBridge(options: HookBridgeOptions): HookBridge {
             const { totalNodes, visibleNodes, layoutMs, excludedEdges } = snapshot;
             runner.emit('onLayout', { layout: { totalNodes, visibleNodes, layoutMs, excludedEdges } });
         },
+        // 図の出口の受け口 (押下とクリック、ロゴの到着) は、アプリの受け口へそのまま通す。文書のフックの出来事にはしない
+        onNodePointerDown: (node, event) => own.onNodePointerDown?.(node, event),
+        onNodeDoubleClick: (node, place, event) => own.onNodeDoubleClick?.(node, place, event),
+        onTagClick: (node, key, place, event) => own.onTagClick?.(node, key, place, event),
+        onEdgeClick: (edge, event) => own.onEdgeClick?.(edge, event),
+        onFrameClick: (...args) => own.onFrameClick?.(...args),
+        onFrameDoubleClick: (...args) => own.onFrameDoubleClick?.(...args),
+        onCanvasPointerDown: (event, target) => own.onCanvasPointerDown?.(event, target),
+        onCanvasClick: (event) => own.onCanvasClick?.(event),
+        onIconSvg: (ref) => own.onIconSvg?.(ref),
     };
 
     return {

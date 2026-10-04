@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    字下げ 2 で入れ子にした文書で、子のない項目 (画面) に子を足すと、画面の行のすぐ下に 1 段深い項目 (字下げ 4) を書く。
+    足したノードを選び、すぐ名前の入力を開く相手にする
+behaviors: [B-014, B-021, B-022, B-025]
+op:
+    kind: addChild
+    parent: 画面
+    label: 新しいノード
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [新しいノード] }
+    rename: { kind: node, node: 新しいノード }
+    notes: []

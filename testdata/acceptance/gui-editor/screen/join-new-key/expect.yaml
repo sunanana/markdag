@@ -1,0 +1,18 @@
+kind: 正常
+checks: >-
+    2 つ以上を選んで J を押すと、新しい合流先 (仮の名前「合流点」) を最上位の枝のあとに作って join に 1 行足し、合流先を選んで名前の入力を開く。
+    名前を決めると join の中の名前も書き換える。1 つだけを選んで J を押すと合流せず理由を知らせる
+behaviors: [B-045, B-094, B-095, B-096, B-097, B-098, B-035]
+states: [B1.b6, D2.d6]
+steps:
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+    - key: j
+      expect: { source: after-join.md, selection: nodes:合流点, input: name, input_value: 合流点 }
+    - type: 結合
+    - click: { blank: true }
+      expect: { source: after-join-name.md, input: none, selection: none }
+    - click: { node: フロント }
+    - key: j
+      expect: { source: after-join-name.md, notice: { kind: error, text: 何もないところからドラッグして、合流させるノードを 2 つ以上囲んでください } }

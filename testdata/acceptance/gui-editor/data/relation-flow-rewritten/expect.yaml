@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    markdag を flow 形式 ({ … }) で書いた frontmatter に線を引くと、markdag の値を中の値ごと字下げの形 (キーと - で 1 行ずつ。幅 4) に
+    書き直してから、relations と depends のキーを足して 1 行書く。読み直した legend の値は変わらない。書き直したことは知らせず、引いた線を選ぶ
+behaviors: [B-002]
+op:
+    kind: addRelation
+    from: 画面
+    to: 公開
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: edge, edge: { kind: depends, source: 画面, target: 公開 } }
+    rename: null
+    notes: []

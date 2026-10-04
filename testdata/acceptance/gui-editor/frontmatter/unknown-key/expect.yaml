@@ -1,0 +1,7 @@
+kind: 誤り
+checks: markdag.editor の下の知らないキー (color) は option-unknown で知らせ、ほかの欄 (mode edit) は読む
+behaviors: [B-177]
+expect:
+    diagnostics: [{ severity: warning, code: option-unknown }]
+    editor: { mode: edit, default: view, segment: { display: true, position: top-left } }
+    screen: { mode: edit, segment: null, toolbox: true }

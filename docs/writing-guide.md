@@ -48,6 +48,8 @@ markdag:
 ## Requirements $req
 
 ## Design %design
+> Screens and APIs are designed together.
+
 ### Screen design
 ### API design
 
@@ -58,7 +60,7 @@ markdag:
     > Posts to the signup API. Show input errors right under each field.
 - [ ] Test %qa
 ### Backend
-- [x] Search API #owner:bob
+- [x] Search API #owner:bob #"api.version":2
 - [ ] Signup API #owner:alice,bob #urgent
 - [ ] Test %qa
 
@@ -82,9 +84,9 @@ Nodes are headings and list items. The first line of a node (the heading text, o
 | Notation | Where | Meaning |
 | --- | --- | --- |
 | `%name` | End of the first line of a heading or list item | Puts the node and all its descendants in group `name` |
-| `#key:value`, `#key` | End of the first line of a heading or list item | A tag on this node only: a key with a value, several values (`#key:a,b`), a value with spaces (`#key:"a b"`), or no value (`#key`). Shown in the node as written |
+| `#key:value`, `#key` | End of the first line of a heading or list item | A tag on this node only: a key with a value, several values (`#key:a,b`), a value with spaces (`#key:"a b"`), a key in quotes (`#"api.version":2`), or no value (`#key`). Shown in the node as written, with quotes only where they are needed |
 | `$name` | End of the first line of a heading or list item | An id for the node, referenced as `$name` |
-| `> ...` | A blockquote inside a list item, from its second line on | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
+| `> ...` | A blockquote inside a list item, from its second line on, or right under a heading | Details of the node, shown on click or hover instead of inside the node. With `details.display: always` they are shown inside the node, at the position where they are written (content written after the blockquote comes after it) |
 | `**...**` | The whole first line is one bold span | Marks the node as a milestone |
 | `[ ]`, `[/]`, `[x]`, `[-]` | Start of a list item or a heading (`- [ ] Name`, `## [/] Name`) | A task: `[ ]` open, `[/]` in progress, `[x]` done, `[-]` canceled. `[X]` is the same as `[x]`. Clicking the label moves the task to the next mark in `tasks.cycle` (by default `[ ]` and `[x]` alternate, and `[/]` and `[-]` are changed by editing the text), and so does clicking the details when they are shown inside the node (`details.display: always`). A click on a link, or inside a nested element that has its own control (a raw `<input>`, a button), does not change the task. See `tasks` below |
 | `:alias:` | Anywhere in the text of a node or its details, when the frontmatter has `markdag.icons` | A logo defined in `markdag.icons` (see `icons` in section 4), drawn in place of the mark |
@@ -93,11 +95,28 @@ Rules:
 
 - `%name`, `#key:value` and `$name` must be separated from the text by a half-width space, and must be at the end of the line. Several marks can follow each other in any order (`Deploy %backend #owner:alice #urgent $deploy`). One `$id` per node.
 - Only the first line of a node is scanned, and a mark at its end is read whatever the line looks like (`- <div> $note` has the id `note`). A mark on the second line of a list item stays as text.
-- Group names and tag keys are letters, digits, `_` and `-` in any script (`%開発`, `#担当:山田` work). `$name` is `$` + an ASCII letter + ASCII letters, digits, `_`, `-`. `$日本` is not an id.
-- A tag value runs to the next space. `,` separates values (`#owner:alice,bob`). A value in `"…"` may contain spaces and `,` and is one value (`#owner:"山田 太郎"`). `#key:` with nothing after the colon stays as text. The same key written twice on one line joins the values.
-- A name made only of digits is not a mark: `Issue #123` and `%50` stay as text. `C#` is not a tag because there is no space before `#`. Write `\%name` or `\#name` to keep a trailing mark as text.
+- Marks at the end of a setext heading (text underlined with `===` or `---`) or of a heading indented by 1 to 3 spaces are not read, and stay in the name. To put marks on a heading, write it in the usual form: `## Design %g`.
+- Group names and tag keys are letters, digits, `_` and `-` in any script (`%開発`, `#担当:山田` work). A tag key with other characters is written in double quotes (below). `$name` is `$` + an ASCII letter + ASCII letters, digits, `_`, `-`. `$日本` is not an id.
+- A tag value runs to the next space. `,` separates values (`#owner:alice,bob`). A value in `"…"` may contain spaces and `,` and is one value (`#owner:"山田 太郎"`), and quoted and unquoted values can be listed together (`#owner:alice,"山田 太郎"` has the values `alice` and `山田 太郎`). `#key:` with nothing after the colon stays as text. The same key written twice on one line joins the values.
+- A tag key in `"…"` can hold any character: `#"api.version"`, `#"a b"`, `#"123"` (a key made only of digits). Inside the quotes, spaces, `:`, `,`, `%`, `#` and `$` are ordinary characters, and the first `:` after the closing quote starts the value: `#"a:b":c` is the key `a:b` with the value `c`, and `#"api.version":"x y"` quotes both. `#"owner"` and `#owner` are the same key. `#""` is not a tag.
+- Inside quotes, in a key or a value, write `\"` for a `"` and `\\` for a `\`: `#note:"say \"hi\""` has the value `say "hi"`, and `#"a\"b"` the key `a"b`. Any other `\` is an ordinary character. Outside quotes `\` is not an escape: `#path:a\b` has the value `a\b`.
+- A quote that is not closed (`#"a`, `#key:"a`), or text right after a closing quote (`#"a"b`), is not a tag: the text stays in the name.
+- The diagram shows a tag with quotes only where they are needed: `#"owner":"alice"` is shown as `#owner:alice`, and `#path:a\b` as `#path:"a\\b"`.
+- A name made only of digits is not a mark: `Issue #123` and `%50` stay as text (`#"123"` is a tag). `C#` is not a tag because there is no space before `#`. Write `\%name` or `\#name` to keep a trailing mark as text.
 - A full-width space (U+3000) is not a separator. `Deploy　%backend` keeps the mark as text.
-- Details work only inside a list item. A blockquote directly under a heading is dropped and does not become details.
+- Details are a blockquote inside a list item (after its first line, before its children), or a blockquote right under a heading. Blank lines between the heading and the blockquote are allowed. A blockquote under a heading that comes after anything else (a paragraph, a list, a table, a code block, HTML, a thematic break, a heading) is dropped and does not become details. Blockquotes in a row are joined, and a line that continues a blockquote without `>` (a lazy continuation line) is part of the details.
+
+    ```markdown
+    ## Design
+    > Screens and APIs are designed together.
+    Agree on the error format first.
+
+    - Screen design
+        > Mobile first
+    ```
+
+    `Design` has two lines of details, the second one written without `>`. `Screen design` has one.
+- Marks on the first line of a list's first item belong to that item only. This matters where the list is a node of its own: a document that is only a list (the list is the root), and a heading with two or more lists under it (each list is a node without a name that holds its items). `- Design %ui` followed by `- Build` puts `Design` and its descendants in group `ui`, not the whole list. The same goes for `#tag` and `$id`.
 - A milestone needs the entire first line in one bold span. `**Release** prep` and `**a** and **b**` are not milestones.
 - A group is inherited by all descendants. There is no notation for putting a parent only in a group. A tag is not inherited: it belongs to the node it is written on.
 - A group with no entry in `markdag.groups` is shown as a text label (`%name`) without a color. A tag needs no definition; it is shown as written (`#owner:alice`, `#urgent`) next to the node text, unless the document changes `markdag.tags.display`.
@@ -182,7 +201,7 @@ markdag:
 - `label` is the name shown in the legend, on the frame and in the text label of a group without a color. `color` is a CSS color. `boundary: true` draws a frame around the members.
 - A frame surrounds only its members. Membership is inherited by descendants, so the members of a frame are whole subtrees. Nodes that are not members are placed outside the frame and its label, and two frames with no member in common do not overlap. A frame whose members are all members of another frame is drawn inside it. Two groups with the same members give two nested frames; the group written first in `groups` is the outer one.
 - A relation from a member to a top-level node outside the group places that node to the right of the frame (and of any frame around it), outside it. When that node starts another framed group, the whole frame of that group is placed to the right. When the node also has a relation back into the same frame (`A/x --> N --> A/y`), placing it on the right would make a loop, so it is placed on a row below the frame instead, and the frame gets wider.
-- Members that are not connected get one frame each. Members are connected when one is the parent of the other, or when they are next to each other under the same parent in the diagram (a relation can move a top-level node under another node; see section 6). A node that is not a member between two members (`## Design %a`, `## Review`, `## Build %a`) splits the group into two frames, and a group on two branches (`%sec` in two sections, or `A/*` and `B/*` in `members`) gets a frame in each branch with the same label. Only visible members count: a member with no other visible member next to it, also when the node is closed, gets no frame, only the color band or the text label.
+- Members that are not connected get one frame each. Members are connected when one is the parent of the other, or when they are next to each other under the same parent in the diagram (a relation can move a top-level node under another node; see section 6). A node that is not a member between two members (`## Design %a`, `## Review`, `## Build %a`) splits the group into two frames, and a group on two branches (`%sec` in two sections, or `A/*` and `B/*` in `members`) gets a frame in each branch with the same label. Only visible members count: visible members next to each other share a frame, and a visible member with no other visible member next to it (also when the node is closed) gets a frame of its own with the same label. A group with no visible member gets no frame.
 - Two frames that share some members, where neither frame contains the other, may cross. The frame with fewer members (with the same number, the group written first in `groups`) is laid out as one rectangle, and the other frame is drawn slightly to the right so that the two frames read as crossing. In this case a node that is not a member can remain inside the other frame: the layout is repeated a few times to reduce this, but it is not always removed.
 - The frame of a group with a `color` is as wide as its members. A `label` longer than the members can extend past the right edge of the frame.
 - `members` adds nodes by selector instead of by the `%name` mark. Membership given by `members` is inherited by descendants, the same as a mark. `(X)` cannot be used in `members`.
@@ -255,6 +274,7 @@ markdag:
 
 - Tags (`#key:value`, `#key` in the body) work without any definition. `tags` holds display options and, under `keys`, the definitions of the keys to check.
 - `display` decides how every tag is shown; there is no per-key setting. `always` (the default) writes them after the node text, next to the text labels of groups without a color, and they count towards the size of the node. `hover` and `click` put them in the same popover as the details, after the details text, and give the node the same `i` button: the popover opens when the pointer is over the node (`hover`) or when the button is clicked (`click`). A node with tags gets the button even when it has no details. `never` hides them. With `details.display: always` there is no popover, so the tags are written in the node as with `always`.
+- A key under `keys` is read as a string: `123:` and `"123":` both define the key `123`, which the body writes as `#"123"` (`#123` is not a tag). A key with characters other than letters, digits, `_` and `-` is quoted in the body: `api.version:` here, `#"api.version":2` there.
 - `keys.<key>` defines one key. It takes the same fields as a `types` entry (`type`, the constraints, `description`), written inline or referring to a named type, plus how the key is used: `multiple: true` allows several values (`#owner:alice,bob`; without it a second value is `tag-multiple`), and `unique: true` forbids the same value on two nodes (`tag-unique`, reported on every node that has the value, with the lines of the others).
 - A value that does not fit the type is `tag-type`. `#key` with no value on a key that is not `boolean` is `tag-missing-value`. These are reported with the position of the tag in the body.
 - `lint` is the severity of those reports: `warning` (default) or `error`. With `error`, `npm run check` exits with 1. The tag still stays as written and the diagram is still drawn; unlike an error in `relations`, nothing is dropped.
@@ -384,8 +404,13 @@ The other keys under `markdag`:
 | `tasks.cycle` | List of marks (`' '`, `'/'`, `'x'`, `'-'`) in the order a click moves through them (see `tasks` above) | `[' ', 'x']` |
 | `tasks.dim` | List of marks to fade, or `states` with `details` and `tags` (see `tasks` above) | none |
 | `icons.color` | `mono` (one color), `original` (the logo's own colors) (see `icons` above) | `mono` |
+| `editor.mode` | `view` (view only), `edit` (GUI editing only), `switch` (the reader switches between viewing and GUI editing) | `view` |
+| `editor.default` | `view` or `edit`: the mode shown first when `editor.mode` is `switch`. Ignored for other modes | `view` |
+| `editor.segment.display` | boolean. Whether the view / GUI editing switch is shown in the diagram area. With `false`, the application switches the mode. Used only when `editor.mode` is `switch` | `true` |
+| `editor.segment.position` | `top-right`, `top-left`, `bottom-right`, `bottom-left`, `top-center`, `bottom-center` (where the switch is placed; in the same corner as the legend they stack). Used only when `editor.mode` is `switch` | `top-left` |
 
-- `details`, `legend`, `tags` and `tasks` are mappings. Writing a value directly under them (`details: hover`, a list under `legend`) is reported as `option-invalid` and ignored.
+- `details`, `legend`, `tags`, `tasks` and `editor` are mappings, and so is `editor.segment`. Writing a value directly under them (`details: hover`, a list under `legend`, `editor: edit`) is reported as `option-invalid` and ignored.
+- `editor` is read only by applications that include GUI editing (`markdag/editor`). A plain diagram (`render`) ignores it and stays view only. The application can override the mode.
 
     ```yaml
     markdag:

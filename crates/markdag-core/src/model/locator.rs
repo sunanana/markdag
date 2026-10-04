@@ -1,6 +1,7 @@
 // 原文: src/model/model.ts (2026-09-24) の FrontmatterLocator
 // 原文の frontmatter を位置付きで解析して、診断が指す場所を原文の行と桁で返す。
 // 場所は道すじ (パス) で指定する。解析できない frontmatter では位置を返さないだけで、パニックしない。
+// 原文の書き換えの層には、道すじの値が占める行の範囲と形 (フロー形式か、null か) と、frontmatter の --- の行を返す。
 // 位置の木は saphyr-parser のイベントから自前で組む (loader は使わない)。eemeli/yaml の Document の
 // isScalar / isMap / isSeq と range を、この木の Scalar / Map / Seq と range で写す。
 use std::borrow::Cow;
@@ -48,14 +49,29 @@ pub struct SyntaxErrorsResult {
 }
 
 // 位置の木の節。range は body の上のバイト添字で、eemeli/yaml の node.range の [0] と [1] (値の始まりと終わり) に当たる。
-// 規則 1 章 (A-025): Alias は Scalar / Map / Seq のどれでもない節として残す。A-025 の「位置は別名の書かれた場所」は持たない
-// (原文の rangeStartOf は別名を見ないので、位置を持っても使う所がない。規則の文面を直す案は A-086)
+// 規則 1 章 (A-025): Alias は Scalar / Map / Seq のどれでもない節として残す。value と key の位置には別名の位置を使わない
+// (原文の rangeStartOf は別名を見ないので。規則の文面を直す案は A-086)。range は書き換えの層に行の範囲を返すときだけ使う。
+// Map と Seq の end は中身の終わり: フロー形式は閉じの括弧の後ろ、ブロック形式は中の最後の節の終わり
+// (ブロック形式の閉じのイベントは後ろのコメントや次のキーの位置にあるので使わない)
 #[derive(Debug, Clone)]
 enum YamlNode {
-    Scalar { range: [usize; 2], value: JsValue },
-    Map { start: usize, items: Vec<YamlPair> },
-    Seq { start: usize, items: Vec<YamlNode> },
-    Alias,
+    Scalar {
+        range: [usize; 2],
+        value: JsValue,
+    },
+    Map {
+        start: usize,
+        end: usize,
+        items: Vec<YamlPair>,
+    },
+    Seq {
+        start: usize,
+        end: usize,
+        items: Vec<YamlNode>,
+    },
+    Alias {
+        range: [usize; 2],
+    },
 }
 
 // eemeli/yaml の Pair。value は `? a` のように値のない組で None (原文の null)
@@ -87,6 +103,47 @@ pub struct FrontmatterLocator {
     // 本体の行番号を、原文の行番号に直すための差
     line_offset: usize,
     doc: Option<YamlDocument>,
+    // 開きの --- と閉じの --- の行 (原文の行、0 始まり)
+    fences: Option<(u32, u32)>,
+}
+
+/// 道すじの値が占める行 (原文の行、0 始まり)。書き換えの層が、frontmatter に行を足す所と消す範囲を決めるのに使う。
+/// locator の SourcePosition (1 始まり) とは数え方が違う
+#[derive(Debug, Clone, PartialEq)]
+pub struct FrontmatterBlock {
+    /// キーの行。frontmatter の全体と一覧の項目では None
+    pub key_line: Option<u32>,
+    pub shape: BlockShape,
+    /// フロー形式 (`{ }` か `[ ]`) の写像か一覧か。フロー形式の中の写像と一覧も真。スカラは偽
+    pub flow: bool,
+    /// 値の中身の最初と最後の行 (含む)。値がない (null) ときはキーの行。
+    /// ブロックスカラ (`|` と `>`) の最初の行は記号の行、最後の行は最後の中身の行 (中身がなければ記号の行)
+    pub first_line: u32,
+    pub last_line: u32,
+    /// 子のキーか「- 」の桁 (0 始まりの字数)。子がなければ None
+    pub child_indent: Option<u32>,
+    /// Scalar の値が null (`~`、`null`、`Null`、`NULL`) か。Null (値の字がない) は偽
+    pub value_is_null: bool,
+    /// Map は組ごと (キーの行から値の最後の行まで)、Seq は項目ごとの行の範囲
+    pub items: Vec<BlockItem>,
+}
+
+/// 値の形。Null は値の字のない null (`markdag:` だけ)。`~` や `null` と書いた値は Scalar (value_is_null が真)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlockShape {
+    Map,
+    Seq,
+    Scalar,
+    Null,
+    Alias,
+}
+
+/// 写像の組か一覧の項目 1 つの行の範囲。key は組のキーの文字 (数に見えるキーも書いたとおり)、一覧の項目では None
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockItem {
+    pub key: Option<String>,
+    pub first_line: u32,
+    pub last_line: u32,
 }
 
 impl FrontmatterLocator {
@@ -101,6 +158,7 @@ impl FrontmatterLocator {
                 body: String::new(),
                 line_offset: 0,
                 doc: None,
+                fences: None,
             };
         };
         let start = open.end();
@@ -109,12 +167,166 @@ impl FrontmatterLocator {
         let sliced = js_slice(text, start, start.max(close.start()));
         let body = sliced.strip_suffix('\r').unwrap_or(sliced).to_string();
         let line_offset = js_slice(text, 0, start).matches('\n').count();
+        // 閉じの --- は、一致の頭の改行の次の行
+        let close_line = js_slice(text, 0, close.start()).matches('\n').count() + 1;
         // 原文の try / catch は parseDocument が throw しないので届かない (規則 2.5 の「catch が事実上届かない箇所」)
         let doc = Some(parse_document(&body));
         FrontmatterLocator {
             body,
             line_offset,
             doc,
+            fences: Some((0, to_u32(close_line))),
+        }
+    }
+
+    /// frontmatter の開きの --- と閉じの --- の行 (原文の行、0 始まり)。frontmatter がなければ None
+    pub fn fence_lines(&self) -> Option<(u32, u32)> {
+        self.fences
+    }
+
+    /// 道すじ (空なら frontmatter の全体) の値が占める行。frontmatter がない、読めない、道すじがないときは None
+    pub fn block(&self, path: &[PathStep]) -> Option<FrontmatterBlock> {
+        let pair = self.pair_at(path);
+        let node = self.node_at(path);
+        // 値のない組 (`? a`) は、キーの行の Null
+        if node.is_none() && pair.is_none() {
+            return None;
+        }
+        let key_line = pair.and_then(|pair| range_start_of(&pair.key).map(|at| self.line_of(at)));
+        let flow = self.within_flow(path);
+        let (first_line, last_line) = self.node_lines(node, key_line, flow);
+        let child_indent = match node {
+            Some(YamlNode::Map { items, .. }) => items
+                .first()
+                .and_then(|pair| range_start_of(&pair.key))
+                .map(|at| self.column_of(at)),
+            Some(YamlNode::Seq { start, items, .. }) => items.first().map(|item| {
+                if flow {
+                    self.column_of(range_start_of(item).unwrap_or(*start))
+                } else {
+                    self.column_of(self.dash_of(*start, item))
+                }
+            }),
+            _ => None,
+        };
+        let items = match node {
+            Some(YamlNode::Map { items, .. }) => items
+                .iter()
+                .map(|pair| {
+                    let key_line = range_start_of(&pair.key).map(|at| self.line_of(at));
+                    let (first_line, last_line) =
+                        self.node_lines(pair.value.as_ref(), key_line, flow);
+                    BlockItem {
+                        key: match &pair.key {
+                            YamlNode::Scalar { value, .. } => Some(js_to_string(value)),
+                            _ => None,
+                        },
+                        first_line: key_line.unwrap_or(first_line).min(first_line),
+                        last_line,
+                    }
+                })
+                .collect(),
+            Some(YamlNode::Seq { items, .. }) => items
+                .iter()
+                .map(|item| {
+                    let (first_line, last_line) = self.node_lines(Some(item), None, flow);
+                    BlockItem {
+                        key: None,
+                        first_line,
+                        last_line,
+                    }
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+        Some(FrontmatterBlock {
+            key_line,
+            shape: shape_of(node),
+            flow: flow && matches!(node, Some(YamlNode::Map { .. } | YamlNode::Seq { .. })),
+            first_line,
+            last_line,
+            child_indent,
+            value_is_null: matches!(
+                (shape_of(node), node),
+                (
+                    BlockShape::Scalar,
+                    Some(YamlNode::Scalar {
+                        value: JsValue::Null,
+                        ..
+                    })
+                )
+            ),
+            items,
+        })
+    }
+
+    // 道すじの値か、その手前の写像と一覧のどれかがフロー形式 (`{` か `[` で始まる) か
+    fn within_flow(&self, path: &[PathStep]) -> bool {
+        (0..=path.len()).any(|depth| match self.node_at(&path[..depth]) {
+            Some(YamlNode::Map { start, .. } | YamlNode::Seq { start, .. }) => {
+                opens_flow(&self.body, *start)
+            }
+            _ => false,
+        })
+    }
+
+    // 節の値が占める最初と最後の行。値の字のない null はキーの行。flow は節がフロー形式の中にあるか
+    fn node_lines(&self, node: Option<&YamlNode>, key_line: Option<u32>, flow: bool) -> (u32, u32) {
+        let start = node.and_then(range_start_of).unwrap_or(0);
+        if shape_of(node) == BlockShape::Null {
+            let line = key_line.unwrap_or_else(|| self.line_of(start));
+            return (line, line);
+        }
+        let first = match node {
+            // ブロック形式の写像は最初のキーの行、一覧は最初の「- 」の行 (錨やタグは前の行にあることがある)
+            Some(YamlNode::Map { items, .. }) if !flow => items
+                .first()
+                .and_then(|pair| range_start_of(&pair.key))
+                .map_or_else(|| self.line_of(start), |at| self.line_of(at)),
+            Some(YamlNode::Seq { items, .. }) if !flow => items.first().map_or_else(
+                || self.line_of(start),
+                |item| self.line_of(self.dash_of(start, item)),
+            ),
+            Some(YamlNode::Alias { range: [at, _] }) => self.line_of(*at),
+            _ => self.line_of(start),
+        };
+        let last = node
+            .map(end_of)
+            .and_then(|end| self.last_line_before(end))
+            .map_or(first, |last| last.max(first));
+        (first, last)
+    }
+
+    // body の上のバイト添字の、原文での行 (0 始まり)
+    fn line_of(&self, offset: usize) -> u32 {
+        to_u32(js_slice(&self.body, 0, offset).matches('\n').count() + self.line_offset)
+    }
+
+    // body の上のバイト添字の、行の頭からの字数 (0 始まり)
+    fn column_of(&self, offset: usize) -> u32 {
+        let before = js_slice(&self.body, 0, offset);
+        let line_start = before.rfind('\n').map_or(0, |index| index + 1);
+        to_u32(js_slice(before, line_start, before.len()).chars().count())
+    }
+
+    // offset より前にある、空白と改行以外の最後の字の行。ブロックスカラの終わりは中身のあとの改行を越えて次の行にあるので、
+    // 終わりの位置そのものの行は使わない
+    fn last_line_before(&self, offset: usize) -> Option<u32> {
+        let content = js_slice(&self.body, 0, offset).trim_end_matches(is_yaml_blank);
+        (!content.is_empty()).then(|| self.line_of(content.len()))
+    }
+
+    // ブロック形式の一覧の最初の「-」の位置。saphyr の一覧の開始は、字下げした一覧では「-」に、
+    // キーと同じ桁の一覧では最初の項目の値にある
+    fn dash_of(&self, start: usize, first: &YamlNode) -> usize {
+        let at = range_start_of(first).map_or(start, |item| item.min(start));
+        let before = js_slice(&self.body, 0, at).trim_end_matches([' ', '\t']);
+        if js_slice(&self.body, at, self.body.len()).starts_with('-') {
+            at
+        } else if before.ends_with('-') {
+            before.len() - 1
+        } else {
+            at
         }
     }
 
@@ -319,8 +531,49 @@ fn range_start_of(node: &YamlNode) -> Option<usize> {
             range: [start, _], ..
         } => Some(*start),
         YamlNode::Map { start, .. } | YamlNode::Seq { start, .. } => Some(*start),
-        YamlNode::Alias => None,
+        YamlNode::Alias { .. } => None,
     }
+}
+
+// 節の終わり (body の上のバイト添字)
+fn end_of(node: &YamlNode) -> usize {
+    match node {
+        YamlNode::Scalar {
+            range: [_, end], ..
+        }
+        | YamlNode::Alias { range: [_, end] } => *end,
+        YamlNode::Map { end, .. } | YamlNode::Seq { end, .. } => *end,
+    }
+}
+
+// 値の形。幅のない null のスカラ (値の字がない) は Null、値のない組も Null
+fn shape_of(node: Option<&YamlNode>) -> BlockShape {
+    match node {
+        None => BlockShape::Null,
+        Some(YamlNode::Scalar {
+            range: [start, end],
+            value: JsValue::Null,
+        }) if start == end => BlockShape::Null,
+        Some(YamlNode::Scalar { .. }) => BlockShape::Scalar,
+        Some(YamlNode::Map { .. }) => BlockShape::Map,
+        Some(YamlNode::Seq { .. }) => BlockShape::Seq,
+        Some(YamlNode::Alias { .. }) => BlockShape::Alias,
+    }
+}
+
+// 写像か一覧の始まりがフロー形式の開きの括弧か。錨とタグと空白は飛ばす (改行は越えない)
+fn opens_flow(body: &str, start: usize) -> bool {
+    let mut in_property = false;
+    for c in js_slice(body, start, body.len()).chars() {
+        match c {
+            '[' | '{' if !in_property => return true,
+            ' ' | '\t' => in_property = false,
+            '&' | '!' if !in_property => in_property = true,
+            _ if in_property => {}
+            _ => return false,
+        }
+    }
+    false
 }
 
 // `body.indexOf('\n', from)` (見つからなければ None)
@@ -345,7 +598,8 @@ enum Frame {
 }
 
 impl Frame {
-    fn close(self) -> YamlNode {
+    // closing はフロー形式の閉じの括弧の後ろ (ブロック形式と、閉じずに終わった入れ物では None。中の最後の節の終わりにする)
+    fn close(self, closing: Option<usize>) -> YamlNode {
         match self {
             Frame::Map {
                 start,
@@ -355,9 +609,17 @@ impl Frame {
                 if let Some(key) = key {
                     items.push(YamlPair { key, value: None });
                 }
-                YamlNode::Map { start, items }
+                let end = closing.unwrap_or_else(|| {
+                    items.last().map_or(start, |pair| {
+                        end_of(pair.value.as_ref().unwrap_or(&pair.key))
+                    })
+                });
+                YamlNode::Map { start, end, items }
             }
-            Frame::Seq { start, items, .. } => YamlNode::Seq { start, items },
+            Frame::Seq { start, items, .. } => {
+                let end = closing.unwrap_or_else(|| items.last().map_or(start, end_of));
+                YamlNode::Seq { start, end, items }
+            }
         }
     }
 }
@@ -472,7 +734,9 @@ impl<'a> TreeBuilder<'a> {
                     }
                 }
                 Event::Scalar(..) if self.aliases.contains(&start) => {
-                    self.push_node(YamlNode::Alias)
+                    self.push_node(YamlNode::Alias {
+                        range: [start, end],
+                    })
                 }
                 Event::Scalar(value, style, anchor, tag) => {
                     if anchor != 0 {
@@ -500,7 +764,9 @@ impl<'a> TreeBuilder<'a> {
                         break;
                     }
                     self.raise_height(height);
-                    self.push_node(YamlNode::Alias);
+                    self.push_node(YamlNode::Alias {
+                        range: [start, end],
+                    });
                 }
                 Event::SequenceStart(..) | Event::MappingStart(..)
                     if self.stack.len() >= MAX_YAML_NESTING =>
@@ -540,7 +806,8 @@ impl<'a> TreeBuilder<'a> {
                             self.anchor_heights.insert(anchor, inner + 1);
                         }
                         self.raise_height(inner + 1);
-                        self.push_node(frame.close());
+                        // フロー形式の閉じのイベントは括弧を覆い、ブロック形式のものは幅 0
+                        self.push_node(frame.close((end > start).then_some(end)));
                     }
                 }
                 Event::Nothing | Event::StreamStart | Event::DocumentEnd => {}
@@ -549,7 +816,7 @@ impl<'a> TreeBuilder<'a> {
         }
         // 規則 2.5 (A-023): 誤りがあっても組めたところまでの木を残す
         while let Some(frame) = self.stack.pop() {
-            self.push_node(frame.close());
+            self.push_node(frame.close(None));
         }
         (
             YamlDocument {
@@ -1774,6 +2041,499 @@ mod tests {
                 pos(3, 1, 10)
             )]
         );
+    }
+
+    // ---- GUI 編集の書き換えに使う口 (道すじの値が占める行の block と、frontmatter の囲みの行の fence_lines) ----
+    // 行は原文の行で 0 始まり (SourcePosition の 1 始まりとは違う)。FrontmatterBlock は、そのテストで見る欄だけを取り出して比べる。
+    // 値がない (null) ときの first_line と last_line はキーの行。ブロックスカラの first_line と、Null の value_is_null はここでは見ない
+
+    fn shape_name(shape: &BlockShape) -> &'static str {
+        match shape {
+            BlockShape::Map => "map",
+            BlockShape::Seq => "seq",
+            BlockShape::Scalar => "scalar",
+            BlockShape::Null => "null",
+            BlockShape::Alias => "alias",
+        }
+    }
+
+    fn block_at(locator: &FrontmatterLocator, path: &[PathStep]) -> FrontmatterBlock {
+        locator
+            .block(path)
+            .unwrap_or_else(|| panic!("{path:?} の値がある"))
+    }
+
+    // (キーの行、形、フロー形式か、最初の行、最後の行、子のキーか「- 」の桁)
+    type BlockLines = (Option<u32>, &'static str, bool, u32, u32, Option<u32>);
+
+    fn lines_of(locator: &FrontmatterLocator, path: &[PathStep]) -> BlockLines {
+        let block = block_at(locator, path);
+        (
+            block.key_line,
+            shape_name(&block.shape),
+            block.flow,
+            block.first_line,
+            block.last_line,
+            block.child_indent,
+        )
+    }
+
+    // (キーの行、形、最後の行)。最初の行と子の桁を見ない所 (ブロックスカラ、フロー形式の中) に使う
+    fn ends_of(
+        locator: &FrontmatterLocator,
+        path: &[PathStep],
+    ) -> (Option<u32>, &'static str, u32) {
+        let block = block_at(locator, path);
+        (block.key_line, shape_name(&block.shape), block.last_line)
+    }
+
+    fn items_of(
+        locator: &FrontmatterLocator,
+        path: &[PathStep],
+    ) -> Vec<(Option<String>, u32, u32)> {
+        block_at(locator, path)
+            .items
+            .iter()
+            .map(|item| (item.key.clone(), item.first_line, item.last_line))
+            .collect()
+    }
+
+    // 写像の組 (キーと、キーの行から値の最後の行まで)
+    fn pair(key: &str, first: u32, last: u32) -> (Option<String>, u32, u32) {
+        (Some(key.to_string()), first, last)
+    }
+
+    // 一覧の項目 (キーはない)
+    fn entry(first: u32, last: u32) -> (Option<String>, u32, u32) {
+        (None, first, last)
+    }
+
+    fn null_text(locator: &FrontmatterLocator, path: &[PathStep]) -> bool {
+        block_at(locator, path).value_is_null
+    }
+
+    #[test]
+    fn locator_fence_lines_of_the_frontmatter() {
+        // 開きの --- と閉じの --- の行。CRLF でも行の番号は同じ
+        for (source, expected) in [
+            ("---\nmarkdag:\n---\n# R\n", Some((0, 2))),
+            ("---\n---\n# R\n", Some((0, 1))),
+            (
+                "---\ntitle: T\nmarkdag:\n    relations:\n        depends:\n            - a --> b\n---\n# R\n",
+                Some((0, 6)),
+            ),
+            (
+                "---\r\nmarkdag:\r\n  edgeHighlight: true\r\n---\r\n# R\r\n",
+                Some((0, 3)),
+            ),
+            // frontmatter がない、閉じていない、閉じの行のあとに改行がない、BOM のすぐあとの --- (どれも frontmatter として読まれない)
+            ("# R\n", None),
+            ("# no frontmatter\n---\na: 1\n---\n", None),
+            ("---\na: 1\n", None),
+            ("---\na: 1\n---", None),
+            ("\u{feff}---\na: 1\n---\n# R\n", None),
+        ] {
+            assert_eq!(
+                FrontmatterLocator::new(Some(source)).fence_lines(),
+                expected,
+                "{source:?}"
+            );
+        }
+        assert_eq!(FrontmatterLocator::new(None).fence_lines(), None);
+    }
+
+    #[test]
+    fn locator_block_of_maps_sequences_and_the_whole_frontmatter() {
+        // 0 --- / 1 title / 2 markdag / 3 relations / 4 chain / 5 - a --> b / 6 depends / 7 - b --> c / 8 - c --> d /
+        // 9 edgeHighlight / 10 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\ntitle: T\nmarkdag:\n    relations:\n        chain:\n            - a --> b\n        depends:\n            - b --> c\n            - c --> d\n    edgeHighlight: true\n---\n# R\n",
+        ));
+        let markdag = [k("markdag")];
+        let relations = [k("markdag"), k("relations")];
+        let depends = [k("markdag"), k("relations"), k("depends")];
+
+        // 道すじが空なら frontmatter の全体 (キーの行はない)
+        assert_eq!(lines_of(&locator, &[]), (None, "map", false, 1, 9, Some(0)));
+        assert_eq!(
+            items_of(&locator, &[]),
+            vec![pair("title", 1, 1), pair("markdag", 2, 9)]
+        );
+        assert_eq!(
+            lines_of(&locator, &markdag),
+            (Some(2), "map", false, 3, 9, Some(4))
+        );
+        assert_eq!(
+            items_of(&locator, &markdag),
+            vec![pair("relations", 3, 8), pair("edgeHighlight", 9, 9)]
+        );
+        assert_eq!(
+            lines_of(&locator, &relations),
+            (Some(3), "map", false, 4, 8, Some(8))
+        );
+        assert_eq!(
+            items_of(&locator, &relations),
+            vec![pair("chain", 4, 5), pair("depends", 6, 8)]
+        );
+        assert_eq!(
+            lines_of(&locator, &depends),
+            (Some(6), "seq", false, 7, 8, Some(12))
+        );
+        assert_eq!(items_of(&locator, &depends), vec![entry(7, 7), entry(8, 8)]);
+        // 一覧の項目はキーの行を持たない。スカラは子を持たない
+        assert_eq!(
+            lines_of(
+                &locator,
+                &[k("markdag"), k("relations"), k("depends"), i(1)]
+            ),
+            (None, "scalar", false, 8, 8, None)
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("edgeHighlight")]),
+            (Some(9), "scalar", false, 9, 9, None)
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("title")]),
+            (Some(1), "scalar", false, 1, 1, None)
+        );
+        assert!(!null_text(&locator, &[k("title")]));
+    }
+
+    #[test]
+    fn locator_block_of_null_values() {
+        // 値の字のない null (`markdag:` だけ) は Null で、行はキーの行。次の行の兄弟のキーを含まない。
+        // `~`、`null`、`Null`、`NULL` と書いた値は Scalar で value_is_null。引用符で囲んだ 'null' と true は null でない
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag:\na: ~\nb: null\nc: Null\nd: NULL\ne: 'null'\nf: true\ng:\n---\n# R\n",
+        ));
+        assert_eq!(
+            lines_of(&locator, &[k("markdag")]),
+            (Some(1), "null", false, 1, 1, None)
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("g")]),
+            (Some(8), "null", false, 8, 8, None)
+        );
+        for (key, line) in [("a", 2), ("b", 3), ("c", 4), ("d", 5)] {
+            assert_eq!(
+                lines_of(&locator, &[k(key)]),
+                (Some(line), "scalar", false, line, line, None),
+                "{key}"
+            );
+            assert!(null_text(&locator, &[k(key)]), "{key}");
+        }
+        for (key, line) in [("e", 6), ("f", 7)] {
+            assert_eq!(
+                lines_of(&locator, &[k(key)]),
+                (Some(line), "scalar", false, line, line, None),
+                "{key}"
+            );
+            assert!(!null_text(&locator, &[k(key)]), "{key}");
+        }
+        assert_eq!(lines_of(&locator, &[]), (None, "map", false, 1, 8, Some(0)));
+        assert_eq!(
+            items_of(&locator, &[]),
+            vec![
+                pair("markdag", 1, 1),
+                pair("a", 2, 2),
+                pair("b", 3, 3),
+                pair("c", 4, 4),
+                pair("d", 5, 5),
+                pair("e", 6, 6),
+                pair("f", 7, 7),
+                pair("g", 8, 8),
+            ]
+        );
+
+        // 写像の最後の組の値が Null なら、写像の最後の行はそのキーの行
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag:\n    edgeHighlight: true\n    relations:\n---\n# R\n",
+        ));
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("relations")]),
+            (Some(3), "null", false, 3, 3, None)
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag")]),
+            (Some(1), "map", false, 2, 3, Some(4))
+        );
+    }
+
+    #[test]
+    fn locator_block_of_flow_collections() {
+        // フロー形式は始まりの字 ([ か {) で決め、終わりは閉じの括弧の行
+        // 0 --- / 1 markdag: {} / 2 list / 3 m / 4 multi: [ / 5 a, / 6 b, / 7 ] / 8 after / 9 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag: {}\nlist: [a --> b, b --> c]\nm: { x: 1 }\nmulti: [\n    a,\n    b,\n  ]\nafter: 1\n---\n# R\n",
+        ));
+        let flow = |path: &[PathStep]| {
+            let block = block_at(&locator, path);
+            (
+                block.key_line,
+                shape_name(&block.shape),
+                block.flow,
+                block.first_line,
+                block.last_line,
+            )
+        };
+        assert_eq!(flow(&[k("markdag")]), (Some(1), "map", true, 1, 1));
+        assert_eq!(flow(&[k("list")]), (Some(2), "seq", true, 2, 2));
+        assert_eq!(flow(&[k("m")]), (Some(3), "map", true, 3, 3));
+        assert_eq!(flow(&[k("multi")]), (Some(4), "seq", true, 4, 7));
+        assert_eq!(
+            lines_of(&locator, &[k("after")]),
+            (Some(8), "scalar", false, 8, 8, None)
+        );
+        // 全体はブロック形式の写像で、フロー形式の値の組は閉じの括弧の行まで
+        assert_eq!(lines_of(&locator, &[]), (None, "map", false, 1, 8, Some(0)));
+        assert_eq!(
+            items_of(&locator, &[]),
+            vec![
+                pair("markdag", 1, 1),
+                pair("list", 2, 2),
+                pair("m", 3, 3),
+                pair("multi", 4, 7),
+                pair("after", 8, 8),
+            ]
+        );
+
+        // ブロック形式の中のフロー形式の一覧
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag:\n    relations:\n        depends: [a --> b]\n---\n# R\n",
+        ));
+        assert_eq!(
+            ends_of(&locator, &[k("markdag"), k("relations"), k("depends")]),
+            (Some(3), "seq", 3)
+        );
+        assert!(block_at(&locator, &[k("markdag"), k("relations"), k("depends")]).flow);
+        assert!(!block_at(&locator, &[k("markdag"), k("relations")]).flow);
+
+        // frontmatter の全体がフロー形式 (`{markdag: ...}`)。中の写像と一覧もフロー形式
+        let locator = FrontmatterLocator::new(Some(
+            "---\n{markdag: {relations: {depends: [a --> b]}}}\n---\n# R\n",
+        ));
+        let whole = block_at(&locator, &[]);
+        assert_eq!(
+            (
+                whole.key_line,
+                shape_name(&whole.shape),
+                whole.flow,
+                whole.first_line,
+                whole.last_line
+            ),
+            (None, "map", true, 1, 1)
+        );
+        assert!(block_at(&locator, &[k("markdag")]).flow);
+        let depends = block_at(&locator, &[k("markdag"), k("relations"), k("depends")]);
+        assert_eq!((shape_name(&depends.shape), depends.flow), ("seq", true));
+    }
+
+    #[test]
+    fn locator_block_of_block_scalars_ends_at_the_last_content_line() {
+        // ブロックスカラのあとに兄弟のキーがある組の last_line は、ブロックスカラの最後の中身の行で、兄弟のキーの行でない
+        // 0 --- / 1 markdag / 2 groups / 3 group1 / 4 label: | / 5 設計の / 6 まとまり / 7 group2 / 8 label: 実装 / 9 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag:\n    groups:\n        group1:\n            label: |\n                設計の\n                まとまり\n        group2:\n            label: 実装\n---\n# R\n",
+        ));
+        let group1 = [k("markdag"), k("groups"), k("group1")];
+        assert_eq!(
+            ends_of(
+                &locator,
+                &[k("markdag"), k("groups"), k("group1"), k("label")]
+            ),
+            (Some(4), "scalar", 6)
+        );
+        assert_eq!(
+            lines_of(&locator, &group1),
+            (Some(3), "map", false, 4, 6, Some(12))
+        );
+        assert_eq!(items_of(&locator, &group1), vec![pair("label", 4, 6)]);
+        assert_eq!(
+            items_of(&locator, &[k("markdag"), k("groups")]),
+            vec![pair("group1", 3, 6), pair("group2", 7, 8)]
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("groups")]),
+            (Some(2), "map", false, 3, 8, Some(8))
+        );
+
+        // | と > の、中身のあるものと空のもの (locator_block_scalar_points_at_first_content_line と同じ文書に keep を足した)。
+        // 中身のないブロックスカラ (empty、last) はキーの行。中身のあとの空行 (keep の 13 行) は含めない
+        // 0 --- / 1 markdag / 2 relations / 3 chain: |- / 4 / 5 / 6 join: > / 7 (空) / 8 X --> Y / 9 empty: |- / 10 after: 1 /
+        // 11 keep: |+ / 12 a --> b / 13 (空) / 14 last: |+ / 15 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\nmarkdag:\n  relations:\n    chain: |-\n      Root --> Child\n      Child --> Leaf\n    join: >\n\n      X --> Y\n    empty: |-\n    after: 1\n    keep: |+\n      a --> b\n\n    last: |+\n---\n",
+        ));
+        let relation = |kind: &str| [k("markdag"), k("relations"), k(kind)];
+        assert_eq!(
+            ends_of(&locator, &relation("chain")),
+            (Some(3), "scalar", 5)
+        );
+        assert_eq!(ends_of(&locator, &relation("join")), (Some(6), "scalar", 8));
+        assert_eq!(
+            ends_of(&locator, &relation("empty")),
+            (Some(9), "scalar", 9)
+        );
+        assert!(!null_text(&locator, &relation("empty")));
+        assert_eq!(
+            lines_of(&locator, &relation("after")),
+            (Some(10), "scalar", false, 10, 10, None)
+        );
+        assert_eq!(
+            ends_of(&locator, &relation("keep")),
+            (Some(11), "scalar", 12)
+        );
+        assert_eq!(
+            ends_of(&locator, &relation("last")),
+            (Some(14), "scalar", 14)
+        );
+        assert_eq!(
+            items_of(&locator, &[k("markdag"), k("relations")]),
+            vec![
+                pair("chain", 3, 5),
+                pair("join", 6, 8),
+                pair("empty", 9, 9),
+                pair("after", 10, 10),
+                pair("keep", 11, 12),
+                pair("last", 14, 14),
+            ]
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("relations")]),
+            (Some(2), "map", false, 3, 14, Some(4))
+        );
+    }
+
+    #[test]
+    fn locator_block_of_sequence_items_aliases_and_number_like_keys() {
+        // 0 --- / 1 list / 2 - a: 1 / 3 b: 2 / 4 - c: 3 / 5 compact / 6 - x / 7 - y / 8 base: &x / 9 k: 1 / 10 alias: *x /
+        // 11 markdag / 12 groups / 13 2024 / 14 label / 15 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\nlist:\n  - a: 1\n    b: 2\n  - c: 3\ncompact:\n- x\n- y\nbase: &x\n  k: 1\nalias: *x\nmarkdag:\n    groups:\n        2024:\n            label: 年\n---\n# R\n",
+        ));
+        // 一覧の項目ごとの行の範囲。項目が写像なら、その写像の最後の行まで
+        assert_eq!(
+            lines_of(&locator, &[k("list")]),
+            (Some(1), "seq", false, 2, 4, Some(2))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("list")]),
+            vec![entry(2, 3), entry(4, 4)]
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("list"), i(0)]),
+            (None, "map", false, 2, 3, Some(4))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("list"), i(0)]),
+            vec![pair("a", 2, 2), pair("b", 3, 3)]
+        );
+        // キーと同じ桁の「- 」の一覧
+        assert_eq!(
+            lines_of(&locator, &[k("compact")]),
+            (Some(5), "seq", false, 6, 7, Some(0))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("compact")]),
+            vec![entry(6, 6), entry(7, 7)]
+        );
+        // 別名は Alias
+        let alias = block_at(&locator, &[k("alias")]);
+        assert_eq!(
+            (alias.key_line, shape_name(&alias.shape)),
+            (Some(10), "alias")
+        );
+        // 数字に見えるキー (2024) も、書いたとおりの文字で引け、組のキーも書いたとおり (pair_of と同じ突き合わせ)
+        for path in [
+            [k("markdag"), k("groups"), k("2024")],
+            [k("markdag"), k("groups"), i(2024)],
+        ] {
+            assert_eq!(
+                lines_of(&locator, &path),
+                (Some(13), "map", false, 14, 14, Some(12))
+            );
+            assert_eq!(items_of(&locator, &path), vec![pair("label", 14, 14)]);
+        }
+        assert_eq!(
+            items_of(&locator, &[k("markdag"), k("groups")]),
+            vec![pair("2024", 13, 14)]
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag")]),
+            (Some(11), "map", false, 12, 14, Some(4))
+        );
+    }
+
+    #[test]
+    fn locator_block_leaves_comment_lines_outside() {
+        // コメントは木に入らない。範囲の最初と最後はコメントでない行
+        // 0 --- / 1 # 先頭 / 2 markdag / 3 # relations の前 / 4 relations / 5 depends / 6 - a --> b # 行末 / 7 # 項目のあと /
+        // 8 # markdag の終わり / 9 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\n# 先頭のコメント\nmarkdag:\n    # relations の前のコメント\n    relations:\n        depends:\n            - a --> b # 行末のコメント\n            # 項目のあとのコメント\n    # markdag の終わりのコメント\n---\n# R\n",
+        ));
+        assert_eq!(lines_of(&locator, &[]), (None, "map", false, 2, 6, Some(0)));
+        assert_eq!(items_of(&locator, &[]), vec![pair("markdag", 2, 6)]);
+        assert_eq!(
+            lines_of(&locator, &[k("markdag")]),
+            (Some(2), "map", false, 4, 6, Some(4))
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("relations")]),
+            (Some(4), "map", false, 5, 6, Some(8))
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("relations"), k("depends")]),
+            (Some(5), "seq", false, 6, 6, Some(12))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("markdag"), k("relations"), k("depends")]),
+            vec![entry(6, 6)]
+        );
+    }
+
+    #[test]
+    fn locator_block_counts_lines_of_crlf_frontmatter() {
+        // CRLF でも行の番号と桁は LF と同じ (閉じの --- の手前の \r は外して読む)
+        // 0 --- / 1 markdag / 2 relations / 3 depends / 4 - a --> b / 5 - b --> c / 6 edgeHighlight / 7 ---
+        let locator = FrontmatterLocator::new(Some(
+            "---\r\nmarkdag:\r\n  relations:\r\n    depends:\r\n      - a --> b\r\n      - b --> c\r\n  edgeHighlight: true\r\n---\r\n# R\r\n",
+        ));
+        assert_eq!(locator.fence_lines(), Some((0, 7)));
+        assert_eq!(
+            lines_of(&locator, &[k("markdag")]),
+            (Some(1), "map", false, 2, 6, Some(2))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("markdag")]),
+            vec![pair("relations", 2, 5), pair("edgeHighlight", 6, 6)]
+        );
+        assert_eq!(
+            lines_of(&locator, &[k("markdag"), k("relations"), k("depends")]),
+            (Some(3), "seq", false, 4, 5, Some(6))
+        );
+        assert_eq!(
+            items_of(&locator, &[k("markdag"), k("relations"), k("depends")]),
+            vec![entry(4, 4), entry(5, 5)]
+        );
+    }
+
+    #[test]
+    fn locator_block_is_none_without_frontmatter_or_path() {
+        // frontmatter がない、道すじがない (ない キー、Null やスカラの下、一覧にキー、写像に添字の外) ときは None
+        let locator = FrontmatterLocator::new(Some("# R\n"));
+        assert!(locator.block(&[]).is_none());
+        assert!(locator.block(&[k("markdag")]).is_none());
+        let locator = FrontmatterLocator::new(None);
+        assert!(locator.block(&[]).is_none());
+
+        let locator =
+            FrontmatterLocator::new(Some("---\nmarkdag:\ntitle: T\nlist:\n    - a\n---\n# R\n"));
+        assert!(locator.block(&[k("x")]).is_none());
+        assert!(locator.block(&[k("markdag"), k("relations")]).is_none());
+        assert!(locator.block(&[k("title"), k("x")]).is_none());
+        assert!(locator.block(&[k("list"), i(1)]).is_none());
+        assert!(locator.block(&[k("list"), k("a")]).is_none());
     }
 }
 

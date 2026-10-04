@@ -1,0 +1,9 @@
+kind: 誤り
+checks: ルートは消せない (原文を変えずに理由 root で断る)
+behaviors: [B-040, B-002]
+op:
+    kind: deleteNodes
+    nodes: [計画]
+expect:
+    status: refused
+    reason: root

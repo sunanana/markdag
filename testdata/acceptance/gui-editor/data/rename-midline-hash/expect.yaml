@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    名前の行の途中の #語 (空白のあとの #a。末尾の語ではない) は印に読まれないので、\ で逃がさずに入れたとおりに書く。
+    逃がすのは、末尾の語が印に化けるときだけ (data/rename-mark-like-word)
+behaviors: [B-034]
+decisions: ['整える M01 (穴を埋める例。行の途中の #語 を逃がさない)']
+op:
+    kind: renameNode
+    node: 実装
+    label: '設計 #a の説明'
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['設計 #a の説明'] }
+    rename: null
+    notes: []

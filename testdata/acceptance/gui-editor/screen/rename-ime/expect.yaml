@@ -1,0 +1,24 @@
+kind: 境界
+checks: >-
+    名前の入力で日本語を変換している間の Enter と Esc (変換中のキー。keyCode 229) では名前を決めない (入力は開いたまま、原文は変わらない)。
+    変換を確定したあとの Enter で名前 (日本語の 1 文字の名前「鍵」) を決めて兄弟を足し、その名前の入力へ移る。
+    変換は chromium の CDP (Input.imeSetComposition) で起こすので、変換を起こせない運び手 (chromium 以外、確認ページの合成の出来事) では飛ばす (requires の ime)
+requires: [ime]
+behaviors: [B-027, B-029, B-034]
+states: [D3.d2, D3.d5]
+decisions: [設計 5.2 の軸 D (変換中のキーはどの入力でも操作にしない。B-15), 整える M19 (穴を埋める例。IME の今の対応を固定する)]
+steps:
+    - click: { node: フロント }
+      expect: { selection: nodes:フロント, bar: node }
+    - key: Enter
+      expect: { input: name, input_value: フロント, focus: 'name-input:node' }
+    - compose: かぎ
+      expect: { input: name, input_value: かぎ, source: input.md }
+    - compose_key: Enter
+      expect: { input: name, input_value: かぎ, focus: 'name-input:node', source: input.md }
+    - compose_key: Escape
+      expect: { input: name, input_value: かぎ, focus: 'name-input:node', source: input.md, selection: nodes:フロント }
+    - compose: { commit: 鍵 }
+      expect: { input: name, input_value: 鍵, source: input.md }
+    - key: Enter
+      expect: { source: after-enter.md, input: name, input_value: 新しいノード, focus: 'name-input:node', selection: nodes:新しいノード }

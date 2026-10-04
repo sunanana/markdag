@@ -702,11 +702,12 @@ fn pipeline_judge_corpus_matches_expected_and_old_passes() {
         }
     }
     assert_eq!(compared, 62);
-    assert_eq!((with_frames, frame_count), (7, 27));
+    // 枠の数は 27 から 33 に変えた (メンバーが 1 つのまとまりも枠にするようにしたため)
+    assert_eq!((with_frames, frame_count), (7, 33));
     // コーパスの枠は、どれも箱にできる (通常の文書では loose は出ない。design.md の Q4 と段 1)
     assert_eq!(
         (totals.documents, totals.boxed, totals.loose),
-        (7, 27, 0),
+        (7, 33, 0),
         "{totals:?}"
     );
     assert!(calls > 0);
@@ -784,8 +785,9 @@ fn pipeline_random_cases_match_the_old_view_flow() {
     let mut totals = FramedTotals::default();
     let (compared, failed) = check_random(&fixture("random.json"), &mut totals);
     assert_eq!((compared, failed), (150, 0));
-    // 枠のある入力は 58 件、枠は計 132 (design.md の「既存の試験の扱い」)。箱と loose の内訳は出力に出すだけ
-    assert_eq!((totals.documents, totals.frames), (58, 132), "{totals:?}");
+    // 枠のある入力は 88 件、枠は計 386 (design.md の「既存の試験の扱い」の 58 件と 132 から変えた。
+    // メンバーが 1 つのまとまりも枠にするようにしたため)。箱と loose の内訳は出力に出すだけ
+    assert_eq!((totals.documents, totals.frames), (88, 386), "{totals:?}");
     eprintln!("random: {totals:?}");
 }
 

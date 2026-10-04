@@ -1,0 +1,13 @@
+kind: 正常
+checks: 詳細を空にして保存すると、引用ブロックの行を全部外す
+behaviors: [B-123]
+op:
+    kind: setDetails
+    node: 画面
+    text: ''
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [画面] }
+    rename: null
+    notes: []

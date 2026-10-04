@@ -1,0 +1,19 @@
+kind: 境界
+decided: [U-01, U-04]
+checks: >-
+    名前の入力中に外から原文を差し替えると、入れかけの名前を保存せずに入力を閉じる (U-01 で決まった。選択は同じ id で名前も同じなので残る)。
+    名前の入力中に destroy すると、入れかけの名前を保存せずに片付ける (U-04 で決まった。getSource は決める前の原文)
+behaviors: [B-005, B-027]
+states: [D3.d10, D3.d14, A2.a8]
+steps:
+    - click: { node: API }
+    - key: Enter
+    - type: 途中の名前
+      expect: { input: name, input_value: 途中の名前 }
+    - set_source: other-line.md
+      expect: { input: none, source: other-line.md, selection: nodes:API }
+    - key: Enter
+      expect: { input: name, input_value: API }
+    - type: また途中
+    - api: destroy
+      expect: { layer: false, editor_mode: null, source: other-line.md }

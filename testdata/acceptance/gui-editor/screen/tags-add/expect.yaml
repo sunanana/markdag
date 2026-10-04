@@ -1,0 +1,27 @@
+kind: 正常
+decided: [U-05]
+checks: >-
+    T で選んだノードのタグ追加のパネルを開き (キーの欄にフォーカス)、キーと値を入れて Enter で付ける。付けたあともパネルは開いたままでキーの欄に戻り、付いているタグを並べる。
+    図の外を押してもパネルは閉じない (U-05 で決まった)。別のノードを押すと閉じる。ノードの中のタグを押すと、そのノードを選んで押したタグの編集になり、× で外す
+behaviors: [B-044, B-131, B-132, B-133, B-137, B-139, B-141, B-053, B-138, B-011]
+states: [D1.d1, D7.d2, D7.d8, D7.d7, D7.d5, D7.v1, D7.v2, D7.v3]
+steps:
+    - click: { node: フロント }
+    - key: t
+      expect: { input: tag-add, focus: tag-key, bar: none, handles: [], tag_rows: [] }
+    - type: status
+    - click: { tag_field: value }
+    - type: doing
+    - key: Enter
+      expect: { source: after-tag.md, input: tag-add, focus: tag-key, tag_rows: ['status:doing=all'], tag_fields: { key: '', value: '' } }
+    - click: { outside: true }
+      expect: { input: tag-add, focus: outside }
+    - click: { node: API }
+      expect: { input: none, selection: nodes:API }
+    - key: Escape
+    - click: { tag: { node: 画面, key: owner } }
+      expect: { selection: nodes:画面, input: tag-add, tag_fields: { key: owner, value: alice }, tag_rows: ['owner:alice=all*'] }
+    - click: { tag_remove: owner }
+      expect: { source: after-remove.md, tag_rows: [], input: tag-add }
+    - key: Escape
+      expect: { input: none, selection: nodes:画面 }

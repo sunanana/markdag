@@ -1,0 +1,42 @@
+kind: 正常
+decided: [U-09]
+checks: >-
+    手のひら (H) ではドラッグで図を動かし、ノードを押すと選ぶ (+ と点は出さない)。何もないところを押しても選択を解かない。
+    手のひらのドラッグの途中の Esc は選択を解くが、パンはやめない (U-09 で決まった)。道具箱のズームリセットで全体表示に戻す。
+    選択の道具 (V) でも Space を押している間のドラッグは図を動かし (矩形選択にしない)、離すと戻る。中ボタンのドラッグはどの道具でも図を動かす。ホイールで拡大縮小
+behaviors: [B-072, B-073, B-074, B-075, B-076, B-066, B-080, B-082, B-083, B-020]
+states: [B1.b4, B2.b10, B2.b11, Ch.c9, B2.b5, S1.s1, S2.s7, S2.s3, B1.b9, B1.b3, E5.e5]
+decisions: [G-030 / G-035 (全体表示は道具箱とセグメントを避ける)]
+steps:
+    - click: { blank: true }
+    - key: h
+      expect: { tool: hand, drag_to_pan: both }
+    - pan: { dx: 0, dy: -40 }
+      expect: { moved: true, selection: none, marquee: false }
+    - click: { node: 画面 }
+      expect: { selection: nodes:画面, bar: node, handles: [] }
+    - click: { blank: true }
+      expect: { selection: nodes:画面 }
+    - pan: { dx: 30, dy: 0, release: false }
+    - key: Escape
+      expect: { selection: none }
+    - move: { by: [20, 0] }
+      expect: { moved: true }
+    - up: true
+    - click: { tool: fit }
+      expect: { moved: true, focus: diagram, tool: hand }
+    - key: v
+      expect: { tool: select, drag_to_pan: middle }
+    - click: { node: 画面 }
+      expect: { handles: [child, link, sibling] }
+    - keydown: ' '
+      expect: { drag_to_pan: both }
+    - pan: { dx: -60, dy: 30 }
+      expect: { moved: true, selection: nodes:画面, marquee: false }
+    - keyup: ' '
+      expect: { drag_to_pan: middle }
+    - pan: { dx: 50, dy: 0 }
+      button: middle
+      expect: { moved: true, selection: nodes:画面 }
+    - wheel: { dy: -300 }
+      expect: { zoomed: true }

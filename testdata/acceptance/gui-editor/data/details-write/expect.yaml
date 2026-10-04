@@ -1,0 +1,14 @@
+kind: 正常
+checks: >-
+    詳細のない項目 (API) に 2 行の詳細を書くと、項目の行のすぐ下に、行ごとに > を付けた引用ブロックとして書く (字下げ 4)
+behaviors: [B-121, B-122]
+op:
+    kind: setDetails
+    node: API
+    text: "認証つき\n2 行目"
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [API] }
+    rename: null
+    notes: []

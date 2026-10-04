@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 
 use indexmap::IndexMap;
+use markdag_core::edit::{edit_source, inspect_node};
 use markdag_core::layout::frames::compute_frames;
 use markdag_core::layout::layout::{MARKMAP_DEFAULTS, layout_children_of};
 use markdag_core::layout::pipeline::layout_document;
@@ -22,7 +23,9 @@ use markdag_core::parse::{parse_document, replace_leading_mark};
 use markdag_core::standalone::{
     StandaloneOptions, StandaloneRuntime, StandaloneRuntimeOverride, render_standalone_page,
 };
-use markdag_core::types::{HookSpec, HookSpecEntry, LayoutInput, TaskMark, TaskState};
+use markdag_core::types::{
+    EditOp, HookSpec, HookSpecEntry, LayoutInput, NodeTarget, TaskMark, TaskState,
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -426,6 +429,52 @@ fn main() {
         json!({ "tagKeys": to_json(&model.tag_keys), "key": "priority", "prefix": "h" }),
         ok(&suggest_tag_values(&model.tag_keys, "priority", Some("h"))),
     ));
+
+    // ---- 原文の書き換え ----
+    // op と node は境界の JSON の形で書き、同じ値を中核の型に読んで直に呼ぶ
+    let edit_doc = "---\nmarkdag:\n---\n# R\n- [ ] a #k:v %g $id\n    > 詳細\n    - c\n- b\r\n";
+    let edit_cases = [
+        (
+            "名前の変更 (印と逃がし)",
+            json!({ "kind": "renameNode", "node": { "id": 2, "refText": "a" }, "label": "#todo" }),
+        ),
+        (
+            "同じ名前",
+            json!({ "kind": "renameNode", "node": { "id": 3, "refText": "c" }, "label": "c" }),
+        ),
+        (
+            "refText が違う",
+            json!({ "kind": "renameNode", "node": { "id": 2, "refText": "b" }, "label": "x" }),
+        ),
+        (
+            "id が NaN",
+            json!({ "kind": "renameNode", "node": { "id": { "$number": "NaN" }, "refText": "a" }, "label": "x" }),
+        ),
+    ];
+    for (name, op_json) in edit_cases {
+        let op: EditOp = serde_json::from_value(op_json.clone()).expect("EditOp の JSON");
+        cases.push(case(
+            name,
+            "edit_source",
+            json!({ "source": edit_doc, "op": op_json }),
+            ok(&edit_source(edit_doc, &op)),
+        ));
+    }
+    let inspect_cases = [
+        ("詳細のあるタスクの項目", json!({ "id": 2, "refText": "a" })),
+        ("ルートの見出し", json!({ "id": 1, "refText": "R" })),
+        ("ない id", json!({ "id": 99, "refText": "a" })),
+    ];
+    for (name, node_json) in inspect_cases {
+        let node: NodeTarget =
+            serde_json::from_value(node_json.clone()).expect("NodeTarget の JSON");
+        cases.push(case(
+            name,
+            "inspect_node",
+            json!({ "source": edit_doc, "node": node_json }),
+            ok(&inspect_node(edit_doc, &node)),
+        ));
+    }
 
     // ---- 単体 HTML ----
     // 既定のランタイムは仮のもの (組み立ては中身を読まない)。素材は data、ページの指定は options に分ける (A-185)

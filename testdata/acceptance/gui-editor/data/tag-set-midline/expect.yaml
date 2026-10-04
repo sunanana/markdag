@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    行の途中の #owner:alice はタグに読まれない (名前の一部)。タグを付けると行の末尾に足し、値に空白があれば "…" で囲む
+behaviors: [B-133, B-135, B-140]
+op:
+    kind: setTag
+    nodes: ['画面 #owner:alice の説明']
+    key: status
+    value: in progress
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['画面 #owner:alice の説明'] }
+    rename: null
+    notes: []

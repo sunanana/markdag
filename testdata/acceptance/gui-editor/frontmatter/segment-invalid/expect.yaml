@@ -1,0 +1,9 @@
+kind: 誤り
+checks: >-
+    segment.display の文字列 ("yes") と segment.position の使えない値 (middle) は、それぞれ option-invalid で知らせ、その欄だけを既定 (true、top-left) にする。
+    ほかの欄 (mode switch、default edit) は読む
+behaviors: [B-177, B-182]
+expect:
+    diagnostics: [{ severity: warning, code: option-invalid }, { severity: warning, code: option-invalid }]
+    editor: { mode: switch, default: edit, segment: { display: true, position: top-left } }
+    screen: { mode: edit, segment: top-left, toolbox: true }

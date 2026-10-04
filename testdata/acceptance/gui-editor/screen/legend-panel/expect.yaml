@@ -1,0 +1,50 @@
+kind: 正常
+checks: >-
+    凡例のパネル: 行を押すとそのグループを選び、行の操作ボタンを出す。色の四角でカラーピッカーを開き、色を選ぶと color を書き換える。名前のダブルクリックで行の中に名前の入力を開き、
+    Enter で label を書き換える。目のボタンで枠の表示 (boundary) を切り替える。見出しを押すと開閉する。何も選んでいないときの「新規」はメンバーのいないグループを作り、名前の入力を開く (Esc で作る前に戻る)。
+    ノードを選んで行にポインタを乗せると操作ボタンが出て、+ で選んだノードをそのグループに入れる。ノードを選んでいるときの「新規」は選んだノードを新しいグループにまとめる (⌘G と同じ)。
+    ごみ箱でグループを解く
+note: >-
+    段 15 (凡例の行にポインタを乗せる) は CSS の :hover で操作ボタンを出すので、確認ページの合成の出来事では出ず、そこから先は通らない
+    (examples-check の playwright のマウスとキーでは通る)。手で確かめるときは、行にマウスを乗せてから + を押す
+behaviors: [B-148, B-149, B-158, B-159, B-160, B-161, B-162, B-163, B-164, B-165, B-166, B-167, B-168]
+states: [C1.c8, D1.d1, D5.d2, D5.d5, D4.d5]
+steps:
+    - click: { legend_row: g1 }
+      expect: { selection: group:g1, legend_selected: [g1], legend_actions_shown: 3, bar: group }
+    - click: { legend_chip: g1 }
+      expect: { input: picker }
+    - click: { swatch: 2 }
+      expect: { source: after-color.md, input: none, notice: { kind: info, text: 'グループ「設計」の色を #2E9E6B にしました' } }
+    - dblclick: { legend_row: g1 }
+      expect: { input: group-name-legend, input_value: 設計, focus: 'name-input:legend' }
+    - type: 設計班
+    - key: Enter
+      expect: { source: after-name.md, input: none, legend_names: { g1: 設計班 }, selection: group:g1 }
+    - click: { legend_action: [g1, boundary] }
+      expect: { source: after-boundary.md, frames: {} }
+    - click: { legend_head: true }
+      expect: { legend_open: false }
+    - click: { legend_head: true }
+      expect: { legend_open: true }
+    - key: Escape
+      expect: { selection: none }
+    - click: { legend_new: true }
+      expect: { source: after-new.md, selection: group:group1, input: group-name-legend, input_value: グループ 1, legend_rows: [g1, group1], legend_counts: { g1: 3, group1: 0 } }
+    - key: Escape
+      expect: { input: none, source: after-boundary.md, legend_rows: [g1] }
+    - click: { node: フロント }
+    - click: { node: バック }
+      mod: Shift
+    - hover: { legend_row: g1 }
+      expect: { legend_actions_shown: 3 }
+    - click: { legend_action: [g1, add] }
+      expect: { source: after-add.md, selection: 'nodes:フロント,バック', legend_counts: { g1: 5 } }
+    - click: { legend_new: true }
+      expect: { source: after-new-group.md, selection: group:group1, input: group-name, input_value: グループ 1 }
+    - key: Escape
+      expect: { input: none, source: after-add.md }
+    - click: { legend_row: g1 }
+      expect: { selection: group:g1, legend_actions_shown: 3 }
+    - click: { legend_action: [g1, delete] }
+      expect: { source: after-delete-group.md, legend_rows: [], selection: none }

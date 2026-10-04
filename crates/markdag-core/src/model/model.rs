@@ -1,7 +1,8 @@
 // 原文: src/model/model.ts (2026-09-24)
 // model 層の本体。frontmatter の markdag の下の指定 (relations、groups、tags と types、hooks と rules、tasks、legend、branches など) を、
 // ノードの木に対して解決し、診断つきのグラフ (GraphModel) を組み立てる。
-// 参照の解決 (Resolver) と式の形の検査 (check_shape) もここに置く。frontmatter の位置の特定、スキーマの検査、
+// 参照の解決 (Resolver) と式の形の検査 (check_shape) もここに置く。式の読み方 (区切りで分ける、参照を読む、解決する) と
+// 参照の書き方 (escape_segment) は、原文の書き換えの層も同じものを使う (書き換えの側で写しを作らない)。frontmatter の位置の特定、スキーマの検査、
 // タグの型の解決、フックの宣言の読み取りは別のモジュールが担い、ここはそれらを呼んで診断を集める。
 // 参照の解決の失敗は例外でなく Result<_, SelectorError> で返し、呼び出し側が診断に直す (規則 2.5)。
 
@@ -23,8 +24,9 @@ use crate::model::util::{JsValue, closest, js_number_to_string, js_trim, unique_
 use crate::parse::nameless_content;
 use crate::parse::task::{DEFAULT_TASK_CYCLE, is_task_mark, task_state_of};
 use crate::types::{
-    Diagnostic, DimDisplayMode, DisplayMode, GraphModel, GroupDef, HookSpec, LayoutInputRelation,
-    LegendItem, LegendPosition, ModelHooks, NodeTag, OutlineNode, PathStep, RelationKind, Severity,
+    Diagnostic, DimDisplayMode, DisplayMode, EditorModeSetting, EditorSettings, EditorStartMode,
+    GraphModel, GroupDef, HookSpec, LayoutInputRelation, LegendItem, LegendPosition, ModelHooks,
+    NodeTag, OutlineNode, PathStep, RelationKind, SegmentPosition, SegmentSettings, Severity,
     SourcePath, SourcePosition, TagDisplayMode, TagLintSeverity, TagLintUnknownKey, TaskDimOptions,
     TaskMark,
 };
@@ -71,9 +73,9 @@ static SEGMENT_ESCAPE: LazyLock<Regex> =
 static SPACES_AND_TABS: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[ \t]+").expect("固定の正規表現"));
 // relations の式の項の区切り (`-->`) と、項の中の区切り (`&`)。前後に空白かタブが要る
-static ARROW: LazyLock<Regex> =
+pub(crate) static ARROW: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[ \t]+-->[ \t]+").expect("固定の正規表現"));
-static AMPERSAND: LazyLock<Regex> =
+pub(crate) static AMPERSAND: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[ \t]+&[ \t]+").expect("固定の正規表現"));
 
 /// 原文: normalize (model.ts:114)。NFC にし、空白とタブの並びを 1 つの空白にして前後を落とす。
@@ -160,7 +162,10 @@ fn mask_quoted(text: &str, spans: &[(usize, usize)]) -> String {
 
 /// relations の式を区切り (`-->` か `&`) で分ける。`"` で囲んだ名前の中の区切りは区切りにしない (A-219)。
 /// 閉じていない `"` があれば Err に開きの位置
-fn split_outside_quotes<'t>(text: &'t str, separator: &Regex) -> Result<Vec<&'t str>, usize> {
+pub(crate) fn split_outside_quotes<'t>(
+    text: &'t str,
+    separator: &Regex,
+) -> Result<Vec<&'t str>, usize> {
     let spans = quoted_spans(text)?;
     if spans.is_empty() {
         return Ok(separator.split(text).collect());
@@ -245,7 +250,7 @@ fn unclosed_quote(ref_text: &str) -> SelectorError {
 /// 参照の範囲 (原文: Selector['scope'])。境界にも文面にも出ない局所の union (規則 2.6、A-041)。
 /// self は SelfScope (A-030)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SelectorScope {
+pub(crate) enum SelectorScope {
     // そのノード自身
     SelfScope,
     // 配下の末端 (`X/*`)
@@ -258,9 +263,9 @@ enum SelectorScope {
 
 /// 原文: Selector
 #[derive(Debug, Clone, PartialEq)]
-struct Selector {
-    ref_text: String,
-    scope: SelectorScope,
+pub(crate) struct Selector {
+    pub(crate) ref_text: String,
+    pub(crate) scope: SelectorScope,
 }
 
 /// relations の式の、`-->` で区切った項 1 つ (原文の名前のない型 `{ selectors: Selector[]; ids: number[] }`)
@@ -274,7 +279,7 @@ struct RelationTerm {
 /// 原文: SelectorError。参照の解決と式の読み取りの誤り。ref_text は原文の中でこの誤りが指す語、hint は直し方の手がかり
 // 規則 2.5 (A-020): ref_text は String (原文の throw はすべて ref を渡す)
 #[derive(Debug, Clone, PartialEq)]
-struct SelectorError {
+pub(crate) struct SelectorError {
     code: String,
     message: String,
     ref_text: String,
@@ -299,7 +304,7 @@ impl fmt::Display for SelectorError {
 }
 
 /// 原文: Resolver。ノードの木に対して、relations と groups と branches の参照をノードの id に解決する
-struct Resolver<'a> {
+pub(crate) struct Resolver<'a> {
     nodes: &'a [OutlineNode],
     // 規則 2.3 と台帳の Resolver.byId / children の行: IndexMap (byId の値は原文と同じくノードそのもの)
     by_id: IndexMap<u32, &'a OutlineNode>,
@@ -308,7 +313,7 @@ struct Resolver<'a> {
 
 impl<'a> Resolver<'a> {
     /// 原文: Resolver の constructor
-    fn new(nodes: &'a [OutlineNode]) -> Resolver<'a> {
+    pub(crate) fn new(nodes: &'a [OutlineNode]) -> Resolver<'a> {
         let mut by_id = IndexMap::new();
         let mut children: IndexMap<u32, Vec<u32>> = IndexMap::new();
         for node in nodes {
@@ -362,7 +367,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// 原文: parseSelector
-    fn parse_selector(&self, raw: &str) -> Result<Selector, SelectorError> {
+    pub(crate) fn parse_selector(&self, raw: &str) -> Result<Selector, SelectorError> {
         let mut text = js_trim(raw);
         // startsWith('(') && endsWith(')') と text.slice(1, -1)。strip の組は長さ 2 以上のときだけ通り、原文と同じ
         if let Some(inner) = text
@@ -405,7 +410,15 @@ impl<'a> Resolver<'a> {
     }
 
     /// 原文: resolveRef。完全一致だけで引く (A-217)。祖先のセグメントは、この順に並ぶ祖先がいるものだけを残す
-    fn resolve_ref(&mut self, ref_text: &str) -> Result<u32, SelectorError> {
+    pub(crate) fn resolve_ref(&mut self, ref_text: &str) -> Result<u32, SelectorError> {
+        let matched = self.resolve_path(ref_text)?;
+        // resolve_path は指すノードを必ず最後に入れる
+        Ok(matched.last().copied().unwrap_or_default())
+    }
+
+    /// 参照を resolve_ref と同じ規則で解決し、区間ごとに一致したノードの id を根の側から返す (最後が指すノード。
+    /// $id の参照は指すノードだけ)。原文の書き換えの層が、名前を変えたノードに一致した区間を見分けるのに使う
+    pub(crate) fn resolve_path(&mut self, ref_text: &str) -> Result<Vec<u32>, SelectorError> {
         let nodes = self.nodes;
         if let Some(ref_id) = ref_text
             .strip_prefix('$')
@@ -417,7 +430,7 @@ impl<'a> Resolver<'a> {
                 .filter(|node| node.ref_id.as_deref() == Some(ref_id))
                 .collect();
             if let [only] = found.as_slice() {
-                return Ok(only.id);
+                return Ok(vec![only.id]);
             }
             let candidates: Vec<String> = nodes
                 .iter()
@@ -489,7 +502,12 @@ impl<'a> Resolver<'a> {
             })
             .collect();
         if let [only] = found.as_slice() {
-            return Ok(only.id);
+            let ancestors = ancestor_matches(only, true).unwrap_or_default();
+            return Ok(ancestors
+                .iter()
+                .map(|ancestor| ancestor.id)
+                .chain(std::iter::once(only.id))
+                .collect());
         }
         if found.len() > 1 {
             let names: Vec<&str> = found.iter().map(|node| node.ref_text.as_str()).collect();
@@ -724,7 +742,7 @@ const REF_TEXT_HINT: &str = "ノードの 1 行目の文字をそのまま書き
 
 // 前方一致の候補の書き方: 名前の中の「/」は「\/」に、先頭の区間が「$」か「(」で始まるなら「\」を前に付ける (区間のエスケープの逆)。
 // 区切りとして読まれる「 --> 」「 & 」を含む名前と「"」で始まる名前は「"」で囲む (中の「"」と「\」はエスケープする。A-219)
-fn escape_segment(name: &str, first: bool) -> String {
+pub(crate) fn escape_segment(name: &str, first: bool) -> String {
     if ARROW.is_match(name) || AMPERSAND.is_match(name) || name.starts_with('"') {
         return format!("\"{}\"", name.replace('\\', "\\\\").replace('"', "\\\""));
     }
@@ -1428,6 +1446,7 @@ pub fn build_model(
         .get("position")
         .and_then(LegendPosition::from_js)
         .unwrap_or(LegendPosition::TopRight);
+    let editor = editor_settings_of(options);
 
     // branches: 色を分ける単位を、著者が起点のノードで指定する。起点の配下は起点の色になり、起点の中の起点はそこから別の色になる。
     // 書かれていないノードには色を付けない (このキーのない文書は、ノードごとに出てきた順で色が決まる)
@@ -1569,7 +1588,40 @@ pub fn build_model(
             rules,
         },
         icons: icons.table,
+        editor,
         diagnostics,
+    }
+}
+
+/// markdag の下の editor を読む。使えない値の欄だけを既定にし、ほかの欄は読む (診断はスキーマの検証が出す)
+fn editor_settings_of(options: &IndexMap<String, JsValue>) -> EditorSettings {
+    let defaults = EditorSettings::default();
+    let Some(JsValue::Object(editor)) = options.get("editor") else {
+        return defaults;
+    };
+    let segment = match editor.get("segment") {
+        Some(JsValue::Object(segment)) => SegmentSettings {
+            display: match segment.get("display") {
+                Some(JsValue::Bool(display)) => *display,
+                _ => defaults.segment.display,
+            },
+            position: segment
+                .get("position")
+                .and_then(SegmentPosition::from_js)
+                .unwrap_or(defaults.segment.position),
+        },
+        _ => defaults.segment,
+    };
+    EditorSettings {
+        mode: editor
+            .get("mode")
+            .and_then(EditorModeSetting::from_js)
+            .unwrap_or(defaults.mode),
+        default: editor
+            .get("default")
+            .and_then(EditorStartMode::from_js)
+            .unwrap_or(defaults.default),
+        segment,
     }
 }
 
@@ -3225,6 +3277,281 @@ markdag:
             "warning option-unknown 10:5 markdag のキー「detail」は使えません\n    もしかして「details」\ninfo not-extracted frontmatter に markdag のキーがない\nerror ref-ambiguous 6:11 「Test」\nerror cycle x\n    行1\n行2"
         );
         assert_eq!(format_diagnostics(&[]), "");
+    }
+
+    // ---- GUI 編集の設定 (markdag.editor) の読み取り ----
+    // 値は境界に出る JSON の形 (包みが読む欄の名前と値) で比べる
+
+    // markdag.editor の下に lines を字下げして書いた文書
+    fn editor_source(lines: &[&str]) -> String {
+        let mut source = String::from("---\nmarkdag:\n    editor:\n");
+        for line in lines {
+            source.push_str("        ");
+            source.push_str(line);
+            source.push('\n');
+        }
+        source.push_str("---\n\n# root\n\n## A\n");
+        source
+    }
+
+    fn editor_built(source: &str) -> GraphModel {
+        let parsed = crate::parse::parse_document(source);
+        build_model(
+            &parsed.nodes,
+            &parsed.frontmatter,
+            Some(source),
+            &ModelOptions::default(),
+        )
+    }
+
+    fn editor_json(editor: &crate::types::EditorSettings) -> serde_json::Value {
+        serde_json::to_value(editor).expect("EditorSettings は JSON に書ける")
+    }
+
+    // build_model の JSON の editor の欄 (欄がなければ None)
+    fn editor_field(model: &GraphModel) -> Option<serde_json::Value> {
+        serde_json::to_value(model)
+            .expect("GraphModel は JSON に書ける")
+            .get("editor")
+            .cloned()
+    }
+
+    fn editor_expected(
+        mode: &str,
+        start: &str,
+        display: bool,
+        position: &str,
+    ) -> serde_json::Value {
+        serde_json::json!({
+            "mode": mode,
+            "default": start,
+            "segment": { "display": display, "position": position }
+        })
+    }
+
+    fn editor_codes(model: &GraphModel) -> Vec<&str> {
+        model
+            .diagnostics
+            .iter()
+            .map(|item| item.code.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn build_model_editor_defaults_when_not_written() {
+        let defaults = crate::types::EditorSettings::default();
+        assert_eq!(
+            editor_json(&defaults),
+            editor_expected("view", "view", true, "top-left")
+        );
+        assert!(defaults.is_default());
+        for source in [
+            "# root\n\n## A\n",
+            "---\ntitle: x\n---\n\n# root\n",
+            "---\nmarkdag:\n---\n\n# root\n",
+            "---\nmarkdag:\n    legend:\n        position: bottom-left\n---\n\n# root\n",
+        ] {
+            let model = editor_built(source);
+            assert_eq!(model.editor, defaults, "{source}");
+            assert_eq!(editor_field(&model), None, "{source}");
+        }
+        // frontmatter が写像でなければ markdag の指定はないものとして既定
+        let nodes = tree();
+        let model = build_model(
+            &nodes,
+            &JsValue::String("x".to_string()),
+            None,
+            &ModelOptions::default(),
+        );
+        assert_eq!(model.editor, defaults);
+    }
+
+    #[test]
+    fn build_model_editor_reads_each_value() {
+        for mode in ["view", "edit", "switch"] {
+            let model = editor_built(&editor_source(&[format!("mode: {mode}").as_str()]));
+            assert_eq!(model.diagnostics, Vec::new(), "mode: {mode}");
+            assert_eq!(
+                editor_json(&model.editor),
+                editor_expected(mode, "view", true, "top-left"),
+                "mode: {mode}"
+            );
+        }
+        for start in ["view", "edit"] {
+            let model = editor_built(&editor_source(&[
+                "mode: switch",
+                format!("default: {start}").as_str(),
+            ]));
+            assert_eq!(model.diagnostics, Vec::new(), "default: {start}");
+            assert_eq!(
+                editor_json(&model.editor),
+                editor_expected("switch", start, true, "top-left"),
+                "default: {start}"
+            );
+        }
+        for display in [true, false] {
+            let model = editor_built(&editor_source(&[
+                "mode: switch",
+                "segment:",
+                format!("    display: {display}").as_str(),
+            ]));
+            assert_eq!(model.diagnostics, Vec::new(), "display: {display}");
+            assert_eq!(
+                editor_json(&model.editor),
+                editor_expected("switch", "view", display, "top-left"),
+                "display: {display}"
+            );
+        }
+        for position in [
+            "top-right",
+            "top-left",
+            "bottom-right",
+            "bottom-left",
+            "top-center",
+            "bottom-center",
+        ] {
+            let model = editor_built(&editor_source(&[
+                "mode: switch",
+                "segment:",
+                format!("    position: {position}").as_str(),
+            ]));
+            assert_eq!(model.diagnostics, Vec::new(), "position: {position}");
+            assert_eq!(
+                editor_json(&model.editor),
+                editor_expected("switch", "view", true, position),
+                "position: {position}"
+            );
+        }
+        let model = editor_built(&editor_source(&[
+            "mode: switch",
+            "default: edit",
+            "segment:",
+            "    display: false",
+            "    position: bottom-center",
+        ]));
+        assert_eq!(model.diagnostics, Vec::new());
+        assert_eq!(
+            editor_json(&model.editor),
+            editor_expected("switch", "edit", false, "bottom-center")
+        );
+        assert!(!model.editor.is_default());
+    }
+
+    // (editor の下の行, 読んだ値 (mode, default, display, position), 診断の code)
+    type EditorCase = (
+        &'static [&'static str],
+        (&'static str, &'static str, bool, &'static str),
+        &'static [&'static str],
+    );
+
+    #[test]
+    fn build_model_editor_unusable_values_fall_back_to_default() {
+        // 使えない欄だけを既定にし、ほかの欄は読む
+        let cases: &[EditorCase] = &[
+            (
+                &["mode: other"],
+                ("view", "view", true, "top-left"),
+                &["option-invalid"],
+            ),
+            (
+                &["mode: 1"],
+                ("view", "view", true, "top-left"),
+                &["option-invalid"],
+            ),
+            (
+                &["mode: switch", "default: switch"],
+                ("switch", "view", true, "top-left"),
+                &["option-invalid"],
+            ),
+            (
+                &[
+                    "mode: switch",
+                    "default: edit",
+                    "segment:",
+                    "    display: \"yes\"",
+                    "    position: middle",
+                ],
+                ("switch", "edit", true, "top-left"),
+                &["option-invalid", "option-invalid"],
+            ),
+            (
+                &[
+                    "mode: switch",
+                    "segment:",
+                    "    display: false",
+                    "    position: center",
+                ],
+                ("switch", "view", false, "top-left"),
+                &["option-invalid"],
+            ),
+            (
+                &["mode: edit", "segment: true"],
+                ("edit", "view", true, "top-left"),
+                &["option-invalid"],
+            ),
+            (
+                &["mode: edit", "color: red"],
+                ("edit", "view", true, "top-left"),
+                &["option-unknown"],
+            ),
+        ];
+        for (lines, (mode, start, display, position), wanted) in cases {
+            let source = editor_source(lines);
+            let model = editor_built(&source);
+            assert_eq!(
+                editor_json(&model.editor),
+                editor_expected(mode, start, *display, position),
+                "{source}"
+            );
+            assert_eq!(editor_codes(&model), *wanted, "{source}");
+        }
+        // editor に値を直接書いた文書と、markdag の直下に書いた mode は読まない
+        for (source, wanted) in [
+            (
+                "---\nmarkdag:\n    editor: edit\n---\n\n# root\n",
+                "option-invalid",
+            ),
+            (
+                "---\nmarkdag:\n    mode: edit\n---\n\n# root\n",
+                "option-misplaced",
+            ),
+        ] {
+            let model = editor_built(source);
+            assert_eq!(
+                model.editor,
+                crate::types::EditorSettings::default(),
+                "{source}"
+            );
+            assert_eq!(editor_field(&model), None, "{source}");
+            assert_eq!(editor_codes(&model), [wanted], "{source}");
+        }
+    }
+
+    #[test]
+    fn build_model_editor_json_field_only_when_written() {
+        // 書かない文書では欄ごと省く (審判の期待値を変えない)。省いた JSON を読み戻すと既定
+        let plain = editor_built("# root\n\n## A\n");
+        let written = serde_json::to_value(&plain).expect("GraphModel は JSON に書ける");
+        assert_eq!(written.get("editor"), None);
+        let back: GraphModel =
+            serde_json::from_value(written).expect("editor のない JSON を GraphModel に読める");
+        assert_eq!(back.editor, crate::types::EditorSettings::default());
+        // 既定でない値を書いた文書では、埋めた既定を含めて欄が出る
+        let model = editor_built(&editor_source(&["mode: switch"]));
+        assert_eq!(
+            editor_field(&model),
+            Some(editor_expected("switch", "view", true, "top-left"))
+        );
+        let model = editor_built(&editor_source(&["segment:", "    position: bottom-right"]));
+        assert_eq!(
+            editor_field(&model),
+            Some(editor_expected("view", "view", true, "bottom-right"))
+        );
+        let back: GraphModel = serde_json::from_value(
+            serde_json::to_value(&model).expect("GraphModel は JSON に書ける"),
+        )
+        .expect("editor のある JSON を GraphModel に読める");
+        assert_eq!(back.editor, model.editor);
     }
 }
 

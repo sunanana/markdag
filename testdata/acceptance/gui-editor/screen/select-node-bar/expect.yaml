@@ -1,0 +1,44 @@
+kind: 正常
+checks: >-
+    ノードを押すと選び、選択の目印、操作の帯 (名前、子の追加、兄弟追加、詳細編集、タグ追加、タグ選択、削除)、子と兄弟の +、線を引く点を出す。
+    ルートの帯には兄弟追加と削除がなく、+ は子だけ。見出しの帯の詳細編集も押せる (見出しも詳細を持てる)。何もないところを押すか Esc で選択を解く。何もないところのダブルクリックでは何もしない (ノードを足さない、ズームしない)。
+    名前の入力 (足したばかりでない) を Esc でやめると、名前を変えずに閉じる
+behaviors: [B-032, B-052, B-011, B-012, B-020, B-017, B-040, B-047, B-064, B-066, B-076, B-085, B-124]
+states: [C1.c1, C2.c1, C2.c9, C2.c11, D3.d5, D1.v1, D1.v2, D1.v3]
+decisions: [F-13 (子の追加、兄弟追加の名前), 最後の関門 原文の都合で断る 6 (見出しも詳細を持てる。触る F-11 を改めた)]
+steps:
+    - click: { node: 画面 }
+      expect:
+          selection: nodes:画面
+          selected: [画面]
+          selected_outline: [画面]
+          bar: node
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, delete]
+          handles: [child, link, sibling]
+          bounds: 0
+          hint: { contains: [名前, 子を足す, 詳細, タグ, 削除] }
+          focus: diagram
+    - click: { node: 計画 }
+      expect:
+          selection: nodes:計画
+          bar: node
+          bar_buttons: [rename, child, details, tag-add, tag-select]
+          handles: [child, link]
+    - click: { node: 設計 }
+      expect:
+          selection: nodes:設計
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, delete]
+    - click: { blank: true }
+      expect: { selection: none, selected: [], bar: none, handles: [] }
+    - click: { node: API }
+      expect: { selection: nodes:API, bar: node }
+    - key: Escape
+      expect: { selection: none, bar: none, handles: [] }
+    - dblclick: { blank: true }
+      expect: { selection: none, source: input.md, input: none, moved: false }
+    - click: { node: API }
+    - key: Enter
+      expect: { input: name, input_value: API }
+    - type: 別の名前
+    - key: Escape
+      expect: { input: none, source: input.md, selection: nodes:API }

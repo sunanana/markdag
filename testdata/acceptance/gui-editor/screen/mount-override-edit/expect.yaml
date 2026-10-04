@@ -1,0 +1,13 @@
+kind: 正常
+checks: >-
+    mount のオプションの mode (edit) は文書の markdag.editor.mode (view) を上書きする: GUI 編集で始まり、セグメントは出さない。mode の設定が switch でないので setMode は何もせず false を返す
+behaviors: [B-183, B-180, B-173]
+states: [M3.m2, A2.a3]
+decisions: [Q4 (mount の mode で文書の指定を上書きできる)]
+mount: { mode: edit }
+steps:
+    - expect: { mode: edit, segment: null, tool: select, toolbox: [select, hand, join, group, tag-add, tag-select, details, undo, redo, fit] }
+    - set_mode: view
+      expect: { returned: false, mode: edit }
+    - click: { node: 画面 }
+      expect: { selection: nodes:画面, bar: node }

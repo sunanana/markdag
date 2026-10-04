@@ -1,0 +1,7 @@
+kind: 誤り
+checks: mode に使えない値 (other) は option-invalid で知らせ、mode は既定 (view) にする
+behaviors: [B-177]
+expect:
+    diagnostics: [{ severity: warning, code: option-invalid }]
+    editor: { mode: view, default: view, segment: { display: true, position: top-left } }
+    screen: { mode: view, segment: null, toolbox: false }

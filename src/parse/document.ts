@@ -45,7 +45,8 @@ export interface OutlineNode {
     lines: { start: number; end: number } | null;
     // タスク (`- [ ]`, `## [/]` など) の場合の、原文での行 (0 始まり) と状態。checked は state が done のこと。それ以外は null
     task: { line: number; state: TaskState; checked: boolean } | null;
-    // リスト項目の中に Markdown の引用ブロック (`>`) で書かれた詳細の HTML (複数あれば、つなげたもの)。吹き出しで見せるのに使う。
+    // リスト項目の中か、見出しの行のすぐ下 (空行だけをはさむ) に Markdown の引用ブロック (`>`) で書かれた詳細の HTML
+    // (複数あれば、つなげたもの)。吹き出しで見せるのに使う。
     // ノードの中に開いて見せるときは、html に残した引用ブロックを、書かれた位置でそのまま見せる
     details: string | null;
 }

@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    子が番号付きのリストの見出し (準備) に子を足すと、最後の子の形にそろえて次の番号 (3.) の項目を、最後の子のすぐ下に書く。
+    番号付きの項目の名前 (refText) は番号を含む (3. 新しいノード)
+behaviors: [B-021, B-022, B-024]
+op:
+    kind: addChild
+    parent: 準備
+    label: 新しいノード
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [3. 新しいノード] }
+    rename: { kind: node, node: 3. 新しいノード }
+    notes: []

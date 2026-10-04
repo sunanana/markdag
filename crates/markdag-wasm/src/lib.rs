@@ -12,6 +12,7 @@
 use std::sync::{Mutex, Once};
 
 use indexmap::IndexMap;
+use markdag_core::edit::{edit_source, inspect_node};
 use markdag_core::layout::frames::{Frame, compute_frames};
 use markdag_core::layout::layout::LayoutOptions;
 use markdag_core::layout::pipeline::layout_document;
@@ -26,8 +27,8 @@ use markdag_core::standalone::{
     StandaloneError, StandaloneOptions, StandaloneRuntime, render_standalone_page,
 };
 use markdag_core::types::{
-    GraphModel, GroupDef, HookSpec, LayoutError, LayoutInput, OutlineNode, ParsedDocument,
-    TagKeyDef, TaskIcons, TaskMark, TaskState,
+    EditOp, GraphModel, GroupDef, HookSpec, LayoutError, LayoutInput, NodeTarget, OutlineNode,
+    ParsedDocument, TagKeyDef, TaskIcons, TaskMark, TaskState,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -369,6 +370,21 @@ struct SuggestTagValuesInput {
     prefix: Option<String>,
 }
 
+// op は kind で見分ける書き換えの操作。node の id は数のまま受ける (整数でない数と有限でない数は、どのノードの id でもない)
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditSourceInput {
+    source: String,
+    op: EditOp,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InspectNodeInput {
+    source: String,
+    node: NodeTarget,
+}
+
 // runtime は既定のランタイムのコード (core の IIFE)、css はその既定のスタイルシート (包みの defaults)。
 // data は素材 (StandaloneData の欄を持つオブジェクト。利用者の値なので JsValue で受け、$object の包みも外れる)。
 // options は素材を除いたページの指定 (title、lang、containerClass、css、head、runtime の差し替え)
@@ -494,6 +510,21 @@ export_json!(
         let defaults = StandaloneRuntime { script: input.runtime, style: input.css };
         Ok(render_standalone_page(&input.options.unwrap_or_default(), &input.data, &defaults)?)
     }
+);
+
+export_json!(
+    /// 原文に書き換えの操作を当てる。書き換えた行の差し替えの列 (原文の全体は返さない) か、変えない理由か断る理由。
+    /// 操作の失敗は ok の値の status で返す
+    mdag_edit_source,
+    EditSourceInput,
+    |input: EditSourceInput| Ok(edit_source(&input.source, &input.op))
+);
+
+export_json!(
+    /// ノードの種類、名前の入力の初めの値、詳細の原文と、できる操作。id のノードがないか refText が違えば null
+    mdag_inspect_node,
+    InspectNodeInput,
+    |input: InspectNodeInput| Ok(inspect_node(&input.source, &input.node))
 );
 
 #[cfg(test)]

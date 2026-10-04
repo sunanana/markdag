@@ -58,6 +58,21 @@ export const DEFAULT_LEGEND: LegendItem[] = ['groups', 'branches'];
 // 凡例を置く、図の領域の隅。先頭が既定
 export type LegendPosition = 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 
+// GUI 編集の使い方。view は閲覧のみ、edit は GUI 編集のみ、switch は閲覧と GUI 編集を切り替えられる
+export type EditorModeSetting = 'view' | 'edit' | 'switch';
+
+// 閲覧と GUI 編集の切り替えのボタン (セグメント) を置く、図の領域の隅か上下の辺の中央
+export type SegmentPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
+
+// frontmatter の markdag.editor を読んだ結果。書いていない欄と使えない値は既定 (mode view、default view、segment.display true、segment.position top-left)
+export interface EditorSettings {
+    mode: EditorModeSetting;
+    // mode が switch のときに最初に出すモード
+    default: 'view' | 'edit';
+    // 切り替えのボタンを出すか (display) と置く場所 (position)。mode が switch でなければ使わない
+    segment: { display: boolean; position: SegmentPosition };
+}
+
 // markdag.icons の alias の値の種類。set は Iconify の流儀の set:name、path は文書からの相対パスの SVG、emoji は絵文字 1 文字 (解決せず文字のまま出す)
 export type IconKind = 'set' | 'path' | 'emoji';
 
@@ -110,6 +125,8 @@ export interface GraphModel {
     hooks: ResolvedHooks;
     // ロゴの alias の表 (frontmatter の markdag.icons と、その $ref で呼び出し側が渡した表)。SVG の実体はまだ解決していない
     icons: IconTable;
+    // GUI 編集の設定 (frontmatter の markdag.editor)
+    editor: EditorSettings;
     diagnostics: Diagnostic[];
 }
 
@@ -129,7 +146,7 @@ export interface ModelOptions {
 type HookSpecEntry = { kind: 'module'; exports: Array<[string, boolean]> } | { kind: 'invalid' };
 
 // 境界の build_model が返すモデル。Map は配列の組、フックは関数を持たない宣言と設定
-interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks' | 'icons'> {
+interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks' | 'icons' | 'editor'> {
     groupsOf: Array<[number, string[]]>;
     tagsOf: Array<[number, NodeTag[]]>;
     hooks: {
@@ -139,6 +156,8 @@ interface RawGraphModel extends Omit<GraphModel, 'groupsOf' | 'tagsOf' | 'hooks'
     };
     // icons を書いていない文書では省かれる
     icons?: { color: IconColor; aliases: Array<[string, IconDef]> };
+    // 既定と同じ値 (markdag.editor を書いていない文書など) では省かれる
+    editor?: EditorSettings;
 }
 
 // ref ごとの HookSpecEntry。値が undefined なら入れない (「渡したが見つからない」になる)
@@ -214,6 +233,7 @@ function graphModelOf(raw: RawGraphModel, hookRefs: Record<string, unknown> | nu
         taskDim: raw.taskDim,
         hooks: resolvedHooksOf(raw.hooks, hookRefs),
         icons: raw.icons === undefined ? emptyIcons() : { color: raw.icons.color, aliases: new Map(raw.icons.aliases) },
+        editor: raw.editor ?? defaultEditorSettings(),
         diagnostics: raw.diagnostics,
     };
 }
@@ -264,6 +284,7 @@ export function emptyModel(): GraphModel {
         taskDim: { states: [], details: 'keep', tags: 'keep' },
         hooks: { hooks: [], options: {} },
         icons: emptyIcons(),
+        editor: defaultEditorSettings(),
         diagnostics: [],
     };
 }
@@ -277,4 +298,8 @@ export function iconDefOf(icons: IconTable, name: string): IconDef | null {
 
 function emptyIcons(): IconTable {
     return { color: 'mono', aliases: new Map() };
+}
+
+function defaultEditorSettings(): EditorSettings {
+    return { mode: 'view', default: 'view', segment: { display: true, position: 'top-left' } };
 }

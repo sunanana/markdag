@@ -1,0 +1,50 @@
+kind: 正常
+checks: >-
+    mode switch、default edit の文書を開くと GUI 編集で始まる。セグメント (左上)、道具箱 (選択が上で最初の道具、手のひらがその下)、凡例のパネル (右下、開いた状態、線の色とグループの段)、
+    図の下の案内を出す。道具箱のボタンとキー (H、V) で道具を替え、押したあとはボタンにフォーカスを残さない。何も選んでいないときの合流、グループ、タグ追加、D は案内を出す
+behaviors: [B-071, B-077, B-078, B-079, B-080, B-081, B-083, B-085, B-092, B-093, B-105, B-111, B-130, B-148, B-150, B-151, B-152, B-156, B-157, B-170, B-173, B-174, B-179]
+states: [M1.m5, B1.b2, B2.b1, B1.b4, B2.b5, B1.b3, S1.s5]
+decisions: [F-04 (選択が上で最初の道具), F-14 (詳細表示の名前), 設計 10.1-1 (H と V のキー、N の道具は作らない)]
+steps:
+    - expect:
+          mode: edit
+          editor_mode: edit
+          segment: top-left
+          segment_place: top-left
+          segment_pressed: edit
+          toolbox: [select, hand, join, group, tag-add, tag-select, details, undo, redo, fit]
+          toolbox_labels: [選択, 手のひら, 合流, グループ, タグ追加, タグ選択, 詳細表示, 戻る, 進む, ズームリセット]
+          tool: select
+          tool_pressed: [select]
+          tool_disabled: [undo, redo]
+          drag_to_pan: middle
+          selection: none
+          bar: none
+          legend: bottom-right
+          legend_place: bottom-right
+          legend_open: true
+          legend_sections: [branches, groups]
+          legend_rows: [g1]
+          legend_counts: { g1: 3 }
+          legend_toggle: true
+          legend_new: true
+          details_display: hover
+          hint: { contains: 何もないところからドラッグで範囲選択 }
+          frames: { g1: 1 }
+          edges: ['depends:画面>公開']
+    - click: { tool: hand }
+      expect: { tool: hand, tool_pressed: [hand], drag_to_pan: both, focus: diagram, hint: { contains: 手のひら } }
+    - click: { tool: select }
+      expect: { tool: select, tool_pressed: [select], drag_to_pan: middle, focus: diagram }
+    - key: h
+      expect: { tool: hand, tool_pressed: [hand] }
+    - key: v
+      expect: { tool: select, tool_pressed: [select] }
+    - click: { tool: join }
+      expect: { notice: { kind: info, text: 何もないところからドラッグして 2 つ以上を囲むと、選んだノードを新しいノードへ合流させます }, tool: select, focus: diagram }
+    - click: { tool: group }
+      expect: { notice: { kind: info, text: 何もないところからドラッグしてノードを囲むと、選んだノードをグループにまとめます } }
+    - click: { tool: tag-add }
+      expect: { notice: { kind: info, text: タグを付けるノードを選んでください (クリック、または何もないところからドラッグで囲む) }, input: none }
+    - key: d
+      expect: { notice: { kind: info, text: 詳細を書くノードを 1 つだけ選んでから D を押してください (クリックで選ぶ) }, input: none }

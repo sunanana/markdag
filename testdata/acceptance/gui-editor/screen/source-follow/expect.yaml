@@ -1,0 +1,17 @@
+kind: 正常
+checks: >-
+    原文の欄を直すと図が追って描き直す (外からの原文の差し替え)。選んだノードは、同じ id で名前も同じなら選んだまま、名前が変わると選択を解く。
+    文書の markdag.editor が変わると、モードとセグメントを合わせ直す。差し替えも元に戻すの履歴に入る
+behaviors: [B-005, B-004, B-176, B-008]
+states: [C2.c15, A2.a5, A1.a5]
+steps:
+    - click: { node: 画面 }
+      expect: { selection: nodes:画面 }
+    - set_source: other-line.md
+      expect: { source: other-line.md, selection: nodes:画面, nodes: [計画, 設計, 画面, API, 実装, フロント, バックエンド, 公開] }
+    - set_source: renamed.md
+      expect: { source: renamed.md, selection: none }
+    - set_source: view-mode.md
+      expect: { mode: view, segment: null, toolbox: null }
+    - api: undo
+      expect: { returned: true, source: renamed.md, mode: edit, segment: top-left }

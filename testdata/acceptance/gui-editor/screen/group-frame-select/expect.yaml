@@ -1,0 +1,36 @@
+kind: 正常
+decided: [U-11]
+checks: >-
+    選択の道具で枠を押すとグループを選び (ほかを薄くし、グループの帯 (名前、グループ解除) を出す)、同じ枠をもう 1 度押すと解く。手のひらでは枠を押しても選ばない。
+    Enter と枠のラベルのダブルクリックで名前の入力を開き、Esc でやめる。名前を変えてから凡例の色の四角を押すと、名前は決まるがピッカーは開かない (U-11 で決まった)。
+    帯の「グループ解除」で印と定義を外す
+behaviors: [B-112, B-113, B-114, B-051, B-116, B-166]
+states: [C1.c6, D1.d2, D4.d5, C5.c6, Ch.c6, D4.d1]
+decisions: [設計 10.1-3 (GUI 編集では枠を押せる), F-10]
+steps:
+    - click: { frame: g1 }
+      expect:
+          selection: group:g1
+          bar: group
+          bar_title: グループ「設計」
+          bar_buttons: [rename-group, ungroup]
+          faded_nodes: [実装, フロント, バック]
+          legend_selected: [g1]
+          hint: { contains: 同じ枠をもう 1 度押しても解ける }
+    - key: Enter
+      expect: { input: group-name, input_value: 設計, focus: 'name-input:group', bar: none }
+    - key: Escape
+      expect: { input: none, selection: group:g1, source: input.md }
+    - click: { frame: g1 }
+      expect: { selection: none, faded: 0 }
+    - key: h
+    - click: { frame: g1 }
+      expect: { selection: none, tool: hand }
+    - key: v
+    - dblclick: { frame_label: g1 }
+      expect: { selection: group:g1, input: group-name, input_value: 設計 }
+    - type: 設計班
+    - click: { legend_chip: g1 }
+      expect: { source: after-rename.md, input: none, selection: group:g1 }
+    - click: { bar: ungroup }
+      expect: { source: after-ungroup.md, frames: {}, legend_rows: [], selection: none, notice: { kind: info, text: グループ「設計班」を解除しました } }

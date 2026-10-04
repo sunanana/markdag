@@ -1,0 +1,20 @@
+kind: 境界
+decided: [U-06, U-07]
+checks: >-
+    付け替えのドラッグの途中に外から原文を差し替えると、ドラッグをやめ、離しても付け替えない (U-06 で決まった)。
+    付け替えのドラッグの途中に destroy しても誤りは出ず、離しても何も起きない (U-07 で決まった)
+behaviors: [B-055, B-005]
+states: [E2.e7, E2.e10]
+steps:
+    - drag: { from: { node: フロント }, to: { node: 公開 }, release: false }
+      expect: { drop_target: 公開 }
+    - set_source: other-line.md
+      expect: { drop_target: null, source: other-line.md }
+    - up: true
+      expect: { source: other-line.md, drop_target: null }
+    - drag: { from: { node: 画面 }, to: { node: 実装 }, release: false }
+      expect: { drop_target: 実装 }
+    - api: destroy
+      expect: { layer: false }
+    - up: true
+      expect: { layer: false, source: other-line.md }

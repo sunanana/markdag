@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    新しい合流先への合流: 合流先を、始点のうち文書でいちばん後ろのもの (API) を含む最上位の枝 (設計) のすぐあとに、その枝と同じ形 (##) で作り、
+    markdag.relations.join に「始点 & 始点 --> 合流先」を 1 行足す。合流先を選び、すぐ名前の入力を開く相手にする
+behaviors: [B-094, B-095, B-096, B-097]
+op:
+    kind: joinIntoNew
+    sources: [画面, API]
+    label: 合流点
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [合流点] }
+    rename: { kind: node, node: 合流点 }
+    notes: []

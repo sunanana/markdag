@@ -29,6 +29,9 @@ export interface MarkdagDiagram {
     readonly view: MarkdagView;
     // 最後に描いた文書の診断
     readonly diagnostics: Diagnostic[];
+    // 今の原文 (タスクのクリックと update で書き換わる。transformSource が差し替える前のもの)。
+    // update を beforeUpdate が取りやめたかを、呼んだ側が確かめられる
+    readonly source: string;
     // 文書を差し替えて描き直す。今のズームとパンは保つ
     update(markdown: string): Diagnostic[];
     fit(): void;
@@ -173,6 +176,9 @@ export function renderWith(container: HTMLElement, markdown: string, options: Re
         view,
         get diagnostics() {
             return diagnostics;
+        },
+        get source() {
+            return source;
         },
         update(next: string) {
             if (!bridge.beforeUpdate(next)) return diagnostics;

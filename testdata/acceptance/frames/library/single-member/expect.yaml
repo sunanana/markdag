@@ -1,8 +1,8 @@
 kind: 境界
 checks: >-
-    見えているメンバーが 1 つ (子のない見出し 1 つ) のグループは枠にならない。relations (設計 → 告知) があっても同じ
+    見えているメンバーが 1 つ (子のない見出し 1 つ) のグループも枠になる。下の見出しは枠の下、relations (設計 → 告知) の先は枠の右
 combos: [3-13]
-decisions: [writing-guide の groups の規則]
+decisions: [gui-editor の F-02 (メンバーが 1 つの所も枠。scope.md の「触る F-02」、records/deviations.md の D-011)]
 call:
     api: >-
         render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、rect.mdag-frame (図の座標) と
@@ -10,7 +10,11 @@ call:
 expect:
     diagnostics: []
     visible: 6
-    frames: []
-    unframed: { a: [設計] }
+    frames:
+        - { group: a, members: [設計], inside: [] }
+    unframed: {}
     overlap: { disjoint: 0, crossing: 0 }
     intrusions: 0
+    sides:
+        実装: { a: 下 }
+        告知: { a: 右 }

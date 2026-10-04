@@ -1,0 +1,16 @@
+kind: 正常
+checks: >-
+    選択の道具でノードをほかのノードへドラッグすると、移せる相手に移す先の枠を出し、離すとその下へ付け替える (移す先の子の形で書く。移したノードを選ぶ)。
+    ノードの外で離すと付け替えずに案内する。自分の配下へは移さず理由を知らせる
+behaviors: [B-055, B-056, B-057, B-058]
+states: [E1.e1, E2.e2, E2.e3, E2.e4]
+steps:
+    - drag: { from: { node: 画面 }, to: { node: 実装 }, release: false }
+      expect: { drop_target: 実装 }
+    - up: true
+      expect: { source: after-move.md, selection: nodes:画面, drop_target: null, legend_counts: { g1: 2 } }
+    - key: Escape
+    - drag: { from: { node: フロント }, to: { blank: true } }
+      expect: { source: after-move.md, notice: { kind: info, text: ほかのノードの上で離すと、その下へ移ります } }
+    - drag: { from: { node: 設計 }, to: { node: API } }
+      expect: { source: after-move.md, notice: { kind: error } }

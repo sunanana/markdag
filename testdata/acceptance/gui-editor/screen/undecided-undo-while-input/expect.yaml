@@ -1,0 +1,20 @@
+kind: 境界
+decided: [U-02]
+checks: >-
+    名前の入力中に道具箱の「戻る」を押すと、押下で先に入れた名前で決め、そのあと 1 つ戻す (名前の変更が戻る)。
+    名前の入力中のアプリの undo() は保存せずに閉じて戻すが、戻すものがなければ何もせず false を返し、入力は開いたまま (U-02 で決まった)
+behaviors: [B-081, B-008]
+states: [D3.d11, D3.d12]
+steps:
+    - click: { node: API }
+    - key: Enter
+    - type: API2
+    - click: { tool: undo }
+      expect: { source: input.md, input: none }
+    - click: { node: API }
+    - key: Enter
+    - type: API3
+    - api: undo
+      expect: { returned: false, input: name, input_value: API3, source: input.md }
+    - key: Escape
+      expect: { input: none, source: input.md }

@@ -1,0 +1,16 @@
+kind: 境界
+decided: [E-1]
+checks: >-
+    1 行目に開閉のコメント (<!-- markmap: fold -->) のある項目の名前を変えると、今はコメントも消える (本文と一緒に書き換わる。frontmatter がない文書)。
+    コメントが消えると、その枝は初めから閉じた状態ではなくなる (E-1 で決まった)
+behaviors: [B-034]
+op:
+    kind: renameNode
+    node: 設計
+    label: 基本設計
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [基本設計] }
+    rename: null
+    notes: []

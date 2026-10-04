@@ -58,10 +58,20 @@ export interface TagLintOptions {
     unknownKey: 'allow' | 'deny';
 }
 
-// タグを本文に書いた形に戻す。空白や , を含む値は " で囲む (Rust の format_tag と同じ)
+// 囲まずに書けるキーの字 (解析が囲まないキーに読む字)。ASCII の数字だけのキーは解析が印に読まないので囲む
+const PLAIN_KEY = /^[\p{L}\p{N}_-]+$/u;
+const DIGITS_ONLY = /^[0-9]+$/;
+const VALUE_NEEDS_QUOTE = /[\s,"\\]/;
+
+// " で囲み、中の \ と " を逃がす
+const quoted = (text: string): string => `"${text.replace(/[\\"]/g, '\\$&')}"`;
+
+// タグを本文に書いた形に戻す (Rust の format_tag と同じ)。キーは文字、数字、_、- の外の字を含むか数字だけなら " で囲み、
+// 値は空白、`,`、`"`、`\` のどれかを含むか空なら " で囲む (空の値は `""`)。囲みの中の " は \"、\ は \\ と書く (解析が同じキーと値に読み戻す形)
 export function formatTag({ key, values }: Pick<NodeTag, 'key' | 'values'>): string {
-    if (values.length === 0) return `#${key}`;
-    return `#${key}:${values.map((value) => (/[\s,"]/.test(value) ? `"${value}"` : value)).join(',')}`;
+    const head = `#${PLAIN_KEY.test(key) && !DIGITS_ONLY.test(key) ? key : quoted(key)}`;
+    if (values.length === 0) return head;
+    return `${head}:${values.map((value) => (value === '' || VALUE_NEEDS_QUOTE.test(value) ? quoted(value) : value)).join(',')}`;
 }
 
 // 編集側の候補: キーの名前 (入力途中の文字で絞る)

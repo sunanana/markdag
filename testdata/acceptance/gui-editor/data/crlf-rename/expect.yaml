@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    改行が CRLF の文書で名前を変えると、書き換えた行も CRLF のまま (行末の \r を残す)。ほかの行は変えない
+behaviors: [B-034]
+decisions: [整える M04 (穴を埋める例。名前を変えた行の CRLF を残す)]
+op:
+    kind: renameNode
+    node: 実装
+    label: 開発
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [開発] }
+    rename: null
+    notes: []

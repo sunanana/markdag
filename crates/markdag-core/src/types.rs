@@ -8,6 +8,7 @@ use std::fmt;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+use crate::layout::project::VisibleEdgeKind;
 use crate::model::util::JsValue;
 
 // 文字列の union の enum に、原文の文字 (as_str)、JS の値からの変換 (from_js)、原文の配列の順の一覧 (ALL) を付ける。
@@ -143,7 +144,7 @@ pub struct OutlineNode {
     pub fold_hint: f64,
     pub lines: Option<LineRange>,
     pub task: Option<TaskInfo>,
-    /// リスト項目の中に引用ブロック (`>`) で書かれた詳細の HTML (複数あれば、つなげたもの)
+    /// リスト項目の中か、見出しの行のすぐ下 (空行だけをはさむ) に引用ブロック (`>`) で書かれた詳細の HTML (複数あれば、つなげたもの)
     pub details: Option<String>,
 }
 
@@ -373,6 +374,385 @@ str_enum_impl!(LegendPosition {
     BottomRight => "bottom-right",
     BottomLeft => "bottom-left",
 });
+
+// ---- GUI 編集の設定 (frontmatter の markdag.editor)。GraphModel の欄が参照する ----
+
+/// GUI 編集の使い方。view は閲覧のみ、edit は GUI 編集のみ、switch は閲覧と GUI 編集を切り替えられる
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditorModeSetting {
+    #[default]
+    View,
+    Edit,
+    Switch,
+}
+str_enum_impl!(EditorModeSetting { View => "view", Edit => "edit", Switch => "switch" });
+
+/// mode が switch のときに最初に出すモード
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditorStartMode {
+    #[default]
+    View,
+    Edit,
+}
+str_enum_impl!(EditorStartMode { View => "view", Edit => "edit" });
+
+/// 切り替えのボタン (セグメント) を置く、図の領域の隅か上下の辺の中央。凡例の既定 (右上) と重ねないよう、既定は左上
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SegmentPosition {
+    TopRight,
+    #[default]
+    TopLeft,
+    BottomRight,
+    BottomLeft,
+    TopCenter,
+    BottomCenter,
+}
+str_enum_impl!(SegmentPosition {
+    TopRight => "top-right",
+    TopLeft => "top-left",
+    BottomRight => "bottom-right",
+    BottomLeft => "bottom-left",
+    TopCenter => "top-center",
+    BottomCenter => "bottom-center",
+});
+
+/// 切り替えのボタンを出すか (display) と置く場所 (position)。mode が switch でなければ使わない
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SegmentSettings {
+    pub display: bool,
+    pub position: SegmentPosition,
+}
+
+impl Default for SegmentSettings {
+    fn default() -> Self {
+        Self {
+            display: true,
+            position: SegmentPosition::default(),
+        }
+    }
+}
+
+/// markdag.editor を読んだ結果。書いていない欄と使えない値は既定 (閲覧のみ、最初は閲覧、ボタンを出す、左上)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorSettings {
+    pub mode: EditorModeSetting,
+    pub default: EditorStartMode,
+    pub segment: SegmentSettings,
+}
+
+impl EditorSettings {
+    /// markdag.editor を書いていない文書と同じか (モデルの JSON では欄ごと省く。既存の文書の出力の形を変えないため)
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+// ---- 原文の書き換え (GUI 編集の操作の入出力と、読むだけの問い合わせ inspect_node の結果) ----
+
+/// 書き換えが指すノード。id と refText は呼び出し側が描いている解析の結果のもの。
+/// 原文を解析し直して、同じ id のノードがないか refText が違えば、古い指定として扱う
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeTarget {
+    /// 境界では数のまま受ける。整数でない数と有限でない数は、どのノードの id でもない
+    #[serde(with = "crate::model::util::js_f64")]
+    pub id: f64,
+    pub ref_text: String,
+}
+
+/// 選んだ線。kind が tree の線は木の親子で、source が親
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EdgeTarget {
+    pub kind: VisibleEdgeKind,
+    pub source: u32,
+    pub target: u32,
+}
+
+/// 原文の書き換えの操作 (kind で見分ける)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum EditOp {
+    AddChild {
+        parent: NodeTarget,
+        label: String,
+    },
+    AddSibling {
+        node: NodeTarget,
+        label: String,
+    },
+    RenameNode {
+        node: NodeTarget,
+        label: String,
+    },
+    DeleteNodes {
+        nodes: Vec<NodeTarget>,
+    },
+    MoveNode {
+        node: NodeTarget,
+        parent: NodeTarget,
+    },
+    SetDetails {
+        node: NodeTarget,
+        text: String,
+    },
+    SetTag {
+        nodes: Vec<NodeTarget>,
+        key: String,
+        value: Option<String>,
+        replace_key: Option<String>,
+    },
+    RemoveTag {
+        nodes: Vec<NodeTarget>,
+        key: String,
+    },
+    ToggleTag {
+        nodes: Vec<NodeTarget>,
+        key: String,
+        value: Option<String>,
+    },
+    AddToGroup {
+        group: String,
+        nodes: Vec<NodeTarget>,
+    },
+    AddRelation {
+        from: NodeTarget,
+        to: NodeTarget,
+    },
+    JoinInto {
+        sources: Vec<NodeTarget>,
+        target: NodeTarget,
+    },
+    JoinIntoNew {
+        sources: Vec<NodeTarget>,
+        label: String,
+    },
+    GroupNodes {
+        nodes: Vec<NodeTarget>,
+    },
+    DefineGroup,
+    RenameGroup {
+        group: String,
+        label: String,
+    },
+    SetGroupColor {
+        group: String,
+        color: String,
+    },
+    SetGroupBoundary {
+        group: String,
+        boundary: bool,
+    },
+    Ungroup {
+        group: String,
+    },
+}
+
+/// 原文の行の差し替え 1 つ。start と deleteCount は書き換える前の原文の行 (split('\n') の添字)。
+/// lines は行末の \n を含まない (CRLF の文書では行末の \r を含む)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LineSplice {
+    pub start: u32,
+    pub delete_count: u32,
+    pub lines: Vec<String>,
+}
+
+/// 書き換えたあとに選ぶもの。ノードは書き換えたあとの原文を解析し直した id と refText
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum EditSelection {
+    #[serde(rename = "none")]
+    Empty,
+    Nodes {
+        nodes: Vec<NodeTarget>,
+    },
+    Edge {
+        edge: EdgeTarget,
+    },
+    Group {
+        id: String,
+    },
+}
+
+/// 書き換えたあとに、すぐ名前の入力を開く相手
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum EditRename {
+    Node { node: NodeTarget },
+    Group { id: String },
+}
+
+/// 書き換えに添える知らせの種類
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditNoteCode {
+    RelationsRemoved,
+    RefsRewritten,
+    SourcesCycle,
+    SourcesExisting,
+    IdAdded,
+    MarkdagAdded,
+    FrontmatterAdded,
+    BomRemoved,
+}
+str_enum_impl!(EditNoteCode {
+    RelationsRemoved => "relations-removed",
+    RefsRewritten => "refs-rewritten",
+    SourcesCycle => "sources-cycle",
+    SourcesExisting => "sources-existing",
+    IdAdded => "id-added",
+    MarkdagAdded => "markdag-added",
+    FrontmatterAdded => "frontmatter-added",
+    BomRemoved => "bom-removed",
+});
+
+/// 書き換えに添える知らせ。message は日本語の 1 文
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditNote {
+    pub code: EditNoteCode,
+    pub count: u32,
+    pub message: String,
+}
+
+/// 書き換えを断る理由と、変えない理由 (same-name、already-child、nothing-to-change) の種類
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EditReasonCode {
+    StaleNode,
+    NoSourceLine,
+    BlockNode,
+    MarkerLine,
+    Root,
+    HeadingDetails,
+    EmptyName,
+    MoveIntoSelf,
+    StructureChanged,
+    SameNode,
+    EdgeExists,
+    Cycle,
+    AmbiguousReference,
+    TooFewSources,
+    AllSourcesSkipped,
+    TagKeyInvalid,
+    GroupUnknown,
+    GroupLabelEmpty,
+    ColorInvalid,
+    FlowStyle,
+    BlockScalar,
+    FrontmatterInvalid,
+    FrontmatterNotMap,
+    SameName,
+    AlreadyChild,
+    NothingToChange,
+}
+str_enum_impl!(EditReasonCode {
+    StaleNode => "stale-node",
+    NoSourceLine => "no-source-line",
+    BlockNode => "block-node",
+    MarkerLine => "marker-line",
+    Root => "root",
+    HeadingDetails => "heading-details",
+    EmptyName => "empty-name",
+    MoveIntoSelf => "move-into-self",
+    StructureChanged => "structure-changed",
+    SameNode => "same-node",
+    EdgeExists => "edge-exists",
+    Cycle => "cycle",
+    AmbiguousReference => "ambiguous-reference",
+    TooFewSources => "too-few-sources",
+    AllSourcesSkipped => "all-sources-skipped",
+    TagKeyInvalid => "tag-key-invalid",
+    GroupUnknown => "group-unknown",
+    GroupLabelEmpty => "group-label-empty",
+    ColorInvalid => "color-invalid",
+    FlowStyle => "flow-style",
+    BlockScalar => "block-scalar",
+    FrontmatterInvalid => "frontmatter-invalid",
+    FrontmatterNotMap => "frontmatter-not-map",
+    SameName => "same-name",
+    AlreadyChild => "already-child",
+    NothingToChange => "nothing-to-change",
+});
+
+/// 書き換えを断るか変えない理由。message は日本語の 1 文、path は frontmatter の道すじ (本文の書き換えでは null)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditReason {
+    pub code: EditReasonCode,
+    pub message: String,
+    pub path: Option<String>,
+}
+
+/// edit_source の戻り値。書き換えたら原文の行の差し替えの列 (start の昇順、重ならない) を返し、原文の全体は返さない
+/// (包みが原文の行に継ぎ足し、書き換えない行の字を原文のまま保つ)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum EditSourceResult {
+    Edited {
+        splices: Vec<LineSplice>,
+        select: EditSelection,
+        rename: Option<EditRename>,
+        notes: Vec<EditNote>,
+    },
+    Unchanged {
+        reason: Option<EditReason>,
+    },
+    Refused {
+        reason: EditReason,
+    },
+}
+
+/// 書き換えの側から見たノードの種類。root は原文の行を持たないルート、list は容器 (ul / ol)、block は表とコードと画像
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NodeKind {
+    Heading,
+    Item,
+    Root,
+    List,
+    Block,
+}
+str_enum_impl!(NodeKind {
+    Heading => "heading",
+    Item => "item",
+    Root => "root",
+    List => "list",
+    Block => "block",
+});
+
+/// inspect_node の戻り値。名前の入力の初めの値と、そのノードにできる操作
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectNodeResult {
+    pub id: u32,
+    pub kind: NodeKind,
+    /// 1 行目の本文の原文 (行頭の記号、タスクの記号、末尾の印を除いた文字。Markdown の記法はそのまま) から、
+    /// 名前の変更で逃がしが足すのと同じ所の `\` を外したもの (図の名前と同じ文字。逃がしが足さない所の `\` は残す)。
+    /// markdag キーのない文書では末尾の印も含む。名前を変えられないノードでは空
+    pub label: String,
+    /// 詳細 (項目の直下の引用) の原文。なければ null
+    pub details: Option<String>,
+    pub task: bool,
+    pub can_rename: bool,
+    pub can_delete: bool,
+    pub can_move: bool,
+    pub can_have_details: bool,
+    pub can_add_child: bool,
+    pub can_add_sibling: bool,
+    /// 1 行目に印 (%、#、$) を書けるか
+    pub can_mark: bool,
+}
 
 // ---- タグの型 (src/model/tags.ts) ----
 
@@ -685,6 +1065,9 @@ pub struct GraphModel {
     // $ref の表を重ねるのは buildModel (types と同じ) なので、解析の結果 (parsed) ではなくモデルに置く
     #[serde(default, skip_serializing_if = "IconTable::is_default")]
     pub icons: IconTable,
+    /// GUI 編集の設定 (markdag.editor)。既定と同じなら JSON から省く (書いていない文書の出力の形を変えないため)
+    #[serde(default, skip_serializing_if = "EditorSettings::is_default")]
+    pub editor: EditorSettings,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -744,6 +1127,11 @@ mod tests {
             IconKind,
             IconColor
         );
+    }
+
+    #[test]
+    fn types_edit_enum_serde_names_match_as_str() {
+        assert_names_agree!(EditNoteCode, EditReasonCode, NodeKind);
     }
 
     #[test]

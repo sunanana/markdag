@@ -82,6 +82,8 @@ describe('wasm の出す関数 (release)', () => {
             'suggest_tag_keys',
             'suggest_tag_values',
             'standalone_page',
+            'edit_source',
+            'inspect_node',
         ];
         expect([...covered].sort()).toEqual([...all].sort());
     });

@@ -1,0 +1,11 @@
+kind: 境界
+checks: >-
+    どのノードも名前を空にできない。名前を空にすると、原文を変えずに理由 empty-name で断る
+behaviors: [B-034]
+op:
+    kind: renameNode
+    node: 実装
+    label: ''
+expect:
+    status: refused
+    reason: empty-name

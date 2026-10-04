@@ -121,6 +121,26 @@ export function tagLineContent(
     return html === null ? { text: tags.map(formatTag).join(' ') } : { html };
 }
 
+// タグを 1 つずつに分けた中身。タグごとの要素で行を組むとき (GUI 編集) の入口で、並びは tags の順。
+// 各タグの html は「ロゴ (引けた分だけ) + 書いたとおりの文字」で、タグの間に空白 1 つを挟んで並べると tagLineContent の中身と同じになる
+// (文脈がないか、ロゴが 1 つも引けないときは、文字を逃がしただけの html)
+export function tagParts(
+    tags: Array<Pick<NodeTag, 'key' | 'values'>>,
+    tagKeys: TagKeyDef[],
+    context: IconRenderContext | null,
+): Array<{ key: string; html: string }> {
+    return tags.map((tag) => {
+        const logos = context
+            ? tagAliases(tag, keyDefOf(tagKeys, tag.key)).flatMap((alias) => {
+                  const icon = iconDefOf(context.icons, alias);
+                  const body = icon ? logoBody(icon, context) : null;
+                  return body ? [logoSpan(alias, body, null)] : [];
+              })
+            : [];
+        return { key: tag.key, html: logos.join('') + escapeHtml(formatTag(tag)) };
+    });
+}
+
 // ノードの描画に使う ref (本文の印とタグ)。ref の SVG が入ったときに、描き直すノードを選ぶのに使う
 export function nodeIconRefs(node: Pick<OutlineNode, 'html'>, tags: Array<Pick<NodeTag, 'key' | 'values'>>, model: Pick<GraphModel, 'icons' | 'tagKeys'>): Set<string> {
     const refs = new Set<string>();
@@ -189,6 +209,20 @@ export function legendLogoHtml(group: Pick<GroupDef, 'icon'>, context: IconRende
     return logo.kind === 'emoji'
         ? logoSpan(logo.alias, { html: escapeHtml(logo.text), color: null }, null)
         : logoSpan(logo.alias, { html: logo.svg, color: logo.color }, null);
+}
+
+// 図の外 (凡例のパネルなど) に出すグループのロゴの HTML。引けたロゴと絵文字は凡例の行と同じもの (legendLogoHtml)。
+// SVG がまだ置き場に届いていなければ中身のない置き場の要素 (届いてから作り直すとロゴが入る)、
+// 表にない alias と、引けなかった SVG は書いたとおりの文字 (:alias:)。icon のないグループは null
+export function groupLogoHtml(group: Pick<GroupDef, 'icon'>, context: IconRenderContext | null): string | null {
+    const alias = group.icon;
+    if (alias === undefined) return null;
+    const drawn = legendLogoHtml(group, context);
+    if (drawn !== null) return drawn;
+    const def = context ? iconDefOf(context.icons, alias) : null;
+    const pending = def !== null && context?.svgOf(def.ref) === undefined;
+    const name = escapeHtml(alias);
+    return pending ? `<span class="mdag-icon" data-icon="${name}"></span>` : `<span class="mdag-icon" data-icon="${name}">:${name}:</span>`;
 }
 
 // グループのロゴが使う ref。ref の SVG が入ったときに、枠と凡例を描き直すかを決めるのに使う

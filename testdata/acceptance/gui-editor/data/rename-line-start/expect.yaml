@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    行頭がブロックに化ける名前 (# と空白で始まる。項目の中で見出しに読まれる) は、入れたとおりの名前として読まれるよう、行頭の字の前を \ で逃がして書く
+behaviors: [B-034]
+op:
+    kind: renameNode
+    node: 実装
+    label: '# 見出しのような名前'
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['# 見出しのような名前'] }
+    rename: null
+    notes: []

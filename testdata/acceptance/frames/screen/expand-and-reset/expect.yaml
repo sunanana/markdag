@@ -1,9 +1,9 @@
 kind: 境界
 checks: >-
-    文書で内側の枠の根 (画面) を閉じた状態から、diagram.expandAll で全部開くと fe の枠が dev の中に現れ、
-    diagram.resetFold で文書の初期の開閉に戻すと fe の枠が消える
+    文書で内側の枠の根 (画面) を閉じた状態では fe は見えているメンバー 1 つ (画面) の枠で dev の中にある。
+    diagram.expandAll で全部開くと fe の枠が画面と子を囲み、diagram.resetFold で文書の初期の開閉に戻すと fe の枠は画面 1 つに戻る
 combos: [2-4]
-decisions: [writing-guide の groups の規則]
+decisions: [gui-editor の F-02 (メンバーが 1 つの所も枠。scope.md の「触る F-02」、records/deviations.md の D-015)]
 render:
     api: >-
         render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
@@ -20,7 +20,8 @@ expect:
         visible: 7
         frames:
             - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
-        unframed: { fe: [画面] }
+            - { group: fe, members: [画面], inside: [dev] }
+        unframed: {}
         intrusions: 0
     全部開いたあと:
         visible: 9
@@ -34,5 +35,6 @@ expect:
         visible: 7
         frames:
             - { group: dev, members: [開発, 画面, API, 認証, 検索], inside: [] }
-        unframed: { fe: [画面] }
+            - { group: fe, members: [画面], inside: [dev] }
+        unframed: {}
         intrusions: 0

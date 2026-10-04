@@ -5,7 +5,7 @@
         "markdag": {
             "type": ["object", "null"],
             "description": "markdag 固有の指定のすべて。ツリーに足す線 (relations)、グループ (groups)、タグ (tags)、表示のオプション。値を書かずにキーだけを置いてもよい (指定はすべて既定のまま、グループやタグや $id の抽出だけが有効になる)",
-            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます",
+            "x-hint": "markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel, editor を字下げして書きます",
             "properties": {
                 "relations": {
                     "type": "object",
@@ -260,6 +260,45 @@
                                     "$ref": "#/$defs/noDuplicates"
                                 }
                             ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "editor": {
+                    "type": "object",
+                    "description": "図を置いたアプリでの GUI 編集 (図を触って原文を書き換える) の扱い。閲覧のみ、GUI 編集のみ、切り替えのどれにするか (mode)、切り替えるときに最初に出すモード (default)、切り替えのボタン (segment)。指定がなければ閲覧のみ",
+                    "x-hint": "editor: の下に mode, default, segment を字下げして書きます",
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "description": "view は閲覧のみ (既定)。edit は GUI 編集のみ。switch は閲覧と GUI 編集を切り替えられる",
+                            "x-hint": "view, edit, switch のどれかを書きます",
+                            "enum": ["view", "edit", "switch"]
+                        },
+                        "default": {
+                            "type": "string",
+                            "description": "mode が switch のときに最初に出すモード。指定がなければ view。mode が switch でなければ使わない",
+                            "x-hint": "view か edit を書きます (switch は mode に書きます)",
+                            "enum": ["view", "edit"]
+                        },
+                        "segment": {
+                            "type": "object",
+                            "description": "閲覧と GUI 編集の切り替えのボタン (セグメント) を出すか (display) と、置く場所 (position)。mode が switch でなければ使わない",
+                            "x-hint": "segment: の下に display と position を字下げして書きます",
+                            "properties": {
+                                "display": {
+                                    "type": "boolean",
+                                    "description": "true なら切り替えのボタンを図の領域に出す。false なら出さない (切り替えは図を置いたアプリが行う)。指定がなければ true",
+                                    "x-hint": "true か false と書きます。yes は YAML では文字列になります"
+                                },
+                                "position": {
+                                    "type": "string",
+                                    "description": "切り替えのボタンを置く、図の領域の隅か、上下の辺の中央。指定がなければ左上 (top-left)。凡例と同じ隅なら縦に並べる",
+                                    "x-hint": "top-right, top-left, bottom-right, bottom-left, top-center, bottom-center のどれかを書きます",
+                                    "enum": ["top-right", "top-left", "bottom-right", "bottom-left", "top-center", "bottom-center"]
+                                }
+                            },
+                            "additionalProperties": false
                         }
                     },
                     "additionalProperties": false

@@ -1,0 +1,25 @@
+kind: 正常
+checks: >-
+    グループを Shift +クリックで足して 2 つ以上を選べる (両方を強調、帯は出さない、Enter で名前の入力を開かない)。Shift +クリックでもう 1 度押すと外す。
+    グループを選んでいるときにノードを押すと、ノードの選択になる。凡例の行を押すとそのグループを選び、同じ行をもう 1 度押すと解く
+behaviors: [B-112, B-166, B-113]
+states: [C5.c7, C6.c7, C5.c1, C2.c8, C5.c8]
+decisions: [F-01 (グループの複数選択)]
+steps:
+    - click: { frame: g1 }
+      expect: { selection: group:g1, bar: group }
+    - click: { frame: g2 }
+      mod: Shift
+      expect: { selection: 'groups:g1,g2', bar: none, faded_nodes: [], legend_selected: [g1, g2] }
+    - key: Enter
+      expect: { input: none, selection: 'groups:g1,g2' }
+    - click: { frame: g1 }
+      mod: Shift
+      expect: { selection: group:g2, bar: group, bar_title: グループ「開発」 }
+    - key: Escape
+    - click: { node: 画面 }
+      expect: { selection: nodes:画面, faded: 0 }
+    - click: { legend_row: g2 }
+      expect: { selection: group:g2, legend_selected: [g2] }
+    - click: { legend_row: g2 }
+      expect: { selection: none, legend_selected: [] }

@@ -1,0 +1,30 @@
+kind: 正常
+decided: [U-12]
+checks: >-
+    選んだノードの線を引く点をほかのノードへドラッグすると、相手に枠を出し、離すと depends に 1 行足して線を引き、その線を選ぶ。もうある線は引かず理由を知らせる。
+    線を押すと線を選び (帯は出さない)、同じ線をもう 1 度押すと解く。線を選んでいるときの Shift +ノードは線を解いてそのノードを選ぶ (U-12 で決まった)
+behaviors: [B-017, B-018, B-019, B-064]
+states: [E3.e2, E3.e3, C1.c5, C4.c5, C4.c2]
+decisions: [F-06 (線を引く点は選択の枠の右下の角), F-12]
+steps:
+    - click: { node: API }
+    - drag: { from: { handle: link }, to: { node: フロント }, release: false }
+      expect: { link_preview: true, drop_target: フロント }
+    - up: true
+      expect:
+          source: after-link.md
+          selection: edge:depends:API>フロント
+          edge_selected: true
+          edges: ['depends:API>フロント', 'depends:画面>公開']
+          notice: { kind: info, text: 「API」から「フロント」へ線を引きました }
+    - click: { node: API }
+    - drag: { from: { handle: link }, to: { node: フロント } }
+      expect: { source: after-link.md, notice: { kind: error } }
+    - click: { edge: 'depends:画面>公開' }
+      expect: { selection: edge:depends:画面>公開, bar: none, edge_selected: true }
+    - click: { edge: 'depends:画面>公開' }
+      expect: { selection: none, edge_selected: false }
+    - click: { edge: 'depends:画面>公開' }
+    - click: { node: フロント }
+      mod: Shift
+      expect: { selection: nodes:フロント, edge_selected: false }

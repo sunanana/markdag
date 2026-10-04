@@ -14,6 +14,7 @@ npm install markdag
 | --- | --- |
 | `markdag` | The default entry. `render` loads KaTeX and highlight.js from a CDN when a document needs them |
 | `markdag/core` | The same API. Never loads scripts from outside the page (see [`markdag` and `markdag/core`](#markdag-and-markdagcore)) |
+| `markdag/editor` | `mountEditor`: the diagram with a GUI editing layer that rewrites the Markdown (see [GUI editing](#gui-editing-markdageditor)). Built on `markdag/core`, with no `init` of its own |
 | `markdag/standalone` | `buildStandaloneHtml`: writes a diagram as one HTML file that opens on its own (see [Standalone HTML](#standalone-html)) |
 | `markdag/style.css` | The stylesheet, for pages that set `injectStyle: false` |
 | `markdag/frontmatter.schema.json` | JSON Schema of the frontmatter |
@@ -31,6 +32,7 @@ The build compiles the Rust crates first (`cargo build -p markdag-wasm --target 
 | --- | --- |
 | `dist/markdag.js` | ES module of the default entry. Dependencies are left as imports for your bundler |
 | `dist/core.js` | ES module of the `markdag/core` entry |
+| `dist/editor.js`, `dist/editor.dev.js` | ES module of the `markdag/editor` entry, and its development entry (a plain re-export). It has no `init`: it shares the WebAssembly module with `dist/markdag.js` and `dist/core.js` through `dist/chunks/`. There is no IIFE file for it |
 | `dist/chunks/` | Code shared by the two ES modules, and `wasm-embedded.js` (`markdag.wasm` as base64, read only by the development entries) |
 | `dist/markdag.wasm` | The WebAssembly module. The ES modules load it from next to themselves |
 | `dist/markdag.dev.js`, `dist/core.dev.js`, `dist/standalone.dev.js` | Development entries: re-export the matching ES module, but `init()` without a source uses the embedded copy in `dist/chunks/wasm-embedded.js`. Selected by the `development` export condition |
@@ -54,8 +56,9 @@ const diagram = render(document.getElementById('diagram'), markdownText);
 
 - `source` is optional. Without it, the ES module entries load `markdag.wasm` from next to the entry file (`new URL('./markdag.wasm', import.meta.url)`), and the development entries and the IIFE files use an embedded copy. Pass a URL (string or `URL`), a `Response`, the bytes (`BufferSource`) or a compiled `WebAssembly.Module` to load it from somewhere else.
 - Calling `init` again after it resolved does nothing, and calls made while it is loading wait for the same load. If loading fails, the promise rejects and the next `init` tries again.
-- Called before `init` resolved, the functions that need the module throw `WasmNotReadyError`: `parseDocument`, `buildModel`, `checkFrontmatter`, `render`, `toggleTask`, `nextTaskMark`, `replaceLeadingMark`, `suggestTagKeys`, `suggestTagValues`, `buildStandaloneHtml`, and `MarkdagView.setDocument` (the layout). These work without it: `createHookBridge`, `formatTag`, `formatDiagnostics`, `taskMarkOf`, `taskStateOf`, `isTaskMark` and the constants. `isReady()` tells whether the module is loaded.
-- `markdag/standalone` is bundled separately and does not share the module with the other two entries: import and await its own `init` before `buildStandaloneHtml`.
+- Called before `init` resolved, the functions that need the module throw `WasmNotReadyError`: `parseDocument`, `buildModel`, `checkFrontmatter`, `render`, `toggleTask`, `nextTaskMark`, `replaceLeadingMark`, `suggestTagKeys`, `suggestTagValues`, `buildStandaloneHtml`, `editSource`, `inspectNode`, `mountEditor` (from `markdag/editor`), and `MarkdagView.setDocument` (the layout). These work without it: `createHookBridge`, `formatTag`, `formatDiagnostics`, `taskMarkOf`, `taskStateOf`, `isTaskMark` and the constants. `isReady()` tells whether the module is loaded.
+- `markdag/standalone` is bundled separately and does not share the module with the other entries: import and await its own `init` before `buildStandaloneHtml`.
+- `markdag/editor` has no `init`. Await `init` from `markdag/core` (or `markdag`) before `mountEditor`: the three entries come from one build and share the loaded module.
 - Errors: `WasmNotReadyError` (called before `init`), `WasmTrapError` (the module aborted inside a call; `functionName` and `panicMessage` say where. The module is re-created, so the next call works), and `MarkdagError` (a call rejected its input; `code` is `invalid-input`, `layout-error`, `standalone-error` or `output`, and `functionName` names the call). All three are exported from every entry.
 
 In Node, `await init()` reads `markdag.wasm` from the installed package as a file. `parseDocument`, `buildModel` and `checkFrontmatter` then run without a DOM:
@@ -118,6 +121,7 @@ Returns a `MarkdagDiagram`:
 | --- | --- |
 | `diagnostics` | Diagnostics of the last rendered document (see [validation.md](validation.md)) |
 | `update(markdown)` | Render a new version of the document, keeping zoom, pan and fold state where the tree shape is unchanged. Returns the diagnostics |
+| `source` | The current source text: the last text given to `update`, or the text a task click or a hook's `ctx.api.update` wrote. It is the text before `transformSource`. When a `beforeUpdate` hook cancelled `update`, it is still the previous text, so the caller can tell |
 | `fit()` | Fit the whole diagram in the container |
 | `expandAll()` / `resetFold()` | Open every node / go back to the initial fold state |
 | `destroy()` | Remove the diagram and its listeners |
@@ -152,6 +156,162 @@ Colors are CSS custom properties on `.markdag` (`--markdag-bg`, `--markdag-accen
 
 The two entries export the same names and parse the same way. The difference is what `render` does when a document uses math or code highlighting and the page has no `window.katex` or `window.hljs`: `render` from `markdag` loads the missing script from jsDelivr (see [Render a document](#render-a-document)), and `render` from `markdag/core` does not, so math stays as TeX source and code stays uncolored unless the page loaded KaTeX or highlight.js itself. Use `markdag/core` when the page must not load scripts from outside.
 
+## GUI editing (`markdag/editor`)
+
+`mountEditor` draws a document with `render` from `markdag/core` and puts an editing layer on top: a toolbox, a bar of operations over the selection, name, details and tag inputs, a legend panel for line colors and groups, hints, notices, undo and redo, keys and drags. Each operation rewrites the Markdown with [`editSource`](#rewriting-the-source) and redraws. While it is mounted the editor holds the source text, and it reports every change it makes through `onChange`.
+
+```ts
+import { init } from 'markdag/core';
+import { mountEditor } from 'markdag/editor';
+
+await init(); // markdag/editor has no init of its own
+const editor = mountEditor(container, markdownText, {
+    mode: 'switch',
+    onChange: (markdown) => saveFile(markdown),
+    onModeChange: (mode, byUser) => console.log(mode, byUser),
+    onSelectionChange: (selection) => console.log(selection.kind),
+});
+```
+
+- Give the container a height, as for `render`. The stylesheet is added the same way; with `injectStyle: false`, load `markdag/style.css`, which also holds the rules of the editing layer.
+- Math and code highlighting work as with `render` from `markdag/core`: KaTeX and highlight.js are used only when the page already has them. Nothing is loaded from outside.
+- The document's hooks and `markdag.rules` run as with `render` (pass `hookRefs` and `hooks`). An editing operation, `setSource`, undo and redo go through `beforeUpdate`; when a hook cancels, the source stays as it was (an operation shows a notice that says so).
+- The labels, hints and notices of the editing layer are in Japanese, and so are `EditReason.message` and `EditNote.message`.
+- `markdag/editor` exports `mountEditor` and the types `EditorOptions`, `MarkdagEditor`, `EditorSelection`, `EditorMode` and `EditorModeOption`.
+
+### `mountEditor(container, markdown, options?)`
+
+Options:
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `mode` | `'document' \| 'view' \| 'edit' \| 'switch'` | `'document'` | Which modes the diagram offers. `document` follows `markdag.editor.mode` in the document; the other values override it (see [Modes](#modes)) |
+| `onChange` | `(markdown: string) => void` | none | The source changed through the diagram: an editing operation, undo or redo, a task click, or a hook's `ctx.api.update`. Not called for `setSource` |
+| `onModeChange` | `(mode: EditorMode, byUser: boolean) => void` | none | The mode changed between `view` and `edit`. `byUser` is `true` only for a click on the segment (the view / edit switch in the diagram). Not called on mount |
+| `onSelectionChange` | `(selection: EditorSelection) => void` | none | The selection changed, including the selection the editor picks after a rewrite or a redraw, and the clearing when the mode switches to `view`. Not called on mount |
+| `theme`, `animate`, `injectStyle`, `types`, `icons`, `resolveIcon`, `hookRefs`, `hooks`, `onDiagnostic`, `onHookError`, `onFoldChange`, `onTransform`, `onLayout` | | | As in the [`render` options](#rendercontainer-markdown-options). `onFoldChange`, `onTransform` and `onLayout` are not called after `destroy` |
+
+`legend` and `details` are not options. The editor does not draw the view's legend; it shows its own legend panel (line colors and groups) in the corner `markdag.legend.position` names: in `view` mode with the items `markdag.legend.display` asks for, in `edit` mode with both sections, opened and closed from its heading. In `edit` mode the details are shown as chosen in the toolbox (on hover at first), in `view` mode as the document says. Neither changes the source.
+
+Returns a `MarkdagEditor`:
+
+| Member | Meaning |
+| --- | --- |
+| `view` | The `MarkdagView` (see [Driving the view](#driving-the-view)). The application can read it (`getFolded`, `getTransform`) and add its own callbacks with `view.addHooks` |
+| `diagnostics` | Diagnostics of the last drawn document, as `render` reports them |
+| `getSource()` | The current source text |
+| `setSource(markdown)` | Replace the source (the application's own text field changed). Redraws like `update`, keeping zoom, pan and fold state, and pushes the previous text onto the undo history. Does not call `onChange`. An open name or details input is closed without saving (undo and redo do the same). The same text as now does nothing. When a `beforeUpdate` hook cancels, the source stays as it was. Returns the diagnostics |
+| `getMode()` | `'view'` or `'edit'` |
+| `setMode(mode)` | Switch the mode and return `true`, only when the mode setting is `switch` (also with `segment.display: false`). Otherwise does nothing and returns `false`. Calls `onModeChange` with `byUser` `false` when the mode changed |
+| `getSelection()` | A copy of the selection. `{ kind: 'none' }` in `view` mode |
+| `undo()` / `redo()` | Step through the history, in either mode. Calls `onChange` when the source changed. `false` when there is nothing to undo or redo, or a `beforeUpdate` hook cancelled. Up to 200 steps are kept |
+| `setTheme(theme)` | `'light'` or `'dark'` |
+| `fit()` | Fit the whole diagram. In `edit` mode it uses the area to the right of the toolbox and of a segment in a left corner; in `view` mode the whole container |
+| `destroy()` | See [Destroying the editor](#destroying-the-editor) |
+
+The selection:
+
+```ts
+type EditorSelection =
+    | { kind: 'none' }
+    | { kind: 'nodes'; nodes: NodeTarget[] } // in the order selected; the last one is the most recent
+    | { kind: 'edge'; edge: EdgeTarget }
+    | { kind: 'group'; id: string }
+    | { kind: 'groups'; ids: string[] }; // two or more groups, in the order selected
+```
+
+It is `EditSelection` from `markdag/core` (see [Rewriting the source](#rewriting-the-source)) plus `groups`. A node is `{ id, refText }` of the drawn document. After a redraw a node stays selected only when the same id still has the same `refText`, and a line or a group only while the document still has it. Undo and redo bring back the selection stored with that step.
+
+### Saving the source
+
+Save what `onChange` delivers, and send the application's own edits with `setSource`:
+
+```ts
+const editor = mountEditor(container, await loadFile(), {
+    mode: 'switch',
+    onChange: (markdown) => {
+        textField.value = markdown;
+        void saveFile(markdown);
+    },
+});
+
+let pending = 0;
+textField.addEventListener('input', () => {
+    window.clearTimeout(pending);
+    pending = window.setTimeout(flush, 200);
+});
+// An operation on the diagram applies to the text the editor holds: hand over the pending text first
+document.addEventListener(
+    'pointerdown',
+    (event) => {
+        if (pending !== 0 && event.target instanceof Node && container.contains(event.target)) flush();
+    },
+    { capture: true },
+);
+
+function flush(): void {
+    window.clearTimeout(pending);
+    pending = 0;
+    showDiagnostics(editor.setSource(textField.value));
+}
+```
+
+- `onChange` is not called for `setSource`, so a text field that forwards its changes does not get them back.
+- `setSource` goes onto the undo history, so undo in the diagram also reverts a change made in the text field.
+- An operation applies to the source the editor holds. An application that forwards its text field after a delay hands over the pending text before the reader operates the diagram, as above; otherwise the operation applies to the older text, and `onChange` delivers a text without the pending input.
+
+### Modes
+
+A diagram is in one of two modes: `view` (reading: the diagram behaves as with `render`) or `edit` (GUI editing). The mode setting decides which ones are offered:
+
+| Mode setting | What the diagram offers |
+| --- | --- |
+| `view` | Reading only. No segment |
+| `edit` | GUI editing only. No segment |
+| `switch` | Both. Starts in `markdag.editor.default`, and shows the segment in the place `markdag.editor.segment.position` names when `markdag.editor.segment.display` is `true` |
+
+- The setting comes from `markdag.editor.mode` in the document (see [Display options](writing-guide.md#display-options) in the writing guide). A document without `markdag.editor` is `view`: with the default `mode: 'document'` it opens read-only, with no segment.
+- The `mode` option overrides the document's `mode` only; `default` and `segment` always come from the document. `mode: 'switch'` on a document without `markdag.editor` starts in `view`, with the segment at the top left.
+- To change the override after mounting, `destroy` the editor and call `mountEditor` again. The undo history, the selection and the view position are not carried over.
+- When a redraw finds that the document's `markdag.editor` changed (after an operation, `setSource`, undo or redo), the mode goes back to the start mode of the new setting (`onModeChange` with `byUser` `false`), and the segment follows. Other changes keep the mode the reader or `setMode` chose.
+- Switching to `view` commits an open name or details input, clears the selection, and sets the tool back to Select.
+- `GraphModel.editor` (`EditorSettings`: `mode`, `default`, `segment: { display, position }`) is the parsed `markdag.editor`, with the defaults filled in: `view`, `view`, `true`, `top-left`. `render` does not use it.
+
+### Keys and focus
+
+- Keys work as commands in `edit` mode only, and only when focus is inside the container, or when nothing has focus and the pointer was last over the container. Keys typed in another field of the page are left alone, and two editors on one page do not take each other's keys.
+- In `view` mode, under the same conditions, Delete and Backspace (alone or with Shift) do nothing: the editor prevents their default action (in some browsers, going back a page) outside text fields, as it does in `edit` mode when nothing is selected. A diagram drawn with `render` does not do this.
+- The keys: Enter (rename), Tab (add a child), Delete / Backspace (delete), J (join into a new node), D (details), T (tags), H / V (hand / select tool), arrow keys (move the selection), Esc (clear the selection), ⌘Z / Ctrl+Z (undo), ⌘⇧Z / Ctrl+Shift+Z and ⌘Y / Ctrl+Y (redo), ⌘G / Ctrl+G (group), Space held (pan).
+- When the container has no `tabindex`, the editor sets `tabindex="-1"` so that the container can take focus, and removes it on `destroy`. A press on the diagram moves focus to the container.
+
+### Destroying the editor
+
+`destroy()` closes an open name or details input without saving it, removes the editing layer's elements, its listeners on `document`, `window` and the container, the callbacks it added to the view, the elements it put on the overlay layer, `data-editor-mode`, `data-editor-tool` and the `tabindex` it added, stops calling the application's callbacks, and then destroys the diagram. Calling it again does nothing.
+
+- After `destroy`, `getSource()` and `diagnostics` return the last source text and diagnostics. `setSource`, `setMode`, `undo`, `redo`, `setTheme` and `fit` do nothing (`setMode`, `undo` and `redo` return `false`).
+- When an application callback (such as `onSelectionChange`) destroys the editor in the middle of an operation, the rest of the operation stops and `onChange` is not called; `getSource()` returns the rewritten text.
+
+### Markup of the editing layer
+
+The editor adds these to the container, for stylesheets and tests. Their rules are in the last section of `markdag/style.css`. Selected nodes and the drop target of a drag carry the view's markers `data-selected` and `data-drop-target` (see [Markers](#markers)).
+
+| Element or attribute | Meaning |
+| --- | --- |
+| `.markdag[data-editor-mode="view"\|"edit"]` | The current mode |
+| `.markdag[data-editor-tool="select"\|"hand"\|"join-target"]` | The current tool in `edit` mode (`join-target`: picking the node to join into). Not set in `view` mode |
+| `.mdag-editor` | The layer: the last child of the container, the same size. Only its parts take presses |
+| `.mdag-editor-corner[data-corner]` | The holders in the corners and edge centers (`top-left`, `top-center`, `top-right`, `bottom-left`, `bottom-center`, `bottom-right`) for the segment, the legend panel, the hint and the notices |
+| `.mdag-editor-segment` | The view / edit switch. Its buttons carry `data-mode` and `aria-pressed` |
+| `.mdag-editor-toolbox` | The toolbox on the left edge. Buttons are `.mdag-editor-tool[data-tool]`, with `aria-pressed` on the current tool (`data-tool`: `select`, `hand`, `join`, `group`, `tag-add`, `tag-select`, `details`, `undo`, `redo`, `fit`) |
+| `.mdag-editor-bar[data-for="node"\|"nodes"\|"group"]` | The bar of operations over the selection. Buttons are `.mdag-editor-bar-button[data-command]` (`rename`, `child`, `sibling`, `details`, `tag-add`, `tag-select`, `delete`, `join-new`, `join-existing`, `group`, `rename-group`, `ungroup`) |
+| `.mdag-editor-legend` | The legend panel, with `data-open` while open. Group rows are `.mdag-editor-legend-row[data-group]`, with `data-selected` on the selected groups |
+| `.mdag-editor-name-input[data-for="node"\|"group"]`, `.mdag-editor-details-editor`, `.mdag-editor-tag-panel[data-panel="add"\|"select"]`, `.mdag-editor-color-picker` | The inputs and panels |
+| `.mdag-editor-handle[data-handle="child"\|"sibling"\|"link"\|"join"]` | The handles of the selection: `+` for a child and for a sibling, the dot that draws a line, and the dot that joins a multiple selection |
+| `.mdag-editor-selection-bounds`, `.mdag-editor-marquee` | The outline around a multiple selection, and the rectangle of a drag selection |
+| `.mdag-editor-hint`, `.mdag-editor-snackbar[data-kind="info"\|"error"]` | The hint for the current tool, and the notices |
+
+Colors: the editing layer uses the public color variables `--markdag-bg`, `--markdag-panel`, `--markdag-border`, `--markdag-text`, `--markdag-muted` and `--markdag-accent` (the selection outline, the pressed tool, the handles). Override them on the container or an ancestor, as for the diagram; the `dark` theme (`.markdag-dark`) switches them. The `--mdag-editor-*` variables in the stylesheet are internal to the editing layer and not part of the API.
+
 ## Parse, model and view separately
 
 `render` keeps the source text itself. An application that owns the source text (an editor) can connect the three steps on its own:
@@ -183,13 +343,13 @@ draw(true);
 - A task is a list item or a heading whose first line starts with `[ ]`, `[/]`, `[x]` (`[X]`) or `[-]`. `node.task` is `{ line, state, checked }`: `line` is that source line, `state` is `todo`, `doing`, `done` or `canceled`, and `checked` is `state === 'done'`.
 - Node elements carry `data-task` with the state, `data-task-fixed` when the state is not in the cycle (no pointer cursor, and a click is reported as `hook-rejected`), and `data-dimmed` when the state is in `markdag.tasks.dim`. The label of a task (everything but the details) is wrapped in `span.mdag-task-label`; the stylesheet strikes it through for `canceled`. The stylesheet fades a `data-dimmed` node by mixing its colors with `--markdag-bg` rather than with `opacity`, so that a line passing under the node does not show through the text; emoji in the text are wrapped in `span.mdag-emoji` and faded on their own. A color that an application sets through a `decorateNode` class is not faded: fade it in the application's stylesheet, for example `.mdag-node.my-class[data-dimmed]:not(:hover) .mdag-content { color: ... }`. `GraphModel.taskCycle` and `GraphModel.taskDim` hold the parsed `markdag.tasks`.
 - `ParsedDocument.taskIcons` holds the SVG of each task state (the type allows `null` for documents parsed by versions up to 0.7). `replaceLeadingMark(html, state, icons)` swaps the mark at the start of a node's `html` for another state, for applications that move a task without parsing the source again.
-- `OutlineNode.html` keeps the details blockquotes where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details. It is the first line of the node, the name that references match exactly, and it is an empty string for a node without a name (a list item whose first line is empty; see section 6 of the [writing guide](writing-guide.md)). In a document with the `markdag` key, raw HTML on the first line is kept in `refText` as written (`名前 <!-- メモ -->`), and `html` shows it as text.
+- `OutlineNode.html` keeps the details blockquotes (inside a list item, or right under a heading) where they are written, marked with the class `mdag-details`. The stylesheet hides them unless the details mode is `always`. `OutlineNode.details` is the same content joined into one string, used for the popover. `refText` does not include the details. It is the first line of the node, the name that references match exactly, and it is an empty string for a node without a name (a list item whose first line is empty; see section 6 of the [writing guide](writing-guide.md)). In a document with the `markdag` key, raw HTML on the first line is kept in `refText` as written (`名前 <!-- メモ -->`), and `html` shows it as text.
 - `onToggleTask` fires for a click on the task's label, and on its details when they are shown inside the node (`details.display: always`). It does not fire for a click on a link, or inside a nested element that contains its own control (a raw `<input>`, a button, a `<select>`): there, a click on the text toggles that element's single checkbox or radio button instead.
 - A checkbox written as raw HTML (`<input type="checkbox">`) keeps its state only in the page, not in the source. `setDocument` carries the state over while the tree shape and that node's content (apart from the task mark) are unchanged.
 - Each `OutlineNode` has `id` (document order, root is 1), `lines` (`{ start, end }`, 0-based source lines, `end` exclusive, or `null`) and `task`. Node elements carry the same range as `data-lines="start,end"`, next to `data-id`.
-- `OutlineNode.groups` is the node's own `%name` marks and `OutlineNode.tags` its `#key:value` tags (`{ key, values, at }`; `values` is empty for `#key`, `at` is the position of the tag in the source: `line` and `column` 1-based, `length` in characters). `GraphModel.groupsOf` adds the inherited groups and the `members` of the frontmatter. `GraphModel.tagsOf` lists each node's own tags in the order written; tags are not inherited. `GraphModel.tagDisplay` is `markdag.tags.display` (`always`, `hover`, `click` or `never`; `always` by default), and the view applies it with the `data-tags` attribute on the container and, as the effective mode of each node, on the node element next to `data-details` (the node's values differ from the container's when `markdag.tasks.dim` overrides them, and the stylesheet keys on the node). With `hover` and `click` the tags are rendered in the details popover, as a `p.mdag-popover-tags` after the details.
+- `OutlineNode.groups` is the node's own `%name` marks and `OutlineNode.tags` its `#key:value` tags (`{ key, values, at }`; `values` is empty for `#key`, `at` is the position of the tag in the source: `line` and `column` 1-based, `length` in characters). `key` and `values` are read without the quotes and escapes: `#"api.version":"say \"hi\""` has the key `api.version` and the value `say "hi"`. `GraphModel.groupsOf` adds the inherited groups and the `members` of the frontmatter. `GraphModel.tagsOf` lists each node's own tags in the order written; tags are not inherited. `GraphModel.tagDisplay` is `markdag.tags.display` (`always`, `hover`, `click` or `never`; `always` by default), and the view applies it with the `data-tags` attribute on the container and, as the effective mode of each node, on the node element next to `data-details` (the node's values differ from the container's when `markdag.tasks.dim` overrides them, and the stylesheet keys on the node). With `hover` and `click` the tags are rendered in the details popover, as a `p.mdag-popover-tags` after the details.
 - `GraphModel.tagKeys` is the resolved definition of each key in `markdag.tags.keys` (`{ key, alternatives, multiple, unique, description }`; each alternative is a built-in `primitive` plus the constraints stacked from the named types). The values of the tags are checked against it in `buildModel`; the results are in `diagnostics`, positioned at the tag in the body.
-- `suggestTagKeys(model.tagKeys, prefix)` and `suggestTagValues(model.tagKeys, key, prefix)` give completion candidates for an editor: the defined keys with their `description`, and for a key the `values` of an `enum` or `true` / `false` for a `boolean`. `formatTag(tag)` writes a tag back in the body notation. The model layer (`buildModel`, `checkFrontmatter`, these helpers) does not touch the DOM and runs in Node.
+- `suggestTagKeys(model.tagKeys, prefix)` and `suggestTagValues(model.tagKeys, key, prefix)` give completion candidates for an editor: the defined keys with their `description`, and for a key the `values` of an `enum` or `true` / `false` for a `boolean`. `formatTag(tag)` writes a tag back in the body notation, with quotes only where they are needed: a key that has characters other than letters, digits, `_` and `-`, or only ASCII digits, and a value that is empty or has white space, `,`, `"` or `\`, are put in `"…"`, with `"` and `\` inside written as `\"` and `\\` (`{ key: 'api.version', values: ['say "hi"'] }` is `#"api.version":"say \"hi\""`). The diagram shows tags the same way. The model layer (`buildModel`, `checkFrontmatter`, these helpers) does not touch the DOM and runs in Node.
 
 ### Hooks and rules without `render`
 
@@ -274,6 +434,131 @@ const model = buildModel(parsed.nodes, parsed.frontmatter, source, {
 - A frontmatter whose YAML collections nest deeper than 100 levels (counting the values that aliases expand to) is not read, and is reported as `yaml-syntax` with the message 入れ子が深すぎます (上限 100 段).
 - The layout rejects numbers it cannot place: a node width or height, or a spacing, that is NaN, infinite, or 1e300 or more in absolute value makes the layout throw `MarkdagError` with `code` `layout-error`. The sizes measured from the DOM do not reach this; it guards against broken input. The depth of the tree itself is not limited.
 
+## Rewriting the source
+
+`editSource(source, op)` and `inspectNode(source, node)`, exported from `markdag` and `markdag/core`, are the rewriting functions `markdag/editor` uses. They take the source text and return text and facts; they do not touch the DOM and run in Node after `init`.
+
+```ts
+import { editSource, init, inspectNode, parseDocument, type NodeTarget } from 'markdag/core';
+
+await init();
+let source = '# Release\n\n- Design\n    - Screens\n- Build\n';
+const design = parseDocument(source).nodes.find((node) => node.refText === 'Design');
+if (design) {
+    const target: NodeTarget = { id: design.id, refText: design.refText };
+    if (inspectNode(source, target)?.canAddChild) {
+        const outcome = editSource(source, { kind: 'addChild', parent: target, label: 'API' });
+        if (outcome.status === 'edited') source = outcome.source; // '# Release\n\n- Design\n    - Screens\n    - API\n- Build\n'
+        else if (outcome.status === 'refused') console.warn(outcome.reason.code, outcome.reason.message);
+    }
+}
+```
+
+- A node is named by `NodeTarget`, `{ id, refText }` of a node in the parsed document the application draws (`view.getDocument().parsed`). The source is parsed again; when it has no node with that `id`, or that node's `refText` differs (the source changed since the last draw, or a `transformSource` hook moved lines or names), `editSource` refuses with `stale-node` and `inspectNode` returns `null`. Ids change with a rewrite: take them from the new parse or from `select`.
+- Lines are rewritten as whole lines (lines are `source.split('\n')`, as in `toggleTask`). Lines the operation does not touch keep every character, including `\r`. In a CRLF document (the first line break is `\r\n`) new lines end with `\r\n`. A lone `\r` (one not followed by `\n`) is first replaced with that line break (`\n` in a document without one), and the lines it was on are part of the rewrite.
+- The rewritten text is parsed again and compared with the intended tree. When other nodes would change (their number, order, parents or names), the operation is refused with `structure-changed` and nothing is written.
+- An operation that needs the notation (marks at the end of the first line, details, frontmatter entries) adds `markdag:` to the frontmatter, and the frontmatter itself when there is none (notes `markdag-added`, `frontmatter-added`). It also removes a BOM at the start of the document (`bom-removed`), also when the BOM is followed by `---`: the frontmatter that the BOM kept from being read is then read and written to. Operations that do not need the notation leave the BOM as it is.
+- Where the way the source is written keeps an operation from writing, that part is rewritten first. The rewrite is part of the returned text when the operation writes, without a note:
+    - Frontmatter in flow style (`{ }`, `[ ]`) on the way to the entry to write is rewritten in block style (keys and `-` items, one per line), with the same values.
+    - A `|` or `>` value of a relation kind (`depends`, `chain`, `join`, `fork`) is rewritten as a `-` list, one item per non-empty line.
+    - A group definition that is not a mapping (`dev: Development`, or a `-` list) is replaced with a mapping when `renameGroup`, `setGroupColor` or `setGroupBoundary` writes to it. The old value, which was not read, is dropped.
+    - Marks at the end of a setext heading (text underlined with `===` or `---`) or of an ATX heading indented by 1 to 3 spaces are not read. An operation that writes a mark on such a heading (a tag, a group, a `$n` reference) first rewrites it as an ATX heading of the same level without the indent (`## Name`).
+- References in `markdag.relations`, `markdag.branches` and `markdag.groups.*.members` follow the nodes. Renaming a node rewrites the references that pointed to it. A rewrite that would make a reference point elsewhere or nowhere (the numbers of an ordered list shift, a name becomes a duplicate, a parent in `parent/name` changes) rewrites it (`refs-rewritten`). When neither the name nor `parent/name` points to one node, the node gets `$n<number>` at the end of its first line and is referenced by it (`id-added`).
+- `deleteNodes` removes from `markdag.relations` the terms that pointed to the deleted nodes and everything under them, and the items left with nothing on one side (a `relations-removed` note per item it changed).
+- A name is written as text: markdag adds `\` where the name would otherwise be read as a mark, a list marker, a task mark or the closing `#` of a heading. It reads the whole line, with the list marker or heading marks before the name and the marks after it: a name that would form a task mark or a thematic break with them gets a `\` at its start (renaming `- Design %ui` to `[x]` writes `- \[x] %ui`, and renaming an item to `--` writes `- \--`). `inspectNode(...).label` gives the name without those `\`, so passing it back to `renameNode` changes nothing.
+- One call is one operation. An operation on several nodes is refused as a whole when one of them cannot be rewritten (the `message` names it).
+- `editSource` throws `MarkdagError` (`code` `invalid-input`) only when `op` cannot be read (an unknown `kind`, a field of the wrong type), and `WasmNotReadyError` before `init`.
+
+The operations (`EditOp`, by `kind`):
+
+| `kind` | Fields | What it writes |
+| --- | --- | --- |
+| `addChild` | `parent`, `label` | A new last child of `parent`, in the form of its last child (heading level, list indent and marker, the next number, a `[ ]` task mark). Without children: a heading one level deeper (a `- ` item under a level 6 heading) or a nested `- ` item |
+| `addSibling` | `node`, `label` | A node after `node`, in the same form. For the root, a child |
+| `renameNode` | `node`, `label` | The text of the first line, keeping the list marker, the task mark and the marks at the end. Line breaks in `label` become spaces. An empty `label` is refused (`empty-name`) |
+| `deleteNodes` | `nodes` | Removes the lines of the nodes, with everything under them. Refused when the root is among them |
+| `moveNode` | `node`, `parent` | Moves the node with everything under it to the end of `parent`'s children, rewritten in the form there (a heading under a list item becomes a list item). A list item that becomes a heading keeps its details as the heading's details |
+| `setDetails` | `node`, `text` | The details of a list item (the `> ` lines after the first line, before the children) or a heading (the `> ` lines right under it). The current details, lazy continuation lines (lines inside the blockquote without `>`) included, are replaced as a whole, each line of `text` written with `> `. A `text` equal to the current details changes nothing, unless they have a lazy continuation line: then they are written again with `> ` on every line. An empty `text` removes them |
+| `setTag` | `nodes`, `key`, `value`, `replaceKey` | `#key:value` (`#key` when `value` is `null`) at the end of the first line, in place of a tag with the same key, with quotes where needed as `formatTag` writes them (`#"api.version":"x y"`). `replaceKey` (not `null`) also removes the tag with that key, for changing the key of a tag |
+| `removeTag` | `nodes`, `key` | Removes the tag with that key |
+| `toggleTag` | `nodes`, `key`, `value` | Removes the value when every node has it (the whole tag when no value is left); otherwise adds it. A node with another value for the key gets this one added (`,`) when the key is not defined in `markdag.tags.keys` or has `multiple: true`, and replaced otherwise |
+| `addToGroup` | `group`, `nodes` | `%group` at the end of the first line. Skips the root, nodes already in the group, and descendants of other given nodes |
+| `addRelation` | `from`, `to` | `from --> to` in `markdag.relations.depends` |
+| `joinInto` | `sources`, `target` | `a & b --> target` in `markdag.relations.join` (`depends` when one source is left). Sources that `target` already reaches, and sources that already have a line to `target`, are left out |
+| `joinIntoNew` | `sources`, `label` | A new top-level node after the top-level branch that holds the last source in document order, and the join into it. When that branch is a list container, the node is added as the last item of that list. Needs two sources or more |
+| `groupNodes` | `nodes` | A new group in `markdag.groups` and its `%` mark on the nodes (with the same skips as `addToGroup`) |
+| `defineGroup` | none | A new group with no members |
+| `renameGroup` | `group`, `label` | The group's `label` |
+| `setGroupColor` | `group`, `color` | The group's `color` (a CSS color) |
+| `setGroupBoundary` | `group`, `boundary` | The group's `boundary` |
+| `ungroup` | `group` | Removes the group's definition and its `%` marks. The nodes stay |
+
+The result (`EditOutcome`, by `status`):
+
+| `status` | Fields | Meaning |
+| --- | --- | --- |
+| `edited` | `source`, `select`, `rename`, `notes` | `source` is the whole rewritten text. `select` (`EditSelection`) is what to select next, with ids of the rewritten text: `{ kind: 'nodes', nodes }`, `{ kind: 'edge', edge }` (`EdgeTarget`: `{ kind, source, target }`, `kind` is `tree` or the relation kind), `{ kind: 'group', id }` or `{ kind: 'none' }`. `rename` is the node (`{ kind: 'node', node }`) or group (`{ kind: 'group', id }`) whose name input should open next (after adding one), or `null`. `notes` (`EditNote[]`) says what else changed |
+| `unchanged` | `reason` | There is nothing to change. `reason` is `null` or says why (`same-name`, `already-child`, `nothing-to-change`) |
+| `refused` | `reason` | The operation cannot be applied. Nothing is written |
+
+`reason` is an `EditReason`: `code`, `message` (one sentence for the reader) and `path` (the frontmatter path it is about, such as `markdag.relations.depends`, or `null`).
+
+| `code` | Meaning |
+| --- | --- |
+| `stale-node` | The node is not in the source (see above) |
+| `no-source-line` | The node has no line of its own: a root without a line, or a list container (`inspectNode` kinds `root` and `list`) |
+| `block-node` | A table, code block or image node. It can be deleted, and moved under a heading |
+| `marker-line` | The first line cannot carry marks, and rewriting it as an ATX heading would change the name: a setext heading whose text spans two lines or more. Other setext headings and indented ATX headings are rewritten (see above) |
+| `root` | The root cannot be deleted or moved, nor grouped on its own |
+| `heading-details` | `moveNode` would make a heading of a list item that has paragraphs after its first line. A heading can have details, but the paragraphs under it are not read |
+| `empty-name` | `renameNode` with an empty name. No node can have an empty name |
+| `move-into-self` | The new parent is the node itself or under it |
+| `structure-changed` | Parsing the rewritten text gives a different tree than intended |
+| `same-node` | A line from a node to itself |
+| `edge-exists` | The line is already there |
+| `cycle` | The line would close a cycle (the end already reaches the start through tree lines and relations) |
+| `ambiguous-reference` | The node cannot be referenced: it has a `$id` that another node also has, and its name does not point to it alone |
+| `too-few-sources` | `joinIntoNew` with fewer than two sources |
+| `all-sources-skipped` | Every source of a join was left out |
+| `tag-key-invalid` | The tag key is empty after the spaces around it and one leading `#` are removed. Any other key is written, in quotes when needed |
+| `group-unknown` | There is no group with that id |
+| `group-label-empty` | `renameGroup` with an empty label |
+| `color-invalid` | `setGroupColor` with a value that is not a CSS color |
+| `flow-style` | The frontmatter part to write is in flow style (`{ }` or `[ ]`) that cannot be rewritten in block style: it has a comment, an anchor, an alias, a tag (`!`), an explicit key (`?`), a single pair in a list (`[a: b]`), a list in a list, a value that spans lines, or text after the closing bracket |
+| `block-scalar` | The value of a relation kind to write to spans lines and does not start with `\|` or `>`: a plain or quoted value continued on the next line, or one that starts on the line after the key |
+| `frontmatter-invalid` | The frontmatter is not valid YAML |
+| `frontmatter-not-map` | The top of the frontmatter is not a mapping, or the entry to write to is neither a mapping nor a `-` list and is not one of the forms rewritten above (for example `markdag.groups` written as a list, or a group definition that is an alias) |
+| `same-name` | (`unchanged`) The new name is the current one |
+| `already-child` | (`unchanged`) The node is already a child of that parent |
+| `nothing-to-change` | (`unchanged`) The operation would write nothing new |
+
+`notes` (`EditNote`: `code`, `count`, `message`):
+
+| `code` | `count` | Meaning |
+| --- | --- | --- |
+| `refs-rewritten` | References rewritten | References in the frontmatter that the rewrite would break were rewritten to point to the same nodes |
+| `id-added` | Ids added | `$n<number>` was added to the first line of nodes that a name cannot point to alone |
+| `relations-removed` | 1 | An item of `markdag.relations` was changed or removed because a deleted node was in it. One note per item; `message` shows it before and after |
+| `sources-cycle` | Sources left out | A join left out sources that the target reaches (the line would close a cycle) |
+| `sources-existing` | Sources left out | A join left out sources that already have a line to the target |
+| `markdag-added` | Nodes read differently | `markdag:` was added to the frontmatter. `count` is the number of nodes whose name now reads differently, because the `%`, `#` and `$` at the end of their first line became marks |
+| `frontmatter-added` | 1 | The document had no frontmatter; one was created at the top |
+| `bom-removed` | 1 | The BOM at the start was removed so that the frontmatter is read: the new one, or the one right after the BOM |
+
+`inspectNode(source, node)` returns what the editing layer needs before an operation (`InspectNodeResult`), or `null` when the source does not have that node:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The node id |
+| `kind` | `heading`, `item` (a list item), `root` (a root without a line of its own: its `lines` is `null`), `list` (a list container: a node without a text of its own that holds the items of a list; its `lines` start at the first item) or `block` (a table, a code block or an image) |
+| `label` | The initial value of a name input: the text of the first line without the list marker, the task mark, the marks at the end and the `\` markdag would add. Markdown stays as written. In a document without the `markdag` key, the marks at the end are part of it. Empty for a node that cannot be renamed |
+| `details` | The details text, or `null`: the lines of the details joined with `\n`, each without its indent and the `>` and one space after it (a lazy continuation line without its indent). For a heading, the blockquote right under it, read only in a document with the `markdag` key |
+| `task` | The node is a task |
+| `canRename`, `canDelete`, `canMove`, `canHaveDetails`, `canAddChild`, `canAddSibling` | Whether those operations can apply to the node |
+| `canMark` | The first line can carry `%`, `#` and `$` marks (tags, groups, `$n`), also after rewriting a setext or indented heading as an ATX heading |
+
+The types are exported from both entries: `NodeTarget`, `EdgeTarget`, `EditOp`, `EditOutcome`, `EditSelection`, `EditRename`, `EditNote`, `EditNoteCode`, `EditReason`, `EditReasonCode` and `InspectNodeResult`.
+
 ## Driving the view
 
 Methods of `MarkdagView` (also reachable as `diagram.view`):
@@ -284,20 +569,32 @@ Methods of `MarkdagView` (also reachable as `diagram.view`):
 | `setTransform({ x, y, k })` | Replace the transform. Not clamped to the zoom limits. Non-finite values are ignored |
 | `panBy(dx, dy)` | Move the diagram by screen pixels |
 | `zoomBy(factor, { x, y })` | Multiply the scale. The diagram point under `{ x, y }` (container coordinates) stays in place. Clamped to the zoom limits (0.05 to 8) |
-| `fit()` | Fit the whole diagram |
+| `fit(inset?)` | Fit the whole diagram. `inset` (`{ left, top, right, bottom }`, screen pixels, a missing side is 0) leaves that much of the container's edges out; when nothing is left, the whole container is used |
 | `focusNode(id, k)` | Open the ancestors of the node, then put it near the top-left at scale `k` |
 | `revealNode(id)` | Open the ancestors of the node. Does not move the transform |
 | `getFolded()` | Ids of the folded nodes, ascending |
 | `setFolded(ids)` | Replace the fold state. Ids that are not in the document, and ids of nodes without children, are dropped |
 | `expandAll()` / `resetFold()` | Open every node / go back to the document's initial fold state (`markdag.initialExpandLevel`) |
 | `contentBounds()` | The rectangle the content occupies, in diagram coordinates: the same range `fit()` uses. It includes group frames and the label row above each frame, but not the part of a frame label that is wider than its frame: a label longer than the frame runs past the frame's right edge, and `fit()` can cut that part off. `null` when nothing is drawn. During an animation it answers with the final layout |
-| `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`) |
+| `setOptions(options)` | Change view options (`theme`, `details`, `legend`, `animate`, and `interaction` and `dragToPan`, see [Building an editing layer on the view](#building-an-editing-layer-on-the-view)) |
 | `setIconSvg(ref, svg)` | Store the SVG of a logo (`null`: it could not be resolved, the logo stays as text) and redraw only the places that use `ref`. See [Logos](#logos) |
+| `selectEdge(key)` | Highlight a line as a click on it does (`null` clears). `key` is `kind:source>target`, for example `tree:1>2` or `depends:2>4`: `kind` is `tree` or the relation kind, `source` and `target` are node ids, as in `PlacedEdge.edge` (for a tree line, `source` is the parent). Calls `beforeSelectEdge` and `onSelectEdge` with `byUser` `false` |
+| `selectGroup(id)` | Highlight a group as a click on its frame does (`null` clears). Calls `beforeSelectGroup` and `onSelectGroup` with `byUser` `false` |
+| `selectGroups(ids)` | Highlight several groups together: the members of any of them, their lines and the nodes at the other end stay, the rest fades. The first id is the one `selectGroup` reports, and the callbacks are called only when it changes. `[]` is `selectGroup(null)` |
+| `setSelection(ids)` | Put `data-selected` on these nodes and remove it from the others. Ids not in the document are dropped; a node inside a folded branch gets it when its element is built. A new document clears it |
+| `setDropTarget(id)` | Put `data-drop-target` on one node (`null` removes it). Not set on a node inside a folded branch |
+| `nodeRects(ids?, { settled? })` | A `Map` from id to the `Rect` of each visible node box, in container coordinates (as for `zoomBy`). During an animation, where the box is drawn now; with `settled: true`, where it will end up. Without `ids`, every visible node |
+| `ensureVisible(id, margin?)` | Open the ancestors of the node (`onFoldChange` with `byUser` `false`), then pan the shortest distance that puts it inside the container with `margin` pixels to spare (default 24). Does not zoom, and does not move when the node is already inside |
+| `attachOverlay(element, anchor)` | Put `element` on the overlay layer and keep it at `anchor` while the diagram redraws, pans, zooms and resizes. Returns a function that detaches it. See [Overlays](#overlays) |
+| `addHooks(listeners)` | Add callbacks that run after the constructor's (`ViewListeners`: the members of `ViewHooks` except `decorateNode`). Returns a function that removes them; `destroy` removes them all. See [View callbacks](#view-callbacks) |
+| `getDocument()` | `{ parsed, model }` last given to `setDocument` (for `render`, the document after `transformSource`), or `null` |
+| `branchColors()` | `{ id, label, color }` for each branch start in `markdag.branches`: the line color the legend shows, whether or not the legend is shown. `label` is the node's `refText`, or `#id` |
+| `groupLogo(id)` | A new element with the logo of the group's `icon`, as in the legend: the SVG or the emoji, the text as written when the logo cannot be resolved, or an empty placeholder while its SVG is pending. `null` for a group without `icon` and for an unknown id. When the SVG arrives, `onIconSvg` is called; call `groupLogo` again to get it |
 | `destroy()` | Remove the diagram and its listeners |
 
 ### View callbacks
 
-These are passed to the `MarkdagView` constructor. `render` forwards `onFoldChange`, `onTransform` and `onLayout` from its options, and calls the [hooks](#hooks) the document declared with the same events.
+These are passed to the `MarkdagView` constructor, or added later with `view.addHooks`. `render` forwards `onFoldChange`, `onTransform` and `onLayout` from its options, and calls the [hooks](#hooks) the document declared with the same events.
 
 | Hook | When |
 | --- | --- |
@@ -311,8 +608,82 @@ These are passed to the `MarkdagView` constructor. `render` forwards `onFoldChan
 | `onFoldChange(folded, byUser)` | The fold state changed. `byUser` is `true` for a click on a fold circle, `false` for `setFolded`, `revealNode`, `focusNode`, `expandAll` and `resetFold`. Not called when `setDocument` resets the fold state, and not called when `setFolded` is given the current state |
 | `onTransform(transform, byUser)` | Pan or zoom changed. `byUser` is `true` for drag, wheel and pinch, `false` for `setTransform`, `panBy`, `zoomBy`, `fit` and `focusNode` |
 | `onLayout(snapshot)` | A layout pass finished. Also called from `setDocument` and after images load, so it does not tell you that the reader folded a branch |
+| `onNodePointerDown(node, event)` | `pointerdown` on a node box, with any button, before the node's own handlers. `event.preventDefault()` here stops text selection and the other default actions |
+| `onNodeDoubleClick(node, place, event)` | Double click on the node text (`place` `label`), on details shown inside the node (`details`) or in the popover (`popover`). Not on tags. The diagram does not zoom |
+| `onTagClick(node, key, place, event)` | Click on one tag, in the node (`node`) or in the popover (`popover`). Only with `interaction: 'edit'`, where each tag is its own element. A double click calls it twice |
+| `onEdgeClick(edge, event)` | Click on a line (its hit band) |
+| `onFrameClick(id, event, frame)` / `onFrameDoubleClick(id, event, frame)` | Click / double click on a group frame or its label. `frame` is the index of that frame among the group's frames, in drawing order, from 0 |
+| `onCanvasPointerDown(event, target)` | `pointerdown` anywhere but a node box and a fold circle, also when it starts a pan. `target` is `{ kind: 'blank' }`, `{ kind: 'frame', id }` or `{ kind: 'edge', edge }` |
+| `onCanvasClick(event)` | Click on empty space |
+| `onIconSvg(ref)` | `setIconSvg` changed the SVG of a logo, after the diagram redrew the places that use it |
 
-Several diagrams can live on one page. SVG marker ids are prefixed per instance, so each diagram's arrowheads keep their own colors.
+- The callbacks from `onNodePointerDown` down are called only when passed, with either `interaction` (except `onTagClick`, as above). A press that moved 4 pixels or more before release is not a click (`onTagClick`, `onEdgeClick`, `onFrameClick`, `onCanvasClick`).
+- Lines and frames take clicks only where they can be clicked: with `interaction: 'view'`, a document with `edgeHighlight: false` has no hit bands on its lines and one with `groupHighlight: false` has no clickable frames, so `onEdgeClick` and `onFrameClick` are not called and a press inside such a frame is `blank`.
+- `addHooks` adds callbacks after the constructor's, in the order added. For a `before*` callback, the first `false` cancels and the ones after it are not called.
+- `createHookBridge` passes these callbacks from its `viewHooks` option to the view as they are; they are not hook events. `render` has no options for them: add them with `diagram.view.addHooks(...)`.
+
+Several diagrams can live on one page. SVG marker ids are prefixed per instance, so each diagram's arrowheads keep their own colors. Esc closes the details popover and clears the line and group highlight (with `interaction: 'edit'`, it only closes the popover); a diagram takes Esc only when focus is inside its container, or when nothing has focus and the pointer was last over the container, so Esc typed elsewhere on the page or meant for another diagram leaves it alone.
+
+### Building an editing layer on the view
+
+The options, callbacks, methods and markers added for `markdag/editor` (`interaction`, `dragToPan`, the press and click callbacks above, `addHooks`, `setSelection`, `attachOverlay` and the rest) let an application put its own layer over a diagram. A diagram that uses none of them looks and behaves as before: the defaults are `interaction: 'view'` and `dragToPan: 'primary'`, the markers below are not set, and callbacks that are not passed are not called.
+
+| Option (`setOptions`) | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `interaction` | `'view' \| 'edit'` | `'view'` | `edit` leaves the meaning of clicks to the layer above. Lines and frames can be clicked whatever `edgeHighlight` and `groupHighlight` say. Clicks on lines, frames and empty space, and Esc, do not change the line and group highlight (only `selectEdge`, `selectGroup` and `selectGroups` do), and Esc only closes the popover. A task changes state only from a click on the state icon at its start, not on its text. A primary-button press on a node box does not pan. Tags become one element each (`.mdag-tag[data-tag-key]`) |
+| `dragToPan` | `'primary' \| 'middle' \| 'both'` | `'primary'` | The mouse button that pans by dragging empty space. The wheel, ctrl + wheel and touch drags work with every value. With `middle` and `both`, the browser's middle-click autoscroll is prevented. Changing only `dragToPan` does not lay out again |
+
+A minimal layer on a diagram drawn by `render`: select a node by pressing it and show a label above it.
+
+```ts
+import { init, render } from 'markdag/core';
+
+await init();
+const { view } = render(container, markdownText);
+view.setOptions({ interaction: 'edit', dragToPan: 'middle' });
+
+const label = document.createElement('div');
+label.textContent = 'selected';
+let detach: (() => void) | null = null;
+
+const removeHooks = view.addHooks({
+    onNodePointerDown: (node, event) => {
+        if (event.button !== 0) return;
+        view.setSelection([node.id]);
+        detach?.();
+        detach = view.attachOverlay(label, { target: { node: node.id }, place: ['top', 'bottom'], gap: 12 });
+    },
+    onCanvasClick: () => {
+        view.setSelection([]);
+        detach?.();
+        detach = null;
+    },
+});
+// Later: removeHooks(), detach?.() and view.setOptions({ interaction: 'view', dragToPan: 'primary' }) go back to the plain diagram
+```
+
+#### Overlays
+
+`attachOverlay(element, anchor)` puts `element` in `.mdag-overlays`, a layer over the diagram area that is created on the first call. Presses go through the layer except on its children. `anchor` is `{ target, place, gap?, within? }`:
+
+- `target`: `{ node: id }` (the node box), `{ nodes: ids }` (the rectangle around the visible ones), or `{ group: id, frame? }` (the group's frame, or the rectangle around its visible members when the group has no frame; `frame` picks one of several frames in drawing order, and the first is used when it is missing or gone).
+- `place`: `top`, `bottom`, `left`, `right` (outside that side, centered, `gap` pixels away, default 8), `top-right` (the element's center on the top-right corner), `label` (over the node text or the frame label, scaled with the zoom: give the element's size in diagram units) or `cover` (over the whole rectangle, not scaled). An array tries each in turn and takes the first that fits in the container (the first when none fits). `{ nodes }` treats `label` as `cover`, and a group without a frame treats it as `top`.
+- `within`: a function that returns `{ left, right }` (container pixels), called at each placement. `top` and `bottom` are then shifted sideways into that span (an element wider than the span is aligned to its right end), and chosen by whether they fit vertically. Returning `null` leaves the element unshifted.
+- While the target is not visible (inside a folded branch, or gone), `element.hidden` is `true`. The returned function detaches the element and restores the `style` values the view wrote. `destroy` detaches everything.
+
+#### Markers
+
+| Marker | When |
+| --- | --- |
+| `.mdag-node[data-selected]` | `setSelection`. The stylesheet draws an outline around the box in `--markdag-accent`; the text is not restyled |
+| `.mdag-node[data-drop-target]` | `setDropTarget`. A dashed outline |
+| `.mdag-tag[data-tag-key="<key>"]` | `interaction: 'edit'`: one element per tag in the node's `.mdag-tags` and the popover's `.mdag-popover-tags`, with the same text content as with `view` |
+| `.mdag-popover[data-id="<id>"]` | The node whose details popover is open, with any `interaction` |
+| `.markdag[data-interaction="edit"]` | `interaction: 'edit'` (not set for `view`) |
+| `.markdag[data-drag-to-pan="middle"\|"both"]` | `dragToPan` other than `primary` |
+| `.mdag-overlays` | After the first `attachOverlay` |
+
+The types are exported from `markdag` and `markdag/core`: `ViewInteraction`, `DragToPan`, `ViewListeners`, `ViewDocument`, `BranchColor`, `CanvasTarget`, `NodeRectsOptions`, `OverlayAnchor`, `OverlayTarget`, `OverlayPlacement`, `OverlaySpan`, `FitInset`, and the line types `PlacedEdge`, `VisibleEdge` and `RelationKind`.
 
 ## Logos
 

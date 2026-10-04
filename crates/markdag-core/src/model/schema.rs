@@ -1264,7 +1264,7 @@ mod tests {
             "type_object_markdag_array",
             r###"{"markdag":["A"]}"###,
             None,
-            r###"[{"severity":"warning","code":"option-invalid","message":"markdag はキーと値の組で書きます ([\"A\"])","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-invalid","message":"markdag はキーと値の組で書きます ([\"A\"])","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel, editor を字下げして書きます"}]"###,
         ),
         (
             "type_object_groups_string",
@@ -1300,7 +1300,7 @@ mod tests {
             "unknown_markdag_aslist",
             r###"{"markdag":{"zzzzzzzz":2}}"###,
             None,
-            r###"[{"severity":"warning","code":"option-unknown","message":"markdag のキー「zzzzzzzz」は使えません (relations, groups, types, tags, rules, hooks ほか)","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"}]"###,
+            r###"[{"severity":"warning","code":"option-unknown","message":"markdag のキー「zzzzzzzz」は使えません (relations, groups, types, tags, rules, hooks ほか)","at":null,"hint":"markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel, editor を字下げして書きます"}]"###,
         ),
         (
             "leftover_markmap_is_unknown",
@@ -1524,7 +1524,7 @@ mod tests {
                 code: "option-unknown".to_string(),
                 message: "markdag のキー「__proto__」は使えません (relations, groups, types, tags, rules, hooks ほか)".to_string(),
                 at: Some(SourcePosition { line: 3, column: 5, length: 9 }),
-                hint: some("markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel を字下げして書きます"),
+                hint: some("markdag: の下に relations, groups, tags, rules, hooks, tasks, details, legend, branches, edgeHighlight, groupHighlight, initialExpandLevel, editor を字下げして書きます"),
             }]
         );
         let got = check_frontmatter(&js(r#"{"markdag":{"tags":{"__proto__":1}}}"#), None);
@@ -1644,6 +1644,369 @@ mod tests {
                 assert!(!key.contains(rewritten), "{key} に {rewritten}");
             }
         }
+    }
+
+    // ---- GUI 編集の設定 (markdag.editor) の検証 ----
+    // 文の中身はスキーマが持つので、hint はスキーマの x-hint と比べ、enum とキーの一覧は並びによらないよう並べ替えて比べる
+
+    // markdag.editor から keys をたどった部分スキーマの x-hint (なければ落とす)
+    fn editor_hint(keys: &[&str]) -> Option<String> {
+        let path: Vec<&str> = ["markdag", "editor"]
+            .into_iter()
+            .chain(keys.iter().copied())
+            .collect();
+        let mut schema: &'static Schema = &SCHEMA;
+        for key in &path {
+            match properties_of(Some(schema)).get(*key).copied() {
+                Some(JsValue::Object(sub)) => schema = sub,
+                _ => panic!("スキーマに {} がない", path.join(".")),
+            }
+        }
+        let hint = text_field(schema, "x-hint").map(str::to_string);
+        assert!(
+            hint.as_deref().is_some_and(|text| !text.is_empty()),
+            "スキーマの {} に x-hint がない",
+            path.join(".")
+        );
+        hint
+    }
+
+    fn editor_frontmatter(editor: serde_json::Value) -> JsValue {
+        serde_json::from_value(serde_json::json!({ "markdag": { "editor": editor } }))
+            .expect("テストの JSON")
+    }
+
+    // 「{label} に指定できるのは a, b です ({shown})」の a, b を並べ替えたもの
+    fn enum_names(message: &str, label: &str, shown: &str) -> Vec<String> {
+        let listed = message
+            .strip_prefix(&format!("{label} に指定できるのは "))
+            .and_then(|rest| rest.strip_suffix(&format!(" です ({shown})")))
+            .unwrap_or_else(|| panic!("値の一覧の文でない: {message}"));
+        let mut names: Vec<String> = listed.split(", ").map(str::to_string).collect();
+        names.sort_unstable();
+        names
+    }
+
+    // 「{label} のキー「{key}」は使えません (a, b)」の a, b を並べ替えたもの
+    fn known_names(message: &str, label: &str, key: &str) -> Vec<String> {
+        let listed = message
+            .strip_prefix(&format!("{label} のキー「{key}」は使えません ("))
+            .and_then(|rest| rest.strip_suffix(')'))
+            .unwrap_or_else(|| panic!("知らないキーの文でない: {message}"));
+        let mut names: Vec<String> = listed.split(", ").map(str::to_string).collect();
+        names.sort_unstable();
+        names
+    }
+
+    #[test]
+    fn schema_editor_valid_values_say_nothing() {
+        let check =
+            |editor: serde_json::Value| check_frontmatter(&editor_frontmatter(editor), None);
+        for mode in ["view", "edit", "switch"] {
+            assert_eq!(
+                check(serde_json::json!({ "mode": mode })),
+                Vec::new(),
+                "mode: {mode}"
+            );
+        }
+        for start in ["view", "edit"] {
+            assert_eq!(
+                check(serde_json::json!({ "mode": "switch", "default": start })),
+                Vec::new(),
+                "default: {start}"
+            );
+        }
+        for display in [true, false] {
+            assert_eq!(
+                check(serde_json::json!({ "segment": { "display": display } })),
+                Vec::new(),
+                "segment.display: {display}"
+            );
+        }
+        for position in [
+            "top-right",
+            "top-left",
+            "bottom-right",
+            "bottom-left",
+            "top-center",
+            "bottom-center",
+        ] {
+            assert_eq!(
+                check(serde_json::json!({ "segment": { "position": position } })),
+                Vec::new(),
+                "segment.position: {position}"
+            );
+        }
+        assert_eq!(
+            check(serde_json::json!({
+                "mode": "switch",
+                "default": "edit",
+                "segment": { "display": false, "position": "bottom-center" }
+            })),
+            Vec::new()
+        );
+        // ほかの markdag のキーと並べても何も言わない
+        let small = r###"{"title":"小さな DAG","markdag":{"legend":{"position":"top-right","display":false},"initialExpandLevel":2,"editor":{"mode":"switch","default":"view","segment":{"display":true,"position":"top-left"}}}}"###;
+        assert_eq!(check_frontmatter(&js(small), None), Vec::new());
+    }
+
+    #[test]
+    fn schema_editor_mode_other_is_invalid_at_the_value_with_schema_hint() {
+        let markdown = [
+            "---",
+            "markdag:",
+            "    editor:",
+            "        mode: other",
+            "---",
+            "",
+            "# root",
+        ]
+        .join("\n");
+        let got = check_frontmatter(
+            &js(r#"{"markdag":{"editor":{"mode":"other"}}}"#),
+            Some(&markdown),
+        );
+        assert_eq!(got.len(), 1, "{got:?}");
+        let item = &got[0];
+        assert_eq!(
+            (item.severity, item.code.as_str()),
+            (Severity::Warning, "option-invalid")
+        );
+        assert_eq!(
+            item.at,
+            Some(SourcePosition {
+                line: 4,
+                column: 15,
+                length: 5
+            })
+        );
+        assert_eq!(item.hint, editor_hint(&["mode"]));
+        assert_eq!(
+            enum_names(&item.message, "markdag.editor.mode", "\"other\""),
+            ["edit", "switch", "view"]
+        );
+    }
+
+    #[test]
+    fn schema_editor_value_written_directly_is_invalid() {
+        let markdown = ["---", "markdag:", "    editor: edit", "---", "", "# root"].join("\n");
+        let got = check_frontmatter(&js(r#"{"markdag":{"editor":"edit"}}"#), Some(&markdown));
+        assert_eq!(
+            got,
+            vec![Diagnostic {
+                severity: Severity::Warning,
+                code: "option-invalid".to_string(),
+                message: "markdag.editor はキーと値の組で書きます (\"edit\")".to_string(),
+                at: Some(SourcePosition {
+                    line: 3,
+                    column: 13,
+                    length: 4
+                }),
+                hint: editor_hint(&[]),
+            }]
+        );
+        // segment にも値を直接は書けない
+        let item = first(r#"{"markdag":{"editor":{"segment":true}}}"#);
+        assert_eq!(
+            (item.severity, item.code.as_str()),
+            (Severity::Warning, "option-invalid")
+        );
+        assert_eq!(
+            item.message,
+            "markdag.editor.segment はキーと値の組で書きます (true)"
+        );
+        assert_eq!(item.hint, editor_hint(&["segment"]));
+    }
+
+    #[test]
+    fn schema_editor_unknown_keys_are_option_unknown() {
+        let markdown = [
+            "---",
+            "markdag:",
+            "    editor:",
+            "        color: red",
+            "---",
+            "",
+            "# root",
+        ]
+        .join("\n");
+        let got = check_frontmatter(
+            &js(r#"{"markdag":{"editor":{"color":"red"}}}"#),
+            Some(&markdown),
+        );
+        assert_eq!(got.len(), 1, "{got:?}");
+        let item = &got[0];
+        assert_eq!(
+            (item.severity, item.code.as_str()),
+            (Severity::Warning, "option-unknown")
+        );
+        assert_eq!(
+            item.at,
+            Some(SourcePosition {
+                line: 4,
+                column: 9,
+                length: 5
+            })
+        );
+        assert_eq!(item.hint, editor_hint(&[]));
+        assert_eq!(
+            known_names(&item.message, "markdag.editor", "color"),
+            ["default", "mode", "segment"]
+        );
+        // segment の下の知らないキーも option-unknown
+        let item = first(r#"{"markdag":{"editor":{"segment":{"size":1}}}}"#);
+        assert_eq!(
+            (item.severity, item.code.as_str()),
+            (Severity::Warning, "option-unknown")
+        );
+        assert_eq!(item.hint, editor_hint(&["segment"]));
+        assert_eq!(
+            known_names(&item.message, "markdag.editor.segment", "size"),
+            ["display", "position"]
+        );
+    }
+
+    #[test]
+    fn schema_editor_segment_and_default_wrong_values_are_invalid() {
+        let markdown = [
+            "---",
+            "markdag:",
+            "    editor:",
+            "        segment:",
+            "            display: \"yes\"",
+            "            position: middle",
+            "---",
+            "",
+            "# root",
+        ]
+        .join("\n");
+        let got = check_frontmatter(
+            &js(r#"{"markdag":{"editor":{"segment":{"display":"yes","position":"middle"}}}}"#),
+            Some(&markdown),
+        );
+        assert_eq!(got.len(), 2, "{got:?}");
+        let (display, position) = (&got[0], &got[1]);
+        assert_eq!(
+            (display.severity, display.code.as_str()),
+            (Severity::Warning, "option-invalid")
+        );
+        assert_eq!(
+            display.message,
+            "markdag.editor.segment.display は真偽値で書きます (\"yes\")"
+        );
+        assert_eq!(
+            display.at,
+            Some(SourcePosition {
+                line: 5,
+                column: 22,
+                length: 5
+            })
+        );
+        assert_eq!(display.hint, editor_hint(&["segment", "display"]));
+        assert_eq!(
+            (position.severity, position.code.as_str()),
+            (Severity::Warning, "option-invalid")
+        );
+        assert_eq!(
+            position.at,
+            Some(SourcePosition {
+                line: 6,
+                column: 23,
+                length: 6
+            })
+        );
+        assert_eq!(position.hint, editor_hint(&["segment", "position"]));
+        assert_eq!(
+            enum_names(
+                &position.message,
+                "markdag.editor.segment.position",
+                "\"middle\""
+            ),
+            [
+                "bottom-center",
+                "bottom-left",
+                "bottom-right",
+                "top-center",
+                "top-left",
+                "top-right"
+            ]
+        );
+        // default に書けるのは view と edit だけ (switch は mode にだけ書ける)
+        let item = first(r#"{"markdag":{"editor":{"default":"switch"}}}"#);
+        assert_eq!(
+            (item.severity, item.code.as_str()),
+            (Severity::Warning, "option-invalid")
+        );
+        assert_eq!(item.hint, editor_hint(&["default"]));
+        assert_eq!(
+            enum_names(&item.message, "markdag.editor.default", "\"switch\""),
+            ["edit", "view"]
+        );
+        // 文字列でも真偽値でもない値と、引用符で囲んだ "false" も option-invalid
+        for json in [
+            r#"{"markdag":{"editor":{"mode":true}}}"#,
+            r#"{"markdag":{"editor":{"segment":{"position":1}}}}"#,
+            r#"{"markdag":{"editor":{"segment":{"display":"false"}}}}"#,
+        ] {
+            assert_eq!(codes(json), vec!["option-invalid"], "{json}");
+        }
+    }
+
+    #[test]
+    fn schema_editor_keys_under_markdag_are_misplaced() {
+        // position の持ち主は今のまま legend (editor を legend より後ろに足すので)
+        let item = first(r#"{"markdag":{"position":"top-left"}}"#);
+        assert_eq!(item.code, "option-misplaced");
+        assert_eq!(
+            item.message,
+            "markdag のキー「position」は、markdag.legend の下に書いてください。この位置では無視します"
+        );
+        assert_eq!(
+            item.hint,
+            some("legend: の行を作り、その下に字下げして position: を書きます")
+        );
+        // editor にだけあるキーは markdag.editor の下と案内する
+        for key in ["mode", "default", "segment"] {
+            let item = first(&format!(r#"{{"markdag":{{"{key}":"edit"}}}}"#));
+            assert_eq!(
+                (item.severity, item.code.as_str()),
+                (Severity::Warning, "option-misplaced"),
+                "{key}"
+            );
+            assert_eq!(
+                item.message,
+                format!(
+                    "markdag のキー「{key}」は、markdag.editor の下に書いてください。この位置では無視します"
+                )
+            );
+            assert_eq!(
+                item.hint,
+                Some(format!(
+                    "editor: の行を作り、その下に字下げして {key}: を書きます"
+                ))
+            );
+        }
+        // 最上位に書いた mode と editor も、置き場所の違いとして知らせる
+        let item = first(r#"{"mode":"edit"}"#);
+        assert_eq!(item.code, "option-misplaced");
+        assert_eq!(
+            item.message,
+            "「mode」は frontmatter の markdag.editor の下に書いてください。この位置では無視します"
+        );
+        assert_eq!(
+            item.hint,
+            some("markdag: の下に editor: を作り、その下に字下げして mode: を書きます")
+        );
+        let item = first(r#"{"editor":{"mode":"edit"}}"#);
+        assert_eq!(item.code, "option-misplaced");
+        assert_eq!(
+            item.message,
+            "「editor」は frontmatter の markdag の下に書いてください。この位置では無視します"
+        );
+        assert_eq!(
+            item.hint,
+            some("markdag: の行を作り、その下に字下げして editor: を書きます")
+        );
     }
 }
 

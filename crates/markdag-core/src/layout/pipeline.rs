@@ -1157,7 +1157,8 @@ mod tests {
 
         #[test]
         fn pipeline_without_frames_matches_one_old_layout_graph_bit_for_bit() {
-            // I3: 枠のない文書 (groups がない、boundary の枠がない、ノードが 1 つのグループに 1 つずつ) は、旧の 1 回の layout_graph と同じ
+            // I3: 枠のない文書 (groups がない、boundary: true のグループがない) は、旧の 1 回の layout_graph と同じ。
+            // boundary: true のグループは見えているメンバーが 1 つでも枠になるので、枠のない文書に入らない
             let narrow = LayoutOptions {
                 spacing_horizontal: 10.0,
                 spacing_vertical: 3.0,
@@ -2504,7 +2505,7 @@ mod tests {
         use super::super::{FrameBoxCounts, LayoutDocumentResult, layout_document_with_counts};
         use super::flow::check_invariants;
         use super::share::{Document, document};
-        use crate::layout::frames::{LABEL_HEIGHT, count_intruders};
+        use crate::layout::frames::{LABEL_HEIGHT, count_intruders, frame_rect};
         use crate::layout::layout::MARKMAP_DEFAULTS;
         use crate::types::Rect;
 
@@ -3166,15 +3167,54 @@ mod tests {
         }
 
         #[test]
-        fn pipeline_combos_single_member_groups_make_no_frames() {
-            // 3-14 と 3-15: メンバー 1 つのグループは枠にならない (外から中、枠から枠)。1 回で終わる
-            for (name, source) in [("3-14", SINGLE_IN), ("3-15", SINGLE_F2F)] {
+        fn pipeline_combos_single_member_groups_make_single_member_frames() {
+            // 期待を変えた: メンバーが 1 つのグループも枠にするようにした (前は枠にならなかった)。
+            // 3-14 と 3-15: メンバー 1 つのグループも枠 (箱) になり、1 回で終わる。枠の矩形はメンバーの矩形に余白 (level 0) を足したもの
+            for (name, source, groups) in [
+                ("3-14", SINGLE_IN, &["a"][..]),
+                ("3-15", SINGLE_F2F, &["a", "b"][..]),
+            ] {
                 let doc = document(source);
                 let (result, counts) = run(name, &doc);
-                assert!(result.frames.is_empty(), "{name}");
-                assert_eq!(counts, FrameBoxCounts { boxed: 0, loose: 0 }, "{name}");
+                let expected: Vec<(&str, usize)> = groups.iter().map(|group| (*group, 1)).collect();
+                assert_eq!(frames_per_group(&result), per_group(&expected), "{name}");
+                assert_eq!(
+                    counts,
+                    FrameBoxCounts {
+                        boxed: groups.len(),
+                        loose: 0
+                    },
+                    "{name}"
+                );
                 assert_eq!(result.passes, 1, "{name}");
+                for entry in &result.frames {
+                    assert_eq!(entry.frame.members.len(), 1, "{name}");
+                    let id = entry.frame.members[0];
+                    assert_eq!(
+                        entry.outline,
+                        Some(frame_rect(&result.rects[&id], 0)),
+                        "{name}"
+                    );
+                }
             }
+            // 3-14 (外から中): 告知 --> 設計 で設計は告知の配置上の子になり、枠は告知の右 (マス 3-2 と同じ並べ直し)
+            let doc = document(SINGLE_IN);
+            let (result, _) = run("3-14", &doc);
+            let (notice, design) = (id_at(&doc, &["告知"]), id_at(&doc, &["設計"]));
+            assert_eq!(result.graph.layout_parent.get(&design), Some(&notice));
+            assert!(is_right_of(
+                &area(&result, "a", design),
+                &result.rects[&notice]
+            ));
+            // 3-15 (枠から枠): 設計 --> 実装 で実装は設計の配置上の子になり、b の枠は a の枠の右 (マス 3-3、Q3-b)
+            let doc = document(SINGLE_F2F);
+            let (result, _) = run("3-15", &doc);
+            let (design, build) = (id_at(&doc, &["設計"]), id_at(&doc, &["実装"]));
+            assert_eq!(result.graph.layout_parent.get(&build), Some(&design));
+            assert!(is_right_of(
+                &area(&result, "b", build),
+                &area(&result, "a", design)
+            ));
         }
 
         #[test]
@@ -3197,17 +3237,27 @@ mod tests {
         }
 
         #[test]
-        fn pipeline_combos_folded_frame_root_makes_no_frame() {
-            // 4-2: 設計 (a の根) を閉じると見えるメンバーが 1 つで枠にならない (見えるノード 3)。告知は設計の配置上の子
+        fn pipeline_combos_folded_frame_root_makes_a_single_member_frame() {
+            // 期待を変えた: 見えているメンバーが 1 つになった所も枠にするようにした (前は枠にならなかった)。
+            // 4-2: 設計 (a の根) を閉じると見えるメンバーは設計 1 つで、その枠 (箱) になる (見えるノード 3)。
+            // 告知は設計の配置上の子のままで、枠の右 (出口。I6)
             let doc = document(FOLD_ROOT_OUT);
             let (result, counts) = run("4-2", &doc);
-            assert!(result.frames.is_empty());
-            assert_eq!(counts, FrameBoxCounts { boxed: 0, loose: 0 });
+            assert_eq!(frames_per_group(&result), per_group(&[("a", 1)]));
+            assert_eq!(counts, FrameBoxCounts { boxed: 1, loose: 0 });
             assert_eq!(result.passes, 1);
             assert_eq!(result.rects.len(), 3);
+            let (design, notice) = (id_at(&doc, &["設計"]), id_at(&doc, &["告知"]));
+            assert_eq!(result.frames[0].frame.members, vec![design]);
             assert_eq!(
-                result.graph.layout_parent.get(&id_at(&doc, &["告知"])),
-                Some(&id_at(&doc, &["設計"]))
+                result.frames[0].outline,
+                Some(frame_rect(&result.rects[&design], 0))
+            );
+            assert_eq!(result.graph.layout_parent.get(&notice), Some(&design));
+            let frame = area(&result, "a", design);
+            assert!(
+                result.rects[&notice].x
+                    >= right(&frame) + MARKMAP_DEFAULTS.spacing_horizontal - TOLERANCE
             );
         }
     }

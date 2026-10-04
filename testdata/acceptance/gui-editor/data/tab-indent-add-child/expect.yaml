@@ -1,0 +1,13 @@
+kind: 境界
+checks: 入れ子をタブで字下げした文書で、子のない項目 (実装) に子を足すと、文書と同じタブの字下げで 1 段深い項目を書く
+behaviors: [B-021, B-022]
+op:
+    kind: addChild
+    parent: 実装
+    label: 新しいノード
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [新しいノード] }
+    rename: { kind: node, node: 新しいノード }
+    notes: []

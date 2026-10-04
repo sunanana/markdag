@@ -1,6 +1,6 @@
 {
     "name": "markdag",
-    "version": "0.11.0",
+    "version": "0.12.0",
     "description": "Turn Markdown into a DAG diagram",
     "license": "MIT",
     "repository": {
@@ -26,6 +26,12 @@
             "development": "./dist/core.dev.js",
             "import": "./dist/core.js",
             "default": "./dist/core.js"
+        },
+        "./editor": {
+            "types": "./dist/types/editor.d.ts",
+            "development": "./dist/editor.dev.js",
+            "import": "./dist/editor.js",
+            "default": "./dist/editor.js"
         },
         "./standalone": {
             "types": "./dist/types/standalone.d.ts",

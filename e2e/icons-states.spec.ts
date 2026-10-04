@@ -172,6 +172,22 @@ const clickMark = (page: Page, id: number): Promise<void> => markOf(page, id).di
 // B7: 吹き出しと印の外を押す (ポインタは動かさない)
 const pressOutside = (page: Page): Promise<unknown> => page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
 const escape = (page: Page): Promise<void> => page.keyboard.press('Escape');
+// ポインタを図の上の何もないところ (ノード、吹き出し、印、凡例の外) へ動かす
+async function moveOverDiagram(page: Page): Promise<void> {
+    const point = await page.evaluate(() => {
+        const viewport = document.querySelector('#a > .mdag-viewport');
+        const rect = document.querySelector('#a')?.getBoundingClientRect();
+        if (!viewport || !rect) return null;
+        for (let y = rect.top + 8; y < Math.min(rect.bottom, innerHeight) - 8; y += 16) {
+            for (let x = rect.left + 8; x < Math.min(rect.right, innerWidth) - 8; x += 16) {
+                if (document.elementFromPoint(x, y) === viewport) return { x, y };
+            }
+        }
+        return null;
+    });
+    if (!point) throw new Error('図の上に何もないところがない');
+    await page.mouse.move(point.x, point.y);
+}
 const wait = (page: Page, ms = 350): Promise<void> => page.waitForTimeout(ms);
 // 要素の作り直しのあとにブラウザが送り直す pointerenter は、すぐとは限らない (webkit は 200ms ほど遅れることがある)。
 // その送り直しから開く待ちの 250ms が経つまでを待つ
@@ -1253,6 +1269,9 @@ const FIG2_CASES: Case[] = [
             title: 'Escape で閉じる (開く待ちならタイマーを止める)',
             run: async (page, errors) => {
                 await enterQ(page, state);
+                // Q4 と Q5 は印に click だけを送って入るので、ポインタがまだ図の上に来ていない。図の Esc は、フォーカスが図の中にあるか、
+                // フォーカスがなくポインタが図の上にあるときだけ効くので、ポインタを図の上 (吹き出しと印の外) へ動かしてから押す
+                if (state === 'Q4' || state === 'Q5') await moveOverDiagram(page);
                 await escape(page);
                 await wait(page);
                 closed(await look(page, errors));

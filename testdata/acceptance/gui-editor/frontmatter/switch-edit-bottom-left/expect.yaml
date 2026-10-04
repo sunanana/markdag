@@ -1,0 +1,9 @@
+kind: 正常
+checks: >-
+    markdag.editor の正しい値 (mode switch、default edit、segment の display true と position bottom-left) は診断を出さず、そのとおりに読む。
+    mount すると GUI 編集で始まり、セグメントを左下に出す
+behaviors: [B-173, B-174, B-179, B-180, B-181]
+expect:
+    diagnostics: []
+    editor: { mode: switch, default: edit, segment: { display: true, position: bottom-left } }
+    screen: { mode: edit, segment: bottom-left, segment_place: bottom-left, toolbox: true }

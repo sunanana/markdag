@@ -859,6 +859,18 @@ mod tests {
             found[0]
         }
 
+        // グループとメンバーで箱を引く (同じグループの枠が 2 つ以上ある、同じメンバーの枠が 2 つ以上あるときに使う)
+        fn block_of(&self, group: &str, members: &[u32]) -> usize {
+            let found: Vec<usize> = (0..self.blocks.blocks.len())
+                .filter(|&index| {
+                    let frame = &self.frames[self.blocks.blocks[index].frame];
+                    frame.group.id == group && frame.members == members
+                })
+                .collect();
+            assert_eq!(found.len(), 1, "{group} {members:?} の箱はちょうど 1 つ");
+            found[0]
+        }
+
         fn block_with(&self, members: &[u32]) -> usize {
             (0..self.blocks.blocks.len())
                 .find(|&index| self.frames[self.blocks.blocks[index].frame].members == members)
@@ -1679,8 +1691,10 @@ mod tests {
 
     #[test]
     fn placement_tree_nested_groups_form_one_tree() {
-        // nested-groups (frames.rs の model): dev = {2..=8}、backend = {6, 7, 8}、frontend = {3, 4, 5}。9 はメンバー 1 つなので枠がない。
-        // 各ノードがちょうど 1 度だけ現れ、根から全部に届く (check_tree)
+        // nested-groups (frames.rs の model): dev = {2..=8}、backend = {6, 7, 8}、frontend = {3, 4, 5}。
+        // 期待を変えた: メンバーが 1 つのまとまりも枠にするようにしたので、
+        // 9 は backend と frontend の 1 つのメンバーの枠 2 つ (同じメンバーなので groups で先の backend [9] が外側) で、
+        // backend [9] の箱の中に frontend [9] の箱、その中に 9。各ノードがちょうど 1 度だけ現れ、根から全部に届く (check_tree)
         let graph = nested();
         let frames = frames_of(
             &graph,
@@ -1697,11 +1711,15 @@ mod tests {
             ],
         );
         let placed = place(&graph, frames);
-        let dev = placed.block("dev");
-        let backend = placed.block("backend");
-        let frontend = placed.block("frontend");
+        let dev = placed.block_of("dev", &[2, 3, 4, 5, 6, 7, 8]);
+        let backend = placed.block_of("backend", &[6, 7, 8]);
+        let frontend = placed.block_of("frontend", &[3, 4, 5]);
+        let backend_9 = placed.block_of("backend", &[9]);
+        let frontend_9 = placed.block_of("frontend", &[9]);
+        assert_eq!(placed.blocks.blocks.len(), 5);
+        assert!(placed.blocks.loose.is_empty());
         assert_eq!(name(&placed.tree.root), n(1));
-        assert_eq!(placed.outer(Slot::Node(1)), vec![b(dev), n(9)]);
+        assert_eq!(placed.outer(Slot::Node(1)), vec![b(dev), b(backend_9)]);
         assert_eq!(placed.inner_top(dev), vec![n(2)]);
         assert_eq!(
             placed.inner(dev, Slot::Node(2)),
@@ -1709,6 +1727,8 @@ mod tests {
         );
         assert_eq!(placed.inner(frontend, Slot::Node(3)), vec![n(4), n(5)]);
         assert_eq!(placed.inner(backend, Slot::Node(6)), vec![n(7), n(8)]);
+        assert_eq!(placed.inner_top(backend_9), vec![b(frontend_9)]);
+        assert_eq!(placed.inner_top(frontend_9), vec![n(9)]);
         assert!(placed.exits().is_empty());
         assert!(placed.fallbacks().is_empty());
     }

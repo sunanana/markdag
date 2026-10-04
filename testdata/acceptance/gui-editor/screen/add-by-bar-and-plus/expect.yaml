@@ -1,0 +1,28 @@
+kind: 正常
+checks: >-
+    子の + と帯の「子の追加」で子を、帯の「兄弟追加」で兄弟を足し、どちらもすぐ名前の入力を開く。図の外 (ページのほかの入力欄) へフォーカスが移ると、入れた名前で決める。
+    ノードのラベルのダブルクリックで名前の入力を開き、何もないところ (公開の近く) を押すと決めてから選択を解く
+behaviors: [B-001, B-014, B-020, B-015, B-025, B-031, B-033, B-048, B-059]
+states: [D1.d1, D2.d5, D2.d8, D3.d6]
+decisions: [設計 10.1-1 (子の + は右、兄弟の + は下), F-05, F-12, F-13]
+steps:
+    - click: { node: 画面 }
+      expect: { handles: [child, link, sibling] }
+    - click: { handle: child }
+      expect: { source: after-child.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:画面 }
+    - click: { bar: child }
+      expect: { source: after-child.md, input: name, input_value: 新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:画面 }
+    - click: { bar: sibling }
+      expect: { source: after-sibling.md, input: name, input_value: 新しいノード, focus: 'name-input:node' }
+    - type: ログイン
+    - click: { outside: true }
+      expect: { source: after-outside.md, input: none, focus: outside }
+    - dblclick: { label: 実装 }
+      expect: { input: name, input_value: 実装, selection: nodes:実装, focus: 'name-input:node' }
+    - type: 開発
+    - click: { blank: 公開 }
+      expect: { source: after-dblclick.md, input: none, selection: none }

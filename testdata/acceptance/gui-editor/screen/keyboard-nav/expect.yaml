@@ -1,0 +1,28 @@
+kind: 正常
+checks: >-
+    何も選んでいないときの矢印キーは、ポインタにいちばん近いノードを選ぶ (フォーカスがなくポインタが図の上にあるときもキーを受ける)。矢印キーで選ぶノードを移す: → は子のうち画面でいちばん上、↑ ↓ は兄弟 (端では反対の端へ回る)、← は親。閉じた枝の子へ移るときは枝を開く。
+    2 つ以上を選んでいるときは最後に選んだノードから動かし、1 つの選択にする
+behaviors: [B-089, B-086, B-087, B-088, B-090, B-091]
+states: [C1.c12, C2.c12, C3.c12]
+steps:
+    - hover: { node: 公開 }
+    - key: ArrowDown
+      expect: { selection: nodes:公開 }
+    - click: { node: 設計 }
+    - key: ArrowRight
+      expect: { selection: nodes:画面 }
+    - key: ArrowDown
+      expect: { selection: nodes:API }
+    - key: ArrowDown
+      expect: { selection: nodes:画面 }
+    - key: ArrowLeft
+      expect: { selection: nodes:設計 }
+    - key: ArrowDown
+      expect: { selection: nodes:実装, nodes: [計画, 設計, 画面, API, 実装, 公開] }
+    - key: ArrowRight
+      expect: { selection: nodes:フロント, nodes: [計画, 設計, 画面, API, 実装, フロント, バック, 公開] }
+    - click: { node: バック }
+      mod: Shift
+      expect: { selection: 'nodes:フロント,バック' }
+    - key: ArrowUp
+      expect: { selection: nodes:フロント }

@@ -1,0 +1,29 @@
+kind: 正常
+decided: [U-10]
+checks: >-
+    道具箱の「詳細表示」にポインタを乗せると選択肢を出し、選んだ見せ方 (常に表示) で図の詳細の見せ方を変える (原文は変えない)。ノードの中に開いた詳細のダブルクリックで詳細の入力を開く。
+    選択肢を開いている間の Enter は、図にフォーカスがあれば名前の入力を開き、選択肢は開いたまま (U-10 で決まった)。
+    閲覧では文書の指定 (click) に戻し、GUI 編集に戻ると選んだ見せ方に戻す
+behaviors: [B-126, B-127, B-128, B-049, B-170]
+states: [D1.d1, D10.d2, A2.a3, A1.a4]
+decisions: [F-14 (詳細表示の絵)]
+steps:
+    - expect: { details_display: hover }
+    - hover: { tool: details }
+      expect: { input: flyout }
+    - click: { flyout: always }
+      expect: { details_display: always, input: none, source: input.md }
+    - dblclick: { details: API }
+      expect: { selection: nodes:API, input: details, input_value: 認証つき }
+    - key: Escape
+      expect: { input: none, selection: nodes:API }
+    - hover: { tool: details }
+      expect: { input: flyout }
+    - key: Enter
+      expect: { input: name+flyout, input_value: API }
+    - key: Escape
+      expect: { input: none }
+    - set_mode: view
+      expect: { returned: true, mode: view, details_display: click }
+    - set_mode: edit
+      expect: { returned: true, mode: edit, details_display: always }

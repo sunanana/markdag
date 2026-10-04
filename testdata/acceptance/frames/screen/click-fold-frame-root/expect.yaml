@@ -1,8 +1,9 @@
 kind: 境界
 checks: >-
-    枠の根 (設計) の開閉の円をクリックして閉じると a の枠が消え、b の枠は残る。もう一度クリックして開くと a の枠が戻り、初めと同じ並び
+    枠の根 (設計) の開閉の円をクリックして閉じると a は見えているメンバー 1 つ (設計) の枠になり (ラベルも 1 つずつ)、b の枠は残る。
+    もう一度クリックして開くと a の枠が初めのメンバーに戻り、初めと同じ並び
 combos: [2-2]
-decisions: [writing-guide の groups の規則]
+decisions: [gui-editor の F-02 (メンバーが 1 つの所も枠。scope.md の「触る F-02」、records/deviations.md の D-014)]
 render:
     api: >-
         render(element, input.md, { animate: false }) を 1800x1100 の要素に描き、getBoundingClientRect (画面の px) で
@@ -26,10 +27,12 @@ expect:
     閉じたあと:
         visible: 5
         frames:
+            - { group: a, members: [設計], inside: [] }
             - { group: b, members: [実装, フロント, バック], inside: [] }
-        unframed: { a: [設計] }
+        unframed: {}
+        overlap: { disjoint: 0, crossing: 0 }
         intrusions: 0
-        labels: { count: 1, on_node: [] }
+        labels: { count: 2, on_node: [] }
     開き直したあと:
         visible: 7
         frames:

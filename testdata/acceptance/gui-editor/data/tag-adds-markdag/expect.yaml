@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    markdag のキーがない文書でタグを付けると、frontmatter の末尾に markdag: を足してから付ける。
+    足したことで行末の #v1 が印に読まれ、名前の読み方が変わるノード (API #v1 → API) の数を知らせる
+behaviors: [B-125, B-135]
+op:
+    kind: setTag
+    nodes: [画面]
+    key: owner
+    value: alice
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [画面] }
+    rename: null
+    notes: [{ code: markdag-added, count: 1 }]

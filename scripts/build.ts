@@ -42,7 +42,8 @@ function expectEmbedded(file: string): void {
     if (!code.includes(embeddedWasm)) throw new Error(`dist/${file} に wasm が焼き込まれていない`);
 }
 
-// ES モジュール版の入口は 2 つ (既定の入口と、外部と通信しない入口)。共通の部分は、両方から読む別のファイルに分かれる
+// ES モジュール版の入口は 3 つ (既定の入口、外部と通信しない入口、GUI 編集の入口)。共通の部分は、複数の入口から読む別のファイルに分かれる。
+// GUI 編集の入口は init を持たず、外部と通信しない入口の上に載るので、同じビルドに入れて wasm の境界の状態を共有する
 await build({
     ...shared,
     build: {
@@ -50,7 +51,7 @@ await build({
         emptyOutDir: false,
         minify: false,
         lib: {
-            entry: { markdag: here('../src/index.ts'), core: here('../src/core.ts') },
+            entry: { markdag: here('../src/index.ts'), core: here('../src/core.ts'), editor: here('../src/editor.ts') },
             formats: ['es'],
             fileName: (_format, entryName) => `${entryName}.js`,
         },
@@ -133,15 +134,19 @@ export function embeddedWasm() {
 }
 `,
 );
+// 3 つめの値は、入口が init を持つか。GUI 編集の入口は init を持たない (wasm は markdag/core の開発用の入口の init で待つ) ので、
+// 開発用の入口は既定の入口をそのまま出し直すだけにする (init を足さない)
 const DEV_ENTRIES = [
-    ['markdag.dev.js', 'markdag.js'],
-    ['core.dev.js', 'core.js'],
-    ['standalone.dev.js', 'standalone.js'],
+    ['markdag.dev.js', 'markdag.js', true],
+    ['core.dev.js', 'core.js', true],
+    ['standalone.dev.js', 'standalone.js', true],
+    ['editor.dev.js', 'editor.js', false],
 ] as const;
-for (const [devEntry, entry] of DEV_ENTRIES) {
+for (const [devEntry, entry, hasInit] of DEV_ENTRIES) {
     writeFileSync(
         here(`../dist/${devEntry}`),
-        `// ./${entry} の開発用の入口。init の source を省くと、隣の markdag.wasm ではなく焼き込んだ wasm を読む (A-198)
+        hasInit
+            ? `// ./${entry} の開発用の入口。init の source を省くと、隣の markdag.wasm ではなく焼き込んだ wasm を読む (A-198)
 import { init as initWith, isReady } from './${entry}';
 import { embeddedWasm } from './${DEV_WASM_MODULE}';
 export * from './${entry}';
@@ -149,16 +154,29 @@ export function init(source) {
 	if (source !== undefined) return initWith(source);
 	return isReady() ? Promise.resolve() : initWith(embeddedWasm());
 }
+`
+            : `// ./${entry} の開発用の入口。この入口は init を持たないので、そのまま出し直す (wasm は markdag/core の init で待つ)
+export * from './${entry}';
 `,
     );
 }
 
 // CDN から JS を読む部品 (数式とコードの飾りのライブラリ) は既定の入口 (dist/markdag.js と dist/markdag.iife.js) だけに入れる。
-// markdag/core の入口が読むファイル (dist/core.js と共有のチャンク、開発用の入口と焼き込みの wasm を含む)、core の IIFE 版、単体の HTML の入口に入ると、
-// 外部と通信しない約束の入口に読み込みの経路が残る (zu は markdag/core の成果物に jsdelivr の JS がないことを確かめている)。
+// markdag/core の入口が読むファイル (dist/core.js と共有のチャンク、開発用の入口と焼き込みの wasm を含む)、core の IIFE 版、単体の HTML の入口、
+// GUI 編集の入口 (markdag/core の上に載る) に入ると、外部と通信しない約束の入口に読み込みの経路が残る
+// (zu は markdag/core の成果物に jsdelivr の JS がないことを確かめている)。
 // スタイルシートの URL (katex.min.css など) はリンクを足すだけの別の経路なので、ここでは見ない
 const CDN_SCRIPT = /https:\/\/cdn\.jsdelivr\.net\/[^"'`\s]*\.js\b/;
-const coreOutputs = ['core.js', 'core.dev.js', 'markdag.core.iife.js', 'standalone.js', 'standalone.dev.js', ...readdirSync(here('../dist/chunks/')).map((name) => `chunks/${name}`)];
+const coreOutputs = [
+    'core.js',
+    'core.dev.js',
+    'markdag.core.iife.js',
+    'standalone.js',
+    'standalone.dev.js',
+    'editor.js',
+    'editor.dev.js',
+    ...readdirSync(here('../dist/chunks/')).map((name) => `chunks/${name}`),
+];
 for (const file of coreOutputs) {
     const found = readFileSync(here(`../dist/${file}`), 'utf8').match(CDN_SCRIPT);
     if (found) throw new Error(`dist/${file} に CDN から JS を読む経路 (${found[0]}) が入っている`);

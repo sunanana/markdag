@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    名前の変更は 1 行目の本文だけを書き換え、末尾の印 (%g1、#owner:alice) を残す。
+    前の名前が文書で 1 つなので、markdag.relations の中のその名前も新しい名前に書き換える (書き換えた数の知らせは付けない)
+behaviors: [B-034, B-035]
+op:
+    kind: renameNode
+    node: 画面
+    label: 画面設計
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [画面設計] }
+    rename: null
+    notes: []

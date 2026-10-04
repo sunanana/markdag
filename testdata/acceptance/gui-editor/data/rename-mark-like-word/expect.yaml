@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    名前の末尾の語が印 (#キー) に化けるときは、その語の # の前だけを \ で逃がす。行の途中の # (C#、F#) は印に読まれないので逃がさない
+behaviors: [B-034]
+op:
+    kind: renameNode
+    node: 実装
+    label: 'C# と F# の比較 #draft'
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['C# と F# の比較 #draft'] }
+    rename: null
+    notes: []

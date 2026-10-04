@@ -1,6 +1,6 @@
 kind: 誤り
 checks: >-
-    本文の未定義の alias は icon-unknown (位置は :alias: 全体)。似た alias があれば「もしかして」。文字のまま残し、名前からは除く。図に出ない本文 (見出しの直下の引用ブロック) の印も数える
+    本文の未定義の alias は icon-unknown (位置は :alias: 全体)。似た alias があれば「もしかして」。文字のまま残し、名前からは除く。見出しの詳細 (見出しの直下の引用ブロック) の印も数える
 call:
     api: >-
         parseDocument → buildModel(nodes, frontmatter, source)

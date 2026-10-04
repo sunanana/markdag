@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import * as core from '../src/core';
+import type * as markdag from '../src/index';
 import type { NodeTag, OutlineNode } from '../src/parse/document';
-import { buildModel, checkFrontmatter, iconDefOf, renderDocument } from '../src/model/model';
+import { buildModel, checkFrontmatter, emptyModel, iconDefOf, renderDocument } from '../src/model/model';
 import { ICON_MARK, parseDocument } from '../src/parse/document';
 import { suggestTagKeys, suggestTagValues } from '../src/model/tags';
 
@@ -1221,5 +1223,135 @@ describe('タグの値とグループのロゴ', () => {
     it('groups の icon を足しても、知らないキーの一覧の文は変わらない', () => {
         const [item] = checkFrontmatter({ markdag: { groups: { a: { colour: 'red' } } } });
         expect(item?.message).toBe('markdag.groups.a のキー「colour」は使えません (label, color, boundary, members)');
+    });
+});
+
+// GUI 編集の設定 (frontmatter の markdag.editor)。GraphModel.editor は文書の markdag.editor を読んだ結果で、
+// 書いていない欄と使えない値は既定。
+// 型の検査は tsc (npm run typecheck) が行い、値は公開の入口 (markdag/core) から確かめる
+describe('GUI 編集の設定 (markdag.editor)', () => {
+    const DEFAULT_EDITOR: core.EditorSettings = { mode: 'view', default: 'view', segment: { display: true, position: 'top-left' } };
+    const SEGMENT_POSITIONS: core.SegmentPosition[] = ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'top-center', 'bottom-center'];
+    const nodes = outline([['root', null]]);
+    const withEditor = (editor: unknown): core.GraphModel => core.buildModel(nodes, { markdag: { editor } });
+    const codesOf = (model: core.GraphModel): string[] => model.diagnostics.map((item) => item.code);
+
+    it('型: GraphModel.editor は EditorSettings で、markdag/core と markdag の入口から同じ名前で出る', () => {
+        expectTypeOf<core.GraphModel['editor']>().toEqualTypeOf<core.EditorSettings>();
+        expectTypeOf<core.EditorSettings>().toEqualTypeOf<{ mode: core.EditorModeSetting; default: 'view' | 'edit'; segment: { display: boolean; position: core.SegmentPosition } }>();
+        expectTypeOf<core.EditorModeSetting>().toEqualTypeOf<'view' | 'edit' | 'switch'>();
+        expectTypeOf<core.SegmentPosition>().toEqualTypeOf<'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center'>();
+        expectTypeOf<markdag.GraphModel['editor']>().toEqualTypeOf<core.EditorSettings>();
+        expectTypeOf<markdag.EditorSettings>().toEqualTypeOf<core.EditorSettings>();
+        expectTypeOf<markdag.EditorModeSetting>().toEqualTypeOf<core.EditorModeSetting>();
+        expectTypeOf<markdag.SegmentPosition>().toEqualTypeOf<core.SegmentPosition>();
+    });
+
+    it('markdag.editor を書かなければ閲覧のみの既定 (mode view、default view、セグメントを出す、左上)', () => {
+        expect(core.buildModel(nodes, {}).editor).toEqual(DEFAULT_EDITOR);
+        expect(core.buildModel(nodes, { markdag: null }).editor).toEqual(DEFAULT_EDITOR);
+        expect(core.buildModel(nodes, { markdag: { legend: { position: 'bottom-left' } } }).editor).toEqual(DEFAULT_EDITOR);
+        expect(renderDocument('# root\n\n## A\n').model.editor).toEqual(DEFAULT_EDITOR);
+        // wasm を呼ばずに作る空のモデルも同じ既定
+        expect(emptyModel().editor).toEqual(DEFAULT_EDITOR);
+    });
+
+    it('mode、default、segment.display、segment.position の各値を読む', () => {
+        for (const mode of ['view', 'edit', 'switch'] as const) {
+            const model = withEditor({ mode });
+            expect(model.diagnostics).toEqual([]);
+            expect(model.editor).toEqual({ ...DEFAULT_EDITOR, mode });
+        }
+        for (const start of ['view', 'edit'] as const) {
+            const model = withEditor({ mode: 'switch', default: start });
+            expect(model.diagnostics).toEqual([]);
+            expect(model.editor).toEqual({ ...DEFAULT_EDITOR, mode: 'switch', default: start });
+        }
+        for (const display of [true, false]) {
+            const model = withEditor({ mode: 'switch', segment: { display } });
+            expect(model.diagnostics).toEqual([]);
+            expect(model.editor).toEqual({ mode: 'switch', default: 'view', segment: { display, position: 'top-left' } });
+        }
+        for (const position of SEGMENT_POSITIONS) {
+            const model = withEditor({ mode: 'switch', segment: { position } });
+            expect(model.diagnostics).toEqual([]);
+            expect(model.editor).toEqual({ mode: 'switch', default: 'view', segment: { display: true, position } });
+        }
+    });
+
+    it('原文から読んでも同じ値になる', () => {
+        const source = [
+            '---',
+            'markdag:',
+            '    editor:',
+            '        mode: switch',
+            '        default: edit',
+            '        segment:',
+            '            display: false',
+            '            position: bottom-center',
+            '---',
+            '',
+            '# root',
+            '',
+            '## A',
+        ].join('\n');
+        const { model } = renderDocument(source);
+        expect(model.diagnostics).toEqual([]);
+        expect(model.editor).toEqual({ mode: 'switch', default: 'edit', segment: { display: false, position: 'bottom-center' } });
+        const parsed = core.parseDocument(source);
+        expect(core.buildModel(parsed.nodes, parsed.frontmatter, source).editor).toEqual(model.editor);
+    });
+
+    it('使えない値は既定にして option-invalid で知らせ、ほかの欄は読む', () => {
+        const other = withEditor({ mode: 'other' });
+        expect(other.editor).toEqual(DEFAULT_EDITOR);
+        expect(other.diagnostics).toHaveLength(1);
+        expect(other.diagnostics[0]).toMatchObject({ severity: 'warning', code: 'option-invalid' });
+        expect(other.diagnostics[0]?.message).toMatch(/^markdag\.editor\.mode に指定できるのは .+ です \("other"\)$/);
+        expect(other.diagnostics[0]?.hint).toEqual(expect.stringMatching(/./));
+
+        const startSwitch = withEditor({ mode: 'switch', default: 'switch' });
+        expect(startSwitch.editor).toEqual({ ...DEFAULT_EDITOR, mode: 'switch' });
+        expect(codesOf(startSwitch)).toEqual(['option-invalid']);
+
+        const segment = withEditor({ mode: 'switch', default: 'edit', segment: { display: 'yes', position: 'middle' } });
+        expect(segment.editor).toEqual({ mode: 'switch', default: 'edit', segment: { display: true, position: 'top-left' } });
+        expect(codesOf(segment)).toEqual(['option-invalid', 'option-invalid']);
+        expect(segment.diagnostics.map((item) => item.message)).toEqual([
+            'markdag.editor.segment.display は真偽値で書きます ("yes")',
+            expect.stringMatching(/^markdag\.editor\.segment\.position に指定できるのは .+ です \("middle"\)$/),
+        ]);
+    });
+
+    it('editor に値を直接書くと option-invalid、editor の下の知らないキーは option-unknown', () => {
+        const direct = withEditor('edit');
+        expect(direct.editor).toEqual(DEFAULT_EDITOR);
+        expect(direct.diagnostics).toHaveLength(1);
+        expect(direct.diagnostics[0]).toMatchObject({ severity: 'warning', code: 'option-invalid', message: 'markdag.editor はキーと値の組で書きます ("edit")' });
+
+        const unknown = withEditor({ mode: 'edit', color: 'red' });
+        expect(unknown.editor).toEqual({ ...DEFAULT_EDITOR, mode: 'edit' });
+        expect(unknown.diagnostics).toHaveLength(1);
+        expect(unknown.diagnostics[0]).toMatchObject({ severity: 'warning', code: 'option-unknown' });
+        expect(unknown.diagnostics[0]?.message).toMatch(/^markdag\.editor のキー「color」は使えません \(/);
+        expect(codesOf(withEditor({ segment: { size: 1 } }))).toEqual(['option-unknown']);
+    });
+
+    it('markdag の直下の mode は markdag.editor の下と案内して読まない。position の案内は今のまま markdag.legend', () => {
+        const misplaced = core.buildModel(nodes, { markdag: { mode: 'edit' } });
+        expect(misplaced.editor).toEqual(DEFAULT_EDITOR);
+        expect(misplaced.diagnostics).toEqual([
+            expect.objectContaining({ code: 'option-misplaced', message: 'markdag のキー「mode」は、markdag.editor の下に書いてください。この位置では無視します' }),
+        ]);
+        expect(core.checkFrontmatter({ markdag: { position: 'top-left' } })[0]?.message).toBe(
+            'markdag のキー「position」は、markdag.legend の下に書いてください。この位置では無視します',
+        );
+    });
+
+    it('原文を渡すと、使えない値の診断は値の位置を指す', () => {
+        const source = ['---', 'markdag:', '    editor:', '        mode: other', '---', '', '# root'].join('\n');
+        const { model } = renderDocument(source);
+        expect(model.editor).toEqual(DEFAULT_EDITOR);
+        expect(model.diagnostics.map((item) => [item.code, item.at])).toEqual([['option-invalid', { line: 4, column: 15, length: 5 }]]);
     });
 });

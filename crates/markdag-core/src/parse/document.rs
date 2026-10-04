@@ -60,13 +60,22 @@ static UPPER_MARK: LazyLock<regress::Regex> = LazyLock::new(|| {
 });
 static SETEXT_UNDERLINE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[ \t]{0,3}(?:=+|-+)[ \t]*\r?$").expect("固定の正規表現"));
-// 行末の印。`%名前` はグループ、`#キー` と `#キー:値` はタグ (値は " で囲めば空白を含められる)、`$名前` は id。
+// 行末の印。`%名前` はグループ、`#キー` と `#キー:値` はタグ、`$名前` は id。
+// タグのキーは " で囲めば文字、数字、_、- の外の字も書ける (`#"s.a"`。空の囲み `#""` は印にしない)。値は , で並べ、
+// 1 つずつ " で囲めば空白や , を含められる (`#owner:alice,"山田 太郎"`)。囲みの中は \ と次の 1 字を組にして読み
+// (閉じの " の直前の \" は逃がした字なので、その囲みは閉じていない)、閉じていない囲みや、囲みの直後に : か , の外の字が続く形は印にしない。
+// 囲まない値は空の値 (`a,,b`) を許し、: のあとに 1 字もない形 (`#k:`) は印にしない。
 // 規則 2.4: \p{L} と \p{N} はそのまま (regex の Unicode の表。node 22 の Unicode 16.0 と全コードポイントで一致を確かめた)、
-// `[^\s"]` の \s は JS_WHITESPACE (全角空白で値が切れる挙動を守る)
+// 囲まない値の `[^\s",]` の \s は JS_WHITESPACE (全角空白で値が切れる挙動を守る)
 static TRAILING_TOKEN: LazyLock<Regex> = LazyLock::new(|| {
+    let quoted_unit = r#"(?:[^"\\]|\\.)"#;
+    let quoted_value = format!(r#""{quoted_unit}*""#);
+    let plain_value = format!(r#"[^{}",]+"#, js_whitespace_class());
+    let value = format!("(?:{quoted_value}|{plain_value})");
+    let values = format!("(?:{value}(?:,{value}?)*|(?:,{value}?)+)");
+    let key = format!(r#"(?:[\p{{L}}\p{{N}}_-]+|"{quoted_unit}+")"#);
     Regex::new(&format!(
-        r#"[ \t]+(%[\p{{L}}\p{{N}}_-]+|#[\p{{L}}\p{{N}}_-]+(?::(?:"[^"]*"|[^{}"]+))?|\$[A-Za-z][A-Za-z0-9_-]*)[ \t]*$"#,
-        js_whitespace_class()
+        r#"[ \t]+(%[\p{{L}}\p{{N}}_-]+|#{key}(?::{values})?|\$[A-Za-z][A-Za-z0-9_-]*)[ \t]*$"#
     ))
     .expect("固定の正規表現")
 });
@@ -104,40 +113,84 @@ fn without_first_char(text: &str) -> &str {
     chars.as_str()
 }
 
-/// 原文: parseTag
-/// `#キー:値` のトークンをタグにする。値は , で区切って複数にし、" で囲んだ値は区切らずそのまま 1 つの値にする
-pub(super) fn parse_tag(token: &str, at: SourcePosition) -> NodeTag {
-    // 規則 2.2: indexOf は find。見つからなければ値なし
-    let Some((head, raw)) = token.split_once(':') else {
-        return NodeTag {
-            key: without_first_char(token).to_string(),
-            values: Vec::new(),
-            at,
-        };
-    };
-    let values = if raw.starts_with('"') {
-        // `raw.slice(1, -1)`: 先頭と末尾の 1 字を落とす。1 字しかなければ空 (TRAILING_TOKEN から来る値は " で閉じている)
-        let mut chars = raw.chars();
-        chars.next();
-        chars.next_back();
-        vec![chars.as_str().to_string()]
-    } else {
-        // 規則 2.2: split(',') のあと空を除く
-        raw.split(',')
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .collect()
+/// 原文: parseTag (" で囲んだキーと、囲んだ値の並びは 2026-10-04 に足した)
+/// `#キー:値` のトークンをタグにする。キーは " で囲めば、囲みの外の最初の : までがキー。値は , で区切って複数にし、
+/// " で囲んだ値は中の , で区切らずそのまま 1 つの値にする (囲んだ空の値も 1 つの値)。囲まない空の値は除く。
+/// 囲みの中の \" は "、\\ は \ で、ほかの \ はただの字。TRAILING_TOKEN が渡さない形 (閉じていない囲み) は、囲みを行の終わりまでとして読む
+pub(crate) fn parse_tag(token: &str, at: SourcePosition) -> NodeTag {
+    let body = without_first_char(token);
+    let (key, values) = match body.strip_prefix('"') {
+        Some(quoted) => {
+            let (key, rest) = unquote(quoted);
+            (key, rest.strip_prefix(':').map(tag_values))
+        }
+        // 規則 2.2: indexOf は find。見つからなければ値なし
+        None => match body.split_once(':') {
+            Some((key, raw)) => (key.to_string(), Some(tag_values(raw))),
+            None => (body.to_string(), None),
+        },
     };
     NodeTag {
-        key: without_first_char(head).to_string(),
-        values,
+        key,
+        values: values.unwrap_or_default(),
         at,
     }
 }
 
+// 開きの " のあとから閉じの " までの中身 (\" と \\ を 1 字に戻したもの) と、閉じの " のあとの残り。閉じていなければ残りは空
+fn unquote(text: &str) -> (String, &str) {
+    let mut content = String::new();
+    let mut chars = text.char_indices();
+    while let Some((index, c)) = chars.next() {
+        match c {
+            '"' => return (content, &text[index + 1..]),
+            '\\' => match chars.next() {
+                Some((_, escaped @ ('"' | '\\'))) => content.push(escaped),
+                Some((_, other)) => {
+                    content.push('\\');
+                    content.push(other);
+                }
+                None => content.push('\\'),
+            },
+            _ => content.push(c),
+        }
+    }
+    (content, "")
+}
+
+// タグの : のあとの値の並び。囲んだ値は閉じの " のあとの , まで (その間の字は TRAILING_TOKEN が渡さない)
+fn tag_values(raw: &str) -> Vec<String> {
+    let mut values: Vec<String> = Vec::new();
+    let mut rest = raw;
+    loop {
+        if let Some(quoted) = rest.strip_prefix('"') {
+            let (value, after) = unquote(quoted);
+            values.push(value);
+            match after.split_once(',') {
+                Some((_, next)) => rest = next,
+                None => break,
+            }
+        } else {
+            // 規則 2.2: split(',') のあと空を除く
+            let (value, next) = match rest.split_once(',') {
+                Some((value, next)) => (value, Some(next)),
+                None => (rest, None),
+            };
+            if !value.is_empty() {
+                values.push(value.to_string());
+            }
+            match next {
+                Some(next) => rest = next,
+                None => break,
+            }
+        }
+    }
+    values
+}
+
 /// 原文: mergeTags
 /// 同じキーを 1 行に 2 回書いたら、値をつなげて 1 つにする (書かれた順。位置は最初のもの)
-pub(super) fn merge_tags(tags: Vec<NodeTag>) -> Vec<NodeTag> {
+pub(crate) fn merge_tags(tags: Vec<NodeTag>) -> Vec<NodeTag> {
     let mut merged: Vec<NodeTag> = Vec::new();
     for tag in tags {
         // 規則 2.3 (台帳の mergeTags の行): 最初の同じ key に extend、なければ写しを push
@@ -229,7 +282,7 @@ pub(super) fn strip_annotations(source: &str) -> StripAnnotationsResult {
                 .split(':')
                 .next()
                 .unwrap_or_default();
-            // 数字だけの名前 (Issue #123、%50 など) は印にしない。$id は 1 つまで
+            // 数字だけの名前 (Issue #123、%50 など) は印にしない (" で囲んだキー `#"123"` は name が " で始まるので印)。$id は 1 つまで
             if sigil != Some('$') && DIGITS_ONLY.is_match(name) {
                 break;
             }
@@ -268,6 +321,58 @@ pub(super) fn strip_annotations(source: &str) -> StripAnnotationsResult {
         format!("{rest}{carriage}")
     });
     StripAnnotationsResult { text, annotations }
+}
+
+/// 1 行目の末尾の印 1 つ (`%名前`、`#キー`、`#キー:値`、`$名前`) の位置。どちらも行の中のバイトの位置
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct TrailingMark {
+    /// 印の前の空白の始まり。ここから行末までが、この印とそれより後ろの印
+    pub(crate) start: usize,
+    /// 印の字 (`%` `#` `$`) から印の終わりまで
+    pub(crate) token: std::ops::Range<usize>,
+}
+
+/// strip_annotations が印を読む行 (行頭に空白のない ATX の見出しと、リストの項目) か。行は行末の \r を除いたもの
+pub(crate) fn is_mark_line(line: &str) -> bool {
+    HEADING.is_match(line) || LIST_ITEM.is_match(line)
+}
+
+/// strip_annotations と同じ正規表現と止め方 (数字だけの名前で止まる、$id は 1 つまで) で、行の末尾から取れる印を文書の順に返す。
+/// 書き換えの層が、1 行目の本文と印の並びを分けるのと、名前が印に化けるかを見るのに使う。
+/// 印を読む行か (is_mark_line) と markdag キーの有無は見ない。行は行末の \r を除いたもの
+pub(crate) fn trailing_marks(line: &str) -> Vec<TrailingMark> {
+    let mut marks: Vec<TrailingMark> = Vec::new();
+    let mut has_ref_id = false;
+    let mut rest = line;
+    while let Some(captures) = TRAILING_TOKEN.captures(rest) {
+        let (Some(whole), Some(token_match)) = (captures.get(0), captures.get(1)) else {
+            break;
+        };
+        let token = token_match.as_str();
+        let sigil = token.chars().next();
+        let name = without_first_char(token)
+            .split(':')
+            .next()
+            .unwrap_or_default();
+        if sigil != Some('$') && DIGITS_ONLY.is_match(name) {
+            break;
+        }
+        if sigil == Some('$') {
+            if has_ref_id {
+                break;
+            }
+            has_ref_id = true;
+        }
+        marks.insert(
+            0,
+            TrailingMark {
+                start: whole.start(),
+                token: token_match.range(),
+            },
+        );
+        rest = js_slice(rest, 0, whole.start());
+    }
+    marks
 }
 
 /// markmap-lib の frontmatter プラグインが context に残すもの (context.frontmatter と context.frontmatterInfo)
@@ -1969,7 +2074,8 @@ struct SplitDetailsResult {
 /// 原文: splitDetails
 /// ノードの内容から、詳細 (Markdown の引用ブロック) を見分ける。引用ブロックは書かれた位置に残して印だけを付け (html)、
 /// 参照用のテキストを取り出すための、詳細を除いた内容 (plain) と、詳細だけをまとめたもの (details) も返す。
-/// 詳細は項目の直下の Markdown の引用ブロック (アウトラインの parts の Quote。原文の `:scope > blockquote[data-lines]`) で、
+/// 詳細は項目の直下の Markdown の引用ブロックと、見出しの行のあと空行だけをはさんで続く引用ブロック
+/// (アウトラインの parts の Quote。項目は原文の `:scope > blockquote[data-lines]`。見出しの詳細は 2026-10-04 に足した) で、
 /// HTML のタグで直接書いた blockquote は行番号の属性を持たないので対象にならず、内容として表示される (DESIGN (a))。
 /// html は記号を絵にしたあとの内容、parts は同じ内容を引用ブロックの前後で分けたもの (先頭の断片にも同じ絵を当ててある)
 fn split_details(html: &str, parts: &[ContentPart]) -> SplitDetailsResult {
@@ -2190,9 +2296,13 @@ fn visit(
 ) {
     let id = to_u32(nodes.len() + 1);
     let lines = node.lines.clone();
-    // 台帳 104 行: `annotations.get(lines?.start ?? NaN)`。行の範囲がなければ注釈もタスクもない
+    // 台帳 104 行: `annotations.get(lines?.start ?? NaN)`。行の範囲がなければ注釈もタスクもない。
+    // リストの容器 (ul / ol) は最初の項目と 1 行目を分け合うが、その行の印は最初の項目だけのもので、容器は読まない (B-107 / B-135)
     let start_line = lines.as_ref().map(|range| range.start);
-    let annotation = start_line.and_then(|start| scope.annotations.get(&(start as usize)));
+    let annotation = match node.tag {
+        Some(BlockTag::Ul | BlockTag::Ol) => None,
+        _ => start_line.and_then(|start| scope.annotations.get(&(start as usize))),
+    };
     let task = task_at(scope.source_lines, start_line, node.tag);
     let (content, parts) = if task.is_none() {
         (node.content.clone(), node.parts.clone())
@@ -2278,7 +2388,22 @@ pub(crate) fn body_icon_marks(original: &str) -> Vec<IconMark> {
     marks
 }
 
-fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>) {
+/// 解析の結果と、ノードごとの要素の種類 (nodes と同じ順。ルートの包みのように要素を持たないノードは None)。
+/// 書き換えの層が、ノードの種類 (見出し、項目、容器、表とコードと画像、行を持たないルート) を見分けるのに使う
+pub(crate) fn parse_with_block_tags(original: &str) -> (ParsedDocument, Vec<Option<BlockTag>>) {
+    let (parsed, _, tags) = parse_with_icon_marks(original);
+    (parsed, tags)
+}
+
+// 木を visit と同じ先行順にたどり、ノードごとの要素の種類を並べる
+fn collect_block_tags(node: &OutlineTree, tags: &mut Vec<Option<BlockTag>>) {
+    tags.push(node.tag);
+    for child in &node.children {
+        collect_block_tags(child, tags);
+    }
+}
+
+fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>, Vec<Option<BlockTag>>) {
     // 行と桁は変えないので、このあとの行番号は原文のものとしてそのまま使える
     let source = normalize_task_marks(original);
     let ProbeFrontmatterResult {
@@ -2328,6 +2453,8 @@ fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>) {
     };
     let mut nodes: Vec<OutlineNode> = Vec::new();
     visit(&outline.root, None, 1, &mut nodes, &scope);
+    let mut block_tags: Vec<Option<BlockTag>> = Vec::with_capacity(nodes.len());
+    collect_block_tags(&outline.root, &mut block_tags);
 
     (
         ParsedDocument {
@@ -2338,6 +2465,7 @@ fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>) {
             features: outline.features,
         },
         outline.icon_marks,
+        block_tags,
     )
 }
 
@@ -3219,6 +3347,15 @@ mod tests {
             ("#k:\"a,b\"", "k", &["a,b"]),
             ("#k:a:b", "k", &["a:b"]),
             ("#キー:値,２", "キー", &["値", "２"]),
+            // " で囲んだキーと、囲んだ値の並び (2026-10-04)
+            ("#\"s.a\"", "s.a", &[]),
+            ("#\"a:b\":c", "a:b", &["c"]),
+            ("#\"a\\\"b\":\"x\\\\y\"", "a\"b", &["x\\y"]),
+            ("#k:a,\"b c\",,\"\"", "k", &["a", "b c", ""]),
+            ("#k:\"a\\x\"", "k", &["a\\x"]),
+            // TRAILING_TOKEN が渡さない形: 閉じていない囲みは行の終わりまで
+            ("#\"a", "a", &[]),
+            ("#k:\"a\\", "k", &["a\\"]),
         ];
         for (token, key, values) in cases {
             assert_eq!(
@@ -3415,6 +3552,67 @@ mod tests {
             ),
         ];
         for (source, text, annotations) in cases {
+            let result = strip_annotations(source);
+            assert_eq!(result.text, text, "{source:?}");
+            assert_eq!(
+                result.annotations.into_iter().collect::<Vec<_>>(),
+                annotations,
+                "{source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn annotations_strip_annotations_reads_quoted_tags() {
+        // " で囲んだキーと値 (2026-10-04)。テストにしていなかった形の読み方 (records/final-apply/parse.md の決めたこと):
+        // 囲みの直後に : か , の外の字が続く形と、: のあとに何もない形は印にしない。囲んだ空の値は値 1 つ、囲まない空の値は除く
+        let cases: Vec<StripCase> = vec![
+            ("- a #\"x\"b", "- a #\"x\"b", vec![]),
+            ("- a #k:\"x\"b", "- a #k:\"x\"b", vec![]),
+            ("- a #\"x\":", "- a #\"x\":", vec![]),
+            ("- a #k:\"x\"\"y\"", "- a #k:\"x\"\"y\"", vec![]),
+            (
+                "- a #k:\"\"",
+                "- a",
+                vec![(0, annotation(&[], vec![tag("k", &[""], 1, 5, 5)], None))],
+            ),
+            (
+                "- a #k:\"x\",",
+                "- a",
+                vec![(0, annotation(&[], vec![tag("k", &["x"], 1, 5, 7)], None))],
+            ),
+            (
+                "- a #k:,\"x\",\"y\"",
+                "- a",
+                vec![(
+                    0,
+                    annotation(&[], vec![tag("k", &["x", "y"], 1, 5, 11)], None),
+                )],
+            ),
+            (
+                "- a #\" \" %g",
+                "- a",
+                vec![(0, annotation(&["g"], vec![tag(" ", &[], 1, 5, 4)], None))],
+            ),
+            // 囲みの中の空白と印の字は印を分けない (前の印の中の # から読み始めない)
+            (
+                "- a #\"x #y\":\"p %q\"",
+                "- a",
+                vec![(
+                    0,
+                    annotation(&[], vec![tag("x #y", &["p %q"], 1, 5, 14)], None),
+                )],
+            ),
+        ];
+        for (source, text, annotations) in cases {
+            // 書き換えの層が読む末尾の印も同じ数 (どの行も同じキーのタグは 1 つ)
+            let count: usize = annotations
+                .iter()
+                .map(|(_, found)| {
+                    found.groups.len() + found.tags.len() + usize::from(found.ref_id.is_some())
+                })
+                .sum();
+            assert_eq!(trailing_marks(source).len(), count, "{source:?}");
             let result = strip_annotations(source);
             assert_eq!(result.text, text, "{source:?}");
             assert_eq!(

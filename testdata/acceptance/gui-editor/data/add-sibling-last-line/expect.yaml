@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    改行で終わらない文書の最後の行のタスク (実行) に兄弟を足すと、同じ形 (- [ ]) の項目を最後の行のあとに書き、文書の終わりは改行なしのまま
+behaviors: [B-015, B-023]
+op:
+    kind: addSibling
+    node: 実行
+    label: 新しいノード
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [新しいノード] }
+    rename: { kind: node, node: 新しいノード }
+    notes: []

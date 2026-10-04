@@ -1,6 +1,7 @@
 // 図の描画と操作。渡された要素の中に、HTML の絶対配置 (ノード) と SVG (線、枠、開閉の円) で図を組み立てる。
 // ノードの実測のサイズを射影と配置に渡し、結果を補間しながら反映する。折りたたみ、ズームとパン、全体表示、
-// 詳細の吹き出し、線とグループの強調、凡例を受け持つ。見た目は同梱のスタイルシートが持つ。
+// 詳細の吹き出し、線とグループの強調、凡例を受け持つ。外の層 (GUI 編集) には、選択の印、ノードの位置、図の上に要素を重ねて
+// 相手に付いていかせる重ね置きの層を出す (選択の状態と重ねる要素の中身は外が持つ)。見た目は同梱のスタイルシートが持つ。
 // グループの枠は、1 つの矩形のまとまりにできれば箱として置き、枠どうしとメンバーでないノードが重ならないようにする (配置は Rust)。
 // まとまりにできない枠だけ、メンバーでないノードが枠の矩形に入り込まないよう、間隔を空けて配置をやり直す (枠の分割は行わない)。
 import { select } from 'd3-selection';
@@ -14,7 +15,7 @@ import { frameOutline, LABEL_HEIGHT, projectAndFrames, type Frame } from './fram
 import type { HookDecoration } from '../model/hooks';
 import type { DisplayMode, GraphModel, TagDisplayMode } from '../model/model';
 import { wrapEmoji } from './emoji';
-import { frameLabelParts, groupIconRefs, IconSvgStore, iconMarkHtml, legendLogoHtml, nodeIconRefs, tagLineContent, withIconMarks, type IconRenderContext } from './icons';
+import { frameLabelParts, groupIconRefs, groupLogoHtml, IconSvgStore, iconMarkHtml, legendLogoHtml, nodeIconRefs, tagLineContent, tagParts, withIconMarks, type IconRenderContext } from './icons';
 
 // 標準の配置 (レイアウト木 + flextree) の代わりに使う配置。別の方式と見比べるための差し込み口で、
 // 兄弟の並びは結果の縦の位置から決め、動きの補間はしない
@@ -22,6 +23,61 @@ export type LayoutOverride = (graph: VisibleGraph) => { rects: Map<number, Rect>
 
 // ノードごとの実効の詳細の見せ方。文書の指定に、薄く表示するノードで「出さない」(never) が加わる
 type NodeDetailsMode = DisplayMode | 'never';
+
+// 見る人の操作の解釈。view は閲覧 (今までどおり)。edit は操作の解釈を外 (GUI 編集の層) に任せる形で、
+// 文書の強調の指定によらず線と枠を押せるようにし、クリックと Esc では線とグループの強調を変えず (変えるのはメソッドだけ)、
+// タスクは先頭の状態の絵のクリックでだけ切り替え、ノードの箱の上の主ボタンの押下をパンにしない
+export type ViewInteraction = 'view' | 'edit';
+// 何もないところのドラッグでパンするボタン。primary は主ボタン、middle は中ボタンだけ、both は両方。ホイールと指のドラッグはどれでも効く
+export type DragToPan = 'primary' | 'middle' | 'both';
+// onCanvasPointerDown の押した相手。frame は枠と枠のラベル、edge は線を押す帯
+export type CanvasTarget = { kind: 'blank' } | { kind: 'frame'; id: string } | { kind: 'edge'; edge: PlacedEdge };
+// addHooks で足せる受け口。decorateNode は足せない (ノードの飾りはアプリとフックのもの)
+export type ViewListeners = Omit<ViewHooks, 'decorateNode'>;
+// 最後に setDocument で渡された文書 (解析の結果と、それから組み立てたモデル)
+export interface ViewDocument {
+    parsed: ParsedDocument;
+    model: GraphModel;
+}
+// 枝の起点ごとの線の色。label は起点のノードの名前 (refText、なければ #id)。図の凡例の線の色の段と同じ値
+export interface BranchColor {
+    id: number;
+    label: string;
+    color: string;
+}
+// attachOverlay の相手。node はノードの箱、nodes は見えているノードの箱を全部囲む矩形、
+// group はグループの枠 (描いていなければ見えているメンバーの箱を全部囲む矩形)。枠が 2 つ以上あれば frame 番目 (描いた順。
+// onFrameClick の frame と同じ数え方) の枠で、省いたときとその番号の枠がないときは最初の枠
+export type OverlayTarget = { node: number } | { nodes: number[] } | { group: string; frame?: number };
+// top / bottom / left / right: 相手の矩形の外の辺の中央に、gap だけ離して置く。top-right: 右上の角に要素の中心を置く。
+// label: ノードの文字か枠のラベルの矩形にそろえ、図の倍率を掛ける (要素の幅と高さは図の座標で入れ、transform で拡大する)。
+// nodes では cover、枠を描いていない group では top として扱う。cover: 相手の矩形を覆う (倍率は掛けない)
+export type OverlayPlacement = 'top' | 'bottom' | 'left' | 'right' | 'top-right' | 'label' | 'cover';
+// place を配列で渡すと、図の領域に収まる最初のものを使う (どれも収まらなければ最初のもの)。gap は画面の px で、省くと 8。
+// within は、top と bottom の置き場を左右に収める範囲を返す (置くたびに呼ぶ)。渡すと、top と bottom を範囲に収まるよう左右にずらし、
+// 図の領域に上下が収まるかで選ぶ。範囲より広い要素は右の辺を範囲の右にそろえる。null を返すとずらさない
+export interface OverlayAnchor {
+    target: OverlayTarget;
+    place: OverlayPlacement | OverlayPlacement[];
+    gap?: number;
+    within?: () => OverlaySpan | null;
+}
+// 重ねた要素を左右に収める範囲。図の領域の左上からの画面の px
+export interface OverlaySpan {
+    left: number;
+    right: number;
+}
+// 全体表示で避ける、図の領域の辺からの幅 (画面の px)。省いた辺は 0
+export interface FitInset {
+    left?: number;
+    top?: number;
+    right?: number;
+    bottom?: number;
+}
+// nodeRects の読み方。settled なら、動きの途中でも動き終えたあとの位置 (配置の目標) を今の表示の変換で返す
+export interface NodeRectsOptions {
+    settled?: boolean;
+}
 
 export interface ViewOptions {
     ignoreProxiedDepends: boolean;
@@ -35,6 +91,10 @@ export interface ViewOptions {
     // 背景の明暗。線の縁取りや吹き出しの色が、これに合わせて変わる
     theme: 'light' | 'dark';
     layoutOverride: LayoutOverride | null;
+    // 見る人の操作の解釈。切り替えると、線を押す帯と枠の押せる印を作り直す
+    interaction: ViewInteraction;
+    // 何もないところのドラッグでパンするボタン。これだけを変えるときは配置をやり直さない
+    dragToPan: DragToPan;
 }
 
 // 配置をやり直すたびに外へ渡す、その時点の結果。指標の計算など、図の外での確認に使う
@@ -84,7 +144,56 @@ export interface ViewHooks {
     onFoldChange?: (folded: number[], byUser: boolean) => void;
     // 表示位置が変わった。byUser は、見る人の操作 (ドラッグ、ホイール、ピンチ) によるものか
     onTransform?: (transform: ViewTransform, byUser: boolean) => void;
+    // ここから下の押下とクリックの受け口は、interaction によらず呼ぶ。
+    // ノードの箱の押下。どのボタンでも、箱の中の伝搬止めより先に呼ぶ。中で preventDefault すると文字の選択などの既定の動きを止められる
+    onNodePointerDown?: (node: OutlineNode, event: PointerEvent) => void;
+    // ノードの文字 (label)、ノードの中に開いた詳細 (details)、吹き出しの詳細 (popover) のダブルクリック。タグの上では呼ばない。図はズームしない
+    onNodeDoubleClick?: (node: OutlineNode, place: 'label' | 'details' | 'popover', event: MouseEvent) => void;
+    // タグの要素 (interaction が edit のときだけタグごとに分かれる) のクリック。place はノードの中 (node) か吹き出しの中 (popover)。
+    // 押してから 4px 以上動いたら呼ばない。ダブルクリックでは 2 回呼ぶ
+    onTagClick?: (node: OutlineNode, key: string, place: 'node' | 'popover', event: MouseEvent) => void;
+    // 線を押す帯のクリック。押してから 4px 以上動いたら呼ばない
+    onEdgeClick?: (edge: PlacedEdge, event: MouseEvent) => void;
+    // 枠と枠のラベルのクリック (4px の判定は線と同じ)。押せる枠 (文書が groupHighlight を切っていないか、interaction が edit) だけ。
+    // frame は押した枠が、描いた順でそのグループの何番目の枠か (0 から。枠とそのラベルは同じ番号)
+    onFrameClick?: (id: string, event: MouseEvent, frame: number) => void;
+    onFrameDoubleClick?: (id: string, event: MouseEvent, frame: number) => void;
+    // ノードと開閉の円でない所の押下。パンになる押下でも呼ぶ。押せない枠の内側は何もないところ (blank) になる
+    onCanvasPointerDown?: (event: PointerEvent, target: CanvasTarget) => void;
+    // 何もないところのクリック。押してから 4px 以上動いたら呼ばない
+    onCanvasClick?: (event: MouseEvent) => void;
+    // setIconSvg でロゴの SVG の置き場の中身が変わった。図の描き直しのあとに呼ぶ (groupLogo を呼び直すと新しいロゴが入る)
+    onIconSvg?: (ref: string) => void;
 }
+
+// addHooks で足した受け口との重ね方。どちらも、コンストラクタの受け口、足した順の受け口の順に呼ぶ。
+// before は、どれかが false を返したらそこで止めて取りやめる (残りは呼ばない)。on は全部呼ぶ
+const LISTENER_KINDS = {
+    onToggleTask: 'on',
+    onNodeClick: 'on',
+    beforeFold: 'before',
+    beforeSelectEdge: 'before',
+    onSelectEdge: 'on',
+    beforeSelectGroup: 'before',
+    onSelectGroup: 'on',
+    beforeDetailsShow: 'before',
+    onDetailsShow: 'on',
+    onDetailsHide: 'on',
+    onLayout: 'on',
+    onFoldChange: 'on',
+    onTransform: 'on',
+    onNodePointerDown: 'on',
+    onNodeDoubleClick: 'on',
+    onTagClick: 'on',
+    onEdgeClick: 'on',
+    onFrameClick: 'on',
+    onFrameDoubleClick: 'on',
+    onCanvasPointerDown: 'on',
+    onCanvasClick: 'on',
+    onIconSvg: 'on',
+} as const satisfies Record<keyof ViewListeners, 'before' | 'on'>;
+type ListenerName = keyof typeof LISTENER_KINDS;
+type Listener = (...args: unknown[]) => unknown;
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const { paddingX } = MARKMAP_DEFAULTS;
@@ -113,6 +222,73 @@ const svgElement = <K extends keyof SVGElementTagNameMap>(tag: K, className?: st
     return element;
 };
 const stop = (event: Event): void => event.stopPropagation();
+// 押してから離すまでにこれより動いたら、クリックとして扱わない (図のドラッグの終わりで選んでしまわないため)
+const CLICK_SLOP = 4;
+const movedFrom = (press: { x: number; y: number } | null, event: MouseEvent): boolean =>
+    press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > CLICK_SLOP;
+
+// 重ねた要素と相手の間を省いたときの値 (画面の px)
+const OVERLAY_GAP = 8;
+// ensureVisible で、図の領域の辺から残す幅を省いたときの値 (画面の px)
+const VISIBLE_MARGIN = 24;
+
+// attachOverlay で重ねた要素。hiddenByView は view が相手を見失って hidden にしたか (戻すのは自分で隠したものだけ)。
+// sized は view が幅と高さを入れたか (label と cover)。saved は、外すときと自分の大きさで置き直すときに戻す、元の style の値
+interface OverlayEntry {
+    element: HTMLElement;
+    anchor: OverlayAnchor;
+    hiddenByView: boolean;
+    sized: boolean;
+    saved: { width: string; height: string; transform: string };
+}
+// 重ねた要素を置き直す 1 回分の読み取り。図の領域の画面の矩形、見えているノード、図の倍率
+interface OverlayContext {
+    origin: DOMRect;
+    visible: Set<number>;
+    k: number;
+}
+// 重ねる相手の画面の矩形。label は文字か枠のラベルの矩形で、ないときの label は labelAs の置き方で扱う
+interface OverlaySubject {
+    rect: Rect;
+    label: Rect | null;
+    labelAs: 'cover' | 'top';
+}
+
+// 要素の画面の矩形を、origin (図の領域の矩形) の左上からの座標にする
+const rectWithin = (element: Element, origin: DOMRect): Rect => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left - origin.left, y: rect.top - origin.top, width: rect.width, height: rect.height };
+};
+
+// 重ねた要素を place に置いたときの画面の矩形。own は要素の大きさ (top、bottom、left、right、top-right で使う)
+function overlaySpot(place: OverlayPlacement, subject: OverlaySubject, own: { width: number; height: number }, gap: number): Rect & { place: OverlayPlacement } {
+    const { rect } = subject;
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    if (place === 'top') return { place, x: cx - own.width / 2, y: rect.y - gap - own.height, ...own };
+    if (place === 'bottom') return { place, x: cx - own.width / 2, y: rect.y + rect.height + gap, ...own };
+    if (place === 'left') return { place, x: rect.x - gap - own.width, y: cy - own.height / 2, ...own };
+    if (place === 'right') return { place, x: rect.x + rect.width + gap, y: cy - own.height / 2, ...own };
+    if (place === 'top-right') return { place, x: rect.x + rect.width - own.width / 2, y: rect.y - own.height / 2, ...own };
+    if (place === 'label' && subject.label) return { place, ...subject.label };
+    return { place: 'cover', ...rect };
+}
+
+const finiteOrZero = (value: number | undefined): number => (value !== undefined && Number.isFinite(value) ? value : 0);
+
+// 長さ size の区間 [start, start + size] を [margin, extent - margin] に収める、いちばん短い移動量。収まっていれば 0。
+// 収まる幅より長い区間は、始まり (左か上) の辺を margin にそろえる
+function shiftInto(start: number, size: number, extent: number, margin: number): number {
+    if (start < margin || size > extent - 2 * margin) return margin - start;
+    const end = start + size;
+    return end > extent - margin ? extent - margin - end : 0;
+}
+
+// 幅 width の要素を範囲 span に収める左の辺の位置 (x から、はみ出す分だけずらす)。範囲より広い要素は右の辺を範囲の右にそろえる
+function placeInSpan(x: number, width: number, span: OverlaySpan): number {
+    if (width > span.right - span.left) return span.right - width;
+    return x + shiftInto(x - span.left, width, span.right - span.left, 0);
+}
 
 // クリックしても、チェックの切り替えに読み替えてはいけない要素 (それ自身が操作を受けるもの)
 const CONTROLS = 'button, input, select, textarea, label, summary, option, video, audio, iframe, [contenteditable], [onclick]';
@@ -162,6 +338,12 @@ function findNestedZone(area: Element, target: Element): Element | null {
     return null;
 }
 
+// クリックした場所が、タスクの先頭の状態の絵 (タスクの文字を包む span の先頭の SVG) の中か
+function onTaskIcon(area: Element, target: Element): boolean {
+    const icon = area.querySelector(`:scope > .${TASK_LABEL_CLASS} > svg:first-child`);
+    return icon !== null && icon.contains(target);
+}
+
 // タスクの状態の絵 (内容の先頭の SVG) を除いた内容。タスクを切り替えると絵だけが変わるので、内容が同じかを比べるときに外す
 const withoutLeadingIcon = (html: string): string => html.replace(/^<svg[\s\S]*?<\/svg>/, '');
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -180,6 +362,8 @@ export class MarkdagView {
         legend: true,
         theme: 'light',
         layoutOverride: null,
+        interaction: 'view',
+        dragToPan: 'primary',
     };
 
     private readonly viewport: HTMLDivElement;
@@ -195,7 +379,13 @@ export class MarkdagView {
     private readonly observer: ResizeObserver;
 
     private nodes: OutlineNode[] = [];
+    // 最後に setDocument で渡された解析の結果 (getDocument が返す。モデルと対で持つ)
+    private parsed: ParsedDocument | null = null;
     private model: GraphModel | null = null;
+    // addHooks で足した受け口 (足した順)。外すときに見分けられるよう、足すたびに入れ物を作る
+    private added: Array<{ listeners: ViewListeners }> = [];
+    // コンストラクタの受け口と足した受け口を、受け口ごとに 1 つの呼び先にまとめたもの (読むたびに今の受け口から組む)
+    private readonly composed: ViewHooks = this.composeHooks();
     private childrenOf = new Map<number, number[]>();
     private colorOf = new Map<number, string>();
     private folded = new Set<number>();
@@ -213,6 +403,8 @@ export class MarkdagView {
     private hoveredEdge: string | null = null;
     // 選んでいるグループ。枠の中のノードと、そこに出入りする線だけを残す。線は太くしない
     private selectedGroup: string | null = null;
+    // selectGroups で、選んでいるグループ (代表) と一緒に強調している残りのグループ (選んだ順)。代表がないときは空
+    private alsoSelectedGroups: string[] = [];
     private thicken = false;
     private elements = new Map<number, HTMLDivElement>();
     // ロゴの SVG の置き場 (ref → SVG)。入っていない ref のロゴは文字のまま描く。入れるのは setIconSvg
@@ -245,10 +437,23 @@ export class MarkdagView {
     private popoverTimer = 0;
     // 最後に分かっているポインタの位置。描き直しのあとで、ポインタがまだ同じノードの上にあるかを調べるのに使う
     private pointer: { x: number; y: number } | null = null;
+    // ページの上で最後にポインタが動いた (押された) 位置が、図の要素の上だったか。キーを受けるかの判定に使う
+    private pointerOnRoot = false;
+    // setSelection で選んだノード。まだ要素のないノードにも、要素を作るときに印を付けるため控える (文書を差し替えると空に戻す)
+    private selection = new Set<number>();
+    // setDropTarget で印を付けたノード (見えているノードだけ)
+    private dropTarget: number | null = null;
+    // 描いた枠の要素 (描いた順)。attachOverlay の { group } の相手を読むのに使う。label は枠のラベルの文字とロゴ
+    private drawnFrames: Array<{ id: string; outline: SVGElement; label: SVGElement[] }> = [];
+    // 重ね置きの層 (attachOverlay が初めて呼ばれたときに作る) と、重ねた要素 (重ねた順)
+    private overlayLayer: HTMLDivElement | null = null;
+    private overlays: OverlayEntry[] = [];
+    // 重ね置きの層 (図の領域と同じ大きさ) と重ねた要素の大きさが変わったら置き直す
+    private readonly overlayObserver = new ResizeObserver(() => this.placeOverlays());
 
     constructor(
         private readonly root: HTMLElement,
-        private readonly hooks: ViewHooks = {},
+        private readonly own: ViewHooks = {},
     ) {
         root.innerHTML = '';
         root.classList.add('markdag');
@@ -268,6 +473,13 @@ export class MarkdagView {
         this.popover.hidden = true;
         this.popover.addEventListener('pointerenter', () => window.clearTimeout(this.popoverTimer));
         this.popover.addEventListener('pointerleave', () => this.scheduleHidePopover());
+        // 吹き出しの詳細のダブルクリック。タグの行の上では呼ばない
+        this.popover.addEventListener('dblclick', (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            const node = this.popoverNode;
+            if (node && target && !target.closest('.mdag-popover-tags')) this.hooks.onNodeDoubleClick?.(node, 'popover', event);
+        });
+        this.listenTagClicks(this.popover, () => this.popoverNode, 'popover');
         this.legend = document.createElement('div');
         this.legend.className = 'mdag-legend';
         root.append(this.viewport, this.popover, this.legend);
@@ -275,22 +487,52 @@ export class MarkdagView {
             root.addEventListener(type, (event) => (this.pointer = { x: event.clientX, y: event.clientY }), { capture: true });
         }
         const { signal } = this.teardown;
+        // Esc は吹き出しを閉じ、線とグループの強調を解く (GUI 編集では吹き出しだけ)。ページのほかの所で打った Esc は受けない
         document.addEventListener(
             'keydown',
             (event) => {
-                if (event.key !== 'Escape') return;
+                if (event.key !== 'Escape' || !this.ownsKeys()) return;
                 this.hidePopover();
+                if (this.options.interaction === 'edit') return;
                 this.applySelectGroup(null, true);
                 this.applySelectEdge(null, true);
             },
             { signal },
         );
-        // 線かグループを選んでいるときに、どれでもないところを押したら選択を解く
+        for (const type of ['pointermove', 'pointerdown'] as const) {
+            document.addEventListener(type, (event) => (this.pointerOnRoot = event.target instanceof Node && this.root.contains(event.target)), { capture: true, signal });
+        }
+        // 図の領域の押下。押した相手を外へ知らせ、何もないところのクリックの 4px の判定に使う位置を控える。
+        // ノードの中の伝搬止めより先に受ける (ノードの上の押下も位置だけは控える)
+        let canvasPress: { x: number; y: number } | null = null;
+        this.viewport.addEventListener(
+            'pointerdown',
+            (event) => {
+                canvasPress = { x: event.clientX, y: event.clientY };
+                const target = this.canvasTargetOf(event.target);
+                if (target) this.hooks.onCanvasPointerDown?.(event, target);
+            },
+            { capture: true },
+        );
+        // 中ボタンでパンするときは、中ボタンの押下の既定の動き (自動スクロール) を止める
+        this.viewport.addEventListener(
+            'mousedown',
+            (event) => {
+                if (event.button === 1 && this.dragToPanAllows('middle')) event.preventDefault();
+            },
+            { capture: true },
+        );
+        // 何もないところのクリック。閲覧では、線かグループを選んでいれば選択を解く
         this.viewport.addEventListener('click', (event) => {
+            const moved = movedFrom(canvasPress, event);
+            canvasPress = null;
             const target = event.target instanceof Element ? event.target : null;
             if (target?.closest('.mdag-edge-hit, .mdag-box, .mdag-fold, [data-group]')) return;
-            this.applySelectGroup(null, true);
-            this.applySelectEdge(null, true);
+            if (this.options.interaction !== 'edit') {
+                this.applySelectGroup(null, true);
+                this.applySelectEdge(null, true);
+            }
+            if (!moved) this.hooks.onCanvasClick?.(event);
         });
         // グループの枠とラベルのクリック。枠は毎回描き直すので、層でまとめて受ける。
         // 図をドラッグして動かしたときに、離した場所のグループを選んでしまわないようにする
@@ -298,11 +540,17 @@ export class MarkdagView {
         this.frameLayer.addEventListener('pointerdown', (event) => (framePress = { x: event.clientX, y: event.clientY }));
         this.frameLayer.addEventListener('click', (event) => {
             const target = event.target instanceof Element ? event.target.closest<SVGElement>('[data-group]') : null;
-            const moved = framePress !== null && Math.hypot(event.clientX - framePress.x, event.clientY - framePress.y) > 4;
+            const moved = movedFrom(framePress, event);
             framePress = null;
-            if (!target || moved) return;
-            const id = target.dataset.group ?? null;
-            this.applySelectGroup(this.selectedGroup === id ? null : id, true);
+            const id = target?.dataset.group;
+            if (!target || id === undefined || moved) return;
+            if (this.options.interaction !== 'edit') this.applySelectGroup(this.selectedGroup === id ? null : id, true);
+            this.hooks.onFrameClick?.(id, event, this.frameIndexOf(target));
+        });
+        this.frameLayer.addEventListener('dblclick', (event) => {
+            const target = event.target instanceof Element ? event.target.closest<SVGElement>('[data-group]') : null;
+            const id = target?.dataset.group;
+            if (target && id !== undefined) this.hooks.onFrameDoubleClick?.(id, event, this.frameIndexOf(target));
         });
         document.addEventListener(
             'pointerdown',
@@ -315,12 +563,13 @@ export class MarkdagView {
 
         this.behavior = zoom<HTMLDivElement, unknown>()
             .scaleExtent([0.05, 8])
-            .filter((event: MouseEvent | WheelEvent) => (!event.ctrlKey || event.type === 'wheel') && !event.button)
+            .filter((event: MouseEvent | WheelEvent | TouchEvent) => this.startsPanZoom(event))
             .on('zoom', (event: D3ZoomEvent<HTMLDivElement, unknown>) => {
                 const { x, y, k } = event.transform;
                 this.canvas.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
                 this.zoomScale = k;
                 this.positionPopover();
+                this.placeOverlays();
                 // メソッドの呼び出しによる変更には、もとになった操作のイベントが付かない
                 this.hooks.onTransform?.({ x, y, k }, event.sourceEvent != null);
             });
@@ -331,6 +580,44 @@ export class MarkdagView {
 
         // サイズの変化は検知にだけ使い、値は配置のやり直しの中で読み直す
         this.observer = new ResizeObserver(() => this.scheduleUpdate());
+    }
+
+    // 受け口の呼び先。足した受け口がなければコンストラクタの受け口そのもの (足さない図の呼び方は今までと同じ)
+    private get hooks(): ViewHooks {
+        return this.added.length === 0 ? this.own : this.composed;
+    }
+
+    // コンストラクタの受け口のあとに呼ぶ受け口を足す。戻り値の関数で外す (何度呼んでもよい)。destroy で全部外れる。
+    // decorateNode は渡されても使わない
+    addHooks(listeners: ViewListeners): () => void {
+        const entry = { listeners };
+        this.added = [...this.added, entry];
+        return () => {
+            this.added = this.added.filter((item) => item !== entry);
+        };
+    }
+
+    // 受け口ごとに、読んだ時点の受け口から呼び先を組む口を持つ入れ物。decorateNode はコンストラクタのものだけ
+    private composeHooks(): ViewHooks {
+        const composed: ViewHooks = {};
+        for (const name of Object.keys(LISTENER_KINDS) as ListenerName[]) {
+            Object.defineProperty(composed, name, { enumerable: true, get: () => this.listenerOf(name) });
+        }
+        Object.defineProperty(composed, 'decorateNode', { enumerable: true, get: () => this.own.decorateNode?.bind(this.own) });
+        return composed;
+    }
+
+    // 1 つの受け口の呼び先。どれも持たなければ undefined (呼ばない)。それぞれ持ち主のメソッドとして呼ぶ
+    private listenerOf(name: ListenerName): Listener | undefined {
+        const owners = [this.own, ...this.added.map((entry) => entry.listeners)].flatMap((holder) => {
+            const listener = holder[name];
+            return typeof listener === 'function' ? [{ holder, listener: listener as Listener }] : [];
+        });
+        if (owners.length === 0) return undefined;
+        if (LISTENER_KINDS[name] === 'before') return (...args) => owners.every(({ holder, listener }) => listener.apply(holder, args) !== false);
+        return (...args) => {
+            for (const { holder, listener } of owners) listener.apply(holder, args);
+        };
     }
 
     // fit が false のとき (編集による再描画) は、今のズームとパンを保つ。
@@ -346,13 +633,18 @@ export class MarkdagView {
         if (!sameShape) {
             this.selectedEdge = null;
             this.selectedGroup = null;
+            this.alsoSelectedGroups = [];
         }
         const previousInitial = this.initialFolded;
         const previousFolded = this.folded;
         this.carriedChecks = sameShape ? this.collectChecks(parsed.nodes) : new Map();
+        // 選択と付け替え先の印は文書ごとのもの。差し替えたら外す (選び直すのは呼び出し側)
+        this.selection = new Set();
+        this.dropTarget = null;
         this.observer.disconnect();
         cancelAnimationFrame(this.animation);
         for (const layer of [this.frameLayer, this.controlLayer]) layer.innerHTML = '';
+        this.drawnFrames = [];
         for (const element of this.edgeLayer.querySelectorAll(':scope > :not(marker)')) element.remove();
         this.nodeLayer.innerHTML = '';
         this.elements.clear();
@@ -362,6 +654,7 @@ export class MarkdagView {
         this.displayed.clear();
 
         this.nodes = parsed.nodes;
+        this.parsed = parsed;
         this.model = model;
         this.childrenOf = new Map(parsed.nodes.map((node) => [node.id, []]));
         for (const node of parsed.nodes) if (node.parent !== null) this.childrenOf.get(node.parent)?.push(node.id);
@@ -383,6 +676,13 @@ export class MarkdagView {
         if (kept && this.hasPopoverBody(kept) && this.boxes.has(kept.id) && (shown?.pinned || this.isPointerOver(kept.id))) {
             this.showPopover(kept, shown?.pinned ?? false, false);
         }
+        // 描くノードのない文書では描画を通らないので、重ねた要素の相手がなくなったことをここで反映する
+        this.placeOverlays();
+    }
+
+    // 最後に setDocument で渡された解析の結果とモデル (渡されたものそのもの)。まだ渡されていなければ null
+    getDocument(): ViewDocument | null {
+        return this.parsed && this.model ? { parsed: this.parsed, model: this.model } : null;
     }
 
     // ノードの中に HTML で直接書かれたチェックボックスの状態は、原文ではなく画面の要素だけが持つ。文書を差し替えると
@@ -412,24 +712,97 @@ export class MarkdagView {
         return hit !== null && (this.boxes.get(id)?.contains(hit) ?? false);
     }
 
+    // パンとズームを始める入力か (d3-zoom が押下とホイールのたびに読む)。ホイールはいつでも通す (ctrl つきのピンチを含む)。
+    // ctrl つきの押下は通さない。ボタンの押下は dragToPan に従い、指の押下はいつでも通す。
+    // GUI 編集では、ノードの箱の上の主ボタンと指の押下はパンにしない (中ボタンは dragToPan に従って通す)
+    private startsPanZoom(event: MouseEvent | WheelEvent | TouchEvent): boolean {
+        if (event.type === 'wheel') return true;
+        if (event.ctrlKey) return false;
+        if (event instanceof MouseEvent) {
+            if (event.button === 1) return this.dragToPanAllows('middle');
+            if (event.button !== 0 || !this.dragToPanAllows('primary')) return false;
+        }
+        const onBox = event.target instanceof Element && event.target.closest('.mdag-box') !== null;
+        return !(onBox && this.options.interaction === 'edit');
+    }
+
+    // 何もないところのドラッグでパンするボタンか。middle と both のほかは primary として扱う
+    private dragToPanAllows(button: 'primary' | 'middle'): boolean {
+        const { dragToPan } = this.options;
+        if (dragToPan === 'both') return true;
+        return dragToPan === 'middle' ? button === 'middle' : button === 'primary';
+    }
+
+    // キーを受けるか。フォーカスが図の要素の中にあるか、フォーカスがどこにもなく (body か null) 最後のポインタの位置が図の上にあるとき。
+    // 図の外の入力欄で打ったキーと、同じページのほかの図に向けたキーを受けない
+    private ownsKeys(): boolean {
+        const active = document.activeElement;
+        if (active === null || active === document.body) return this.pointerOnRoot;
+        return this.root.contains(active);
+    }
+
+    // 図の領域の押下の相手。ノードの箱と開閉の円は null (図の領域の押下として扱わない)。枠は押せるもの (data-group を持つもの) だけ
+    private canvasTargetOf(element: EventTarget | null): CanvasTarget | null {
+        const target = element instanceof Element ? element : null;
+        if (target?.closest('.mdag-box, .mdag-fold')) return null;
+        const hit = target?.closest<SVGElement>('.mdag-edge-hit');
+        const edge = hit ? this.find(hit.dataset.key ?? null) : undefined;
+        if (edge) return { kind: 'edge', edge };
+        const id = target?.closest<SVGElement>('[data-group]')?.dataset.group;
+        return id === undefined ? { kind: 'blank' } : { kind: 'frame', id };
+    }
+
+    // 線を押す帯を置くか。文書が markdag.edgeHighlight: false を指定していれば置かない。GUI 編集では文書の指定によらず置く
+    private edgesPressable(): boolean {
+        return this.model?.edgeHighlight !== false || this.options.interaction === 'edit';
+    }
+
+    // 枠を押せるようにするか (枠の要素に data-group を付けるか)。線の帯と同じく、GUI 編集では文書の指定 (groupHighlight) によらない
+    private framesPressable(): boolean {
+        return this.model?.groupHighlight !== false || this.options.interaction === 'edit';
+    }
+
+    // 操作の切り替えの目印。既定の値 (view と primary) では付けない (閲覧の図の DOM を変えない)
+    private applyInteractionMarks(): void {
+        if (this.options.interaction === 'edit') this.root.dataset.interaction = 'edit';
+        else delete this.root.dataset.interaction;
+        const { dragToPan } = this.options;
+        if (dragToPan === 'middle' || dragToPan === 'both') this.root.dataset.dragToPan = dragToPan;
+        else delete this.root.dataset.dragToPan;
+    }
+
     setOptions(options: Partial<ViewOptions>): void {
+        const wasEditing = this.options.interaction === 'edit';
         this.options = { ...this.options, ...options };
+        this.applyInteractionMarks();
+        // パンのボタンだけの切り替え (道具や Space の切り替えのたびに起きる) では、配置をやり直さない
+        const keys = Object.keys(options);
+        if (keys.length > 0 && keys.every((key) => key === 'dragToPan')) return;
         this.nodeLayer.classList.toggle('show-ids', this.options.showIds);
         this.root.classList.toggle('markdag-dark', this.options.theme === 'dark');
         this.applyDetailsMode();
         this.syncLegend();
+        // タグの分け方は interaction で変わるので、切り替えたら描いてあるタグを作り直す (線の帯と枠は配置のやり直しで作り直す)
+        if (wasEditing !== (this.options.interaction === 'edit')) this.refillTags();
         if (this.nodes.length > 0) this.update(this.options.animate);
     }
 
-    // 図を片付ける。要素の外に付けた受け口と、サイズの監視を外し、要素の中身を空にする
+    // 図を片付ける。要素の外に付けた受け口、addHooks で足した受け口、サイズの監視、重ねた要素を外し、要素の中身を空にする
     destroy(): void {
         this.teardown.abort();
+        this.added = [];
         this.observer.disconnect();
+        this.overlayObserver.disconnect();
+        for (const entry of this.overlays) this.detachOverlay(entry);
+        this.overlayLayer = null;
         cancelAnimationFrame(this.animation);
         window.clearTimeout(this.popoverTimer);
         this.root.innerHTML = '';
         // 線を選んでいる目印は図を置いた要素に付けているので、要素を別の用途に使い回しても code の地の透かしが残らないよう外す
         this.root.removeAttribute('data-edge-selected');
+        // 操作の切り替えの目印も同じ理由で外す
+        this.root.removeAttribute('data-interaction');
+        this.root.removeAttribute('data-drag-to-pan');
     }
 
     expandAll(): void {
@@ -510,13 +883,19 @@ export class MarkdagView {
         return boundsOf([...[...this.targets].map(([id, rect]) => this.withGap(id, rect)), ...framed]);
     }
 
-    fit(): void {
+    // 図の内容の全体を図の領域に収める。inset を渡すと、図の領域の辺からその幅を除いた所に収める (収める所が残らなければ図の領域の全体)
+    fit(inset: FitInset = {}): void {
         const bounds = this.contentBounds();
         if (!bounds) return;
         const { clientWidth, clientHeight } = this.viewport;
-        const k = Math.min(2, (clientWidth * 0.94) / Math.max(bounds.width, 1), (clientHeight * 0.92) / Math.max(bounds.height, 1));
-        const x = (clientWidth - bounds.width * k) / 2 - bounds.x * k;
-        const y = (clientHeight - bounds.height * k) / 2 - bounds.y * k;
+        const left = finiteOrZero(inset.left);
+        const top = finiteOrZero(inset.top);
+        const width = clientWidth - left - finiteOrZero(inset.right);
+        const height = clientHeight - top - finiteOrZero(inset.bottom);
+        const room = width > 0 && height > 0 ? { left, top, width, height } : { left: 0, top: 0, width: clientWidth, height: clientHeight };
+        const k = Math.min(2, (room.width * 0.94) / Math.max(bounds.width, 1), (room.height * 0.92) / Math.max(bounds.height, 1));
+        const x = room.left + (room.width - bounds.width * k) / 2 - bounds.x * k;
+        const y = room.top + (room.height - bounds.height * k) / 2 - bounds.y * k;
         select(this.viewport).call(this.behavior.transform, zoomIdentity.translate(x, y).scale(k));
     }
 
@@ -531,9 +910,201 @@ export class MarkdagView {
         select(this.viewport).call(this.behavior.transform, transform);
     }
 
-    // 描く枠の矩形。見えているメンバーが 1 つだけの枠は、色帯で所属が分かるので描かない
+    // 選んだノードに data-selected を付け、ほかのノードから外す。文書にない id は捨てる。
+    // 閉じた枝の中でまだ要素のないノードは、要素を作るときに付ける。文書を差し替えると選択は空に戻る
+    setSelection(ids: Iterable<number>): void {
+        this.selection = new Set([...ids].filter((id) => this.hasNode(id)));
+        for (const [id, element] of this.elements) element.toggleAttribute('data-selected', this.selection.has(id));
+    }
+
+    // 付け替え先のノードに data-drop-target を付ける (付くのは 1 つだけ。null で外す)。
+    // 見えていないノード (閉じた枝の中) には付けず、あとで開いても付けない
+    setDropTarget(id: number | null): void {
+        if (this.dropTarget !== null) this.elements.get(this.dropTarget)?.removeAttribute('data-drop-target');
+        const element = id !== null && this.isShown(id) ? this.elements.get(id) : undefined;
+        this.dropTarget = element && id !== null ? id : null;
+        element?.toggleAttribute('data-drop-target', true);
+    }
+
+    // 見えているノードの箱の矩形。図の領域の左上からの画面の座標 (zoomBy の point と同じ) で、動きの途中は今描いている位置。
+    // settled なら、動き終えたあとの位置 (配置の目標) を今の表示の変換で返す。ids を省くと見えている全部。
+    // 閉じた枝の中のノードと文書にない id は入れない (図の領域の外へパンしたノードは入れる)
+    nodeRects(ids?: Iterable<number>, options: NodeRectsOptions = {}): Map<number, Rect> {
+        const visible = this.visibleIds();
+        const origin = this.viewport.getBoundingClientRect();
+        const { k } = zoomTransform(this.viewport);
+        const rects = new Map<number, Rect>();
+        for (const id of ids ?? visible) {
+            const box = visible.has(id) ? this.boxes.get(id) : undefined;
+            if (!box) continue;
+            const rect = rectWithin(box, origin);
+            // ノードの要素は配置の矩形の位置へ平行移動するだけなので、今の位置と目標の差を倍率で画面の距離にして足す
+            const shown = options.settled ? this.displayed.get(id) : undefined;
+            const goal = this.targets.get(id);
+            if (shown && goal) {
+                rect.x += (goal.x - shown.x) * k;
+                rect.y += (goal.y - shown.y) * k;
+            }
+            rects.set(id, rect);
+        }
+        return rects;
+    }
+
+    // ノードを図の領域に入れる。閉じた枝の中なら祖先を開き (onFoldChange は byUser false)、動き終えたあとの位置が
+    // 図の領域の辺から margin (画面の px) を残して収まるよう、いちばん短い距離だけパンする。倍率は変えない。収まっていれば動かさない
+    ensureVisible(id: number, margin = VISIBLE_MARGIN): void {
+        if (!this.hasNode(id)) return;
+        if (this.unfoldAncestors(id)) this.commitFold(false, this.options.animate);
+        const rect = this.nodeRects([id], { settled: true }).get(id);
+        if (!rect) return;
+        const keep = Number.isFinite(margin) ? margin : VISIBLE_MARGIN;
+        const { width, height } = this.viewport.getBoundingClientRect();
+        const dx = shiftInto(rect.x, rect.width, width, keep);
+        const dy = shiftInto(rect.y, rect.height, height, keep);
+        if (dx !== 0 || dy !== 0) this.panBy(dx, dy);
+    }
+
+    // 要素を重ね置きの層に入れ、描画の毎コマ、パンとズーム、図の領域と要素の大きさの変化のたびに anchor の位置へ置く。
+    // 相手が見えないか、なくなったら element.hidden を true にし、戻ったら外す。戻り値の関数で外す (何度呼んでもよい)。
+    // 外すと、view が書いた style (位置、label と cover の幅と高さ) を元に戻す。同じ要素をもう一度渡すと、前の置き方を外して置き直す
+    attachOverlay(element: HTMLElement, anchor: OverlayAnchor): () => void {
+        const existing = this.overlays.find((entry) => entry.element === element);
+        if (existing) this.detachOverlay(existing);
+        const entry: OverlayEntry = {
+            element,
+            anchor,
+            hiddenByView: false,
+            sized: false,
+            saved: { width: element.style.width, height: element.style.height, transform: element.style.transform },
+        };
+        this.overlays = [...this.overlays, entry];
+        this.ensureOverlayLayer().append(element);
+        this.overlayObserver.observe(element);
+        this.placeOverlays([entry]);
+        return () => this.detachOverlay(entry);
+    }
+
+    // 重ね置きの層。図の要素の直下、図の領域のすぐ上に置く。押下は中の要素だけが受ける (見た目はスタイルシート)
+    private ensureOverlayLayer(): HTMLDivElement {
+        if (this.overlayLayer) return this.overlayLayer;
+        const layer = document.createElement('div');
+        layer.className = 'mdag-overlays';
+        // 図の領域と同じく、中の入力欄へフォーカスが移ってもスクロールされたままにしない
+        layer.addEventListener('scroll', () => layer.scrollTo(0, 0));
+        this.viewport.after(layer);
+        this.overlayObserver.observe(layer);
+        this.overlayLayer = layer;
+        return layer;
+    }
+
+    private detachOverlay(entry: OverlayEntry): void {
+        if (!this.overlays.includes(entry)) return;
+        this.overlays = this.overlays.filter((item) => item !== entry);
+        const { element, saved } = entry;
+        this.overlayObserver.unobserve(element);
+        if (element.parentElement === this.overlayLayer) element.remove();
+        element.style.width = saved.width;
+        element.style.height = saved.height;
+        element.style.transform = saved.transform;
+        if (entry.hiddenByView) element.hidden = false;
+    }
+
+    // 重ねた要素を今の相手の位置へ置く。相手の矩形は描いてある要素から読むので、描画とパンとズームのあとに呼ぶ
+    private placeOverlays(entries: readonly OverlayEntry[] = this.overlays): void {
+        if (entries.length === 0) return;
+        const context: OverlayContext = { origin: this.viewport.getBoundingClientRect(), visible: this.visibleIds(), k: zoomTransform(this.viewport).k };
+        for (const entry of entries) this.placeOverlay(entry, context);
+    }
+
+    private placeOverlay(entry: OverlayEntry, context: OverlayContext): void {
+        const { element, anchor } = entry;
+        const subject = this.overlaySubjectOf(anchor.target, context);
+        if (!subject) {
+            if (!element.hidden) {
+                element.hidden = true;
+                entry.hiddenByView = true;
+            }
+            return;
+        }
+        if (entry.hiddenByView) {
+            element.hidden = false;
+            entry.hiddenByView = false;
+        }
+        const places = (Array.isArray(anchor.place) ? anchor.place : [anchor.place]).map((place) => (place === 'label' && subject.label === null ? subject.labelAs : place));
+        // 要素の大きさで置く候補があれば、view が入れた幅と高さを外してから測る
+        if (entry.sized && places.some((place) => place !== 'label' && place !== 'cover')) {
+            element.style.width = entry.saved.width;
+            element.style.height = entry.saved.height;
+            entry.sized = false;
+        }
+        const own = { width: element.offsetWidth, height: element.offsetHeight };
+        const span = anchor.within?.() ?? null;
+        const spots = places.map((place) => {
+            const spot = overlaySpot(place, subject, own, anchor.gap ?? OVERLAY_GAP);
+            if (span === null || (spot.place !== 'top' && spot.place !== 'bottom')) return { ...spot, shifted: false };
+            return { ...spot, x: placeInSpan(spot.x, spot.width, span), shifted: true };
+        });
+        const { width, height } = context.origin;
+        // 左右にずらした置き場は、左右をもう範囲に収めてある (範囲より広いものは右にそろえてある) ので、上下だけで選ぶ
+        const fits = (item: (typeof spots)[number]): boolean =>
+            item.y >= 0 && item.y + item.height <= height && (item.shifted || (item.x >= 0 && item.x + item.width <= width));
+        const spot = spots.find(fits) ?? spots[0];
+        if (!spot) return;
+        const at = `translate(${spot.x}px, ${spot.y}px)`;
+        if (spot.place === 'label' || spot.place === 'cover') {
+            // label は図の座標の大きさを入れて図の倍率で拡大し、cover は画面の大きさをそのまま入れる
+            const scale = spot.place === 'label' ? context.k : 1;
+            element.style.width = `${spot.width / scale}px`;
+            element.style.height = `${spot.height / scale}px`;
+            element.style.transform = spot.place === 'label' ? `${at} scale(${scale})` : at;
+            entry.sized = true;
+        } else {
+            element.style.transform = at;
+        }
+    }
+
+    // 重ねる相手の画面の矩形。相手が見えない (閉じた枝の中、文書にない、知らない id) ときは null。
+    // nodes は見えているものだけを囲む。group は frame 番目の枠 (なければ描いた順で最初の枠。label は枠のラベルの文字とロゴ)、枠がなければ見えているメンバーの箱を囲む
+    private overlaySubjectOf(target: OverlayTarget, context: OverlayContext): OverlaySubject | null {
+        const { origin, visible } = context;
+        const boxRect = (id: number): Rect | null => {
+            const box = visible.has(id) ? this.boxes.get(id) : undefined;
+            return box ? rectWithin(box, origin) : null;
+        };
+        if ('node' in target) {
+            const rect = boxRect(target.node);
+            if (!rect) return null;
+            const content = this.boxes.get(target.node)?.querySelector(':scope > .mdag-content');
+            return { rect, label: content ? rectWithin(content, origin) : rect, labelAs: 'cover' };
+        }
+        if ('nodes' in target) {
+            const rects = target.nodes.flatMap((id) => boxRect(id) ?? []);
+            return rects.length > 0 ? { rect: boundsOf(rects), label: null, labelAs: 'cover' } : null;
+        }
+        const model = this.model;
+        if (!model?.groups.some((group) => group.id === target.group)) return null;
+        const frames = this.drawnFrames.filter((item) => item.id === target.group);
+        const frame = frames[target.frame ?? 0] ?? frames[0];
+        if (frame) return { rect: rectWithin(frame.outline, origin), label: boundsOf(frame.label.map((part) => rectWithin(part, origin))), labelAs: 'top' };
+        const members = [...model.groupsOf].flatMap(([id, groups]) => (groups.includes(target.group) ? (boxRect(id) ?? []) : []));
+        return members.length > 0 ? { rect: boundsOf(members), label: null, labelAs: 'top' } : null;
+    }
+
+    private hasNode(id: number): boolean {
+        return Number.isInteger(id) && this.nodes[id - 1]?.id === id;
+    }
+
+    // 閉じた枝の中でないか (祖先がどれも閉じていない)
+    private isShown(id: number): boolean {
+        if (!this.hasNode(id)) return false;
+        for (let parent = this.nodes[id - 1]?.parent ?? null; parent !== null; parent = this.nodes[parent - 1]?.parent ?? null) {
+            if (this.folded.has(parent)) return false;
+        }
+        return true;
+    }
+
+    // 描く枠の矩形。見えているメンバーが 1 つだけの枠も描き、見えているメンバーがなければ描かない (null)
     private outlineOf(frame: Frame, rects: Map<number, Rect>): Rect | null {
-        if (frame.members.filter((id) => rects.has(id)).length < 2) return null;
         const outline = frameOutline(frame, rects);
         const shift = this.frameShifts.get(frame);
         if (!outline || !shift) return outline;
@@ -558,11 +1129,13 @@ export class MarkdagView {
         return { ...rect, x: rect.x - gap, width: rect.width + gap };
     }
 
-    // 凡例に出す枝の色と名前。枝は、文書が起点を指定したときだけ出す
-    private branchLegend(): Array<{ color: string; label: string }> {
+    // 文書が指定した枝の起点 (markdag.branches の順) ごとの線の色と名前。図の凡例の線の色の段もこれを出す。
+    // 凡例に枝を出すかの指定 (legend.display) と ViewOptions.legend によらず、描いている枝の色を全部返す
+    branchColors(): BranchColor[] {
         return (this.model?.branches ?? []).map((id) => ({
-            color: this.colorOf.get(id) ?? NO_BRANCH_COLOR,
+            id,
             label: this.nodes[id - 1]?.refText || `#${id}`,
+            color: this.colorOf.get(id) ?? NO_BRANCH_COLOR,
         }));
     }
 
@@ -574,7 +1147,7 @@ export class MarkdagView {
         // 置く隅は文書の指定に従う。位置そのものはスタイルシートが決める
         this.legend.dataset.position = model.legendPosition;
         const list = document.createElement('ul');
-        const branches = model.legend.includes('branches') ? this.branchLegend() : [];
+        const branches = model.legend.includes('branches') ? this.branchColors() : [];
         if (branches.length > 0) {
             const note = document.createElement('li');
             note.className = 'mdag-legend-note';
@@ -697,10 +1270,13 @@ export class MarkdagView {
             if (this.isDimmed(node)) element.dataset.dimmed = '';
         }
         this.applyNodeModes(node, element);
+        // 閉じた枝の中にいる間に選ばれていたノードは、見えるようになって要素を作るときに印を付ける
+        if (this.selection.has(node.id)) element.toggleAttribute('data-selected', true);
         const outer = document.createElement('div');
         outer.className = 'mdag-outer';
         const box = document.createElement('div');
         box.className = 'mdag-box';
+        box.addEventListener('pointerdown', (event) => this.hooks.onNodePointerDown?.(node, event), { capture: true });
 
         const groupIds = model?.groupsOf.get(node.id) ?? [];
         const defs = groupIds.flatMap((id) => model?.groups.find((group) => group.id === id) ?? []);
@@ -722,9 +1298,13 @@ export class MarkdagView {
         if (node.task) wrapTaskLabel(content);
         wrapEmoji(content);
         // ノードの中の操作が、パンやダブルクリックでのズームにならないようにする
-        for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, stop);
+        for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick']) content.addEventListener(type, this.shieldContent);
         // チェックボックスは、箱だけでなく文字をクリックしても切り替わるようにする
         content.addEventListener('click', (event) => this.handleTextClick(node, content, event));
+        content.addEventListener('dblclick', (event) => {
+            const onDetails = event.target instanceof Element && event.target.closest('.mdag-details') !== null;
+            this.hooks.onNodeDoubleClick?.(node, onDetails ? 'details' : 'label', event);
+        });
         // 詳細の引用ブロックは、内容の中の書かれた位置にある。開いて表示する場合はその場に出て、ノードの大きさに含まれるので、
         // 配置もそのぶん広がる。タスクのノードでは、詳細の文のクリックも内容のクリックとして、タスクの切り替えになる
         box.append(content);
@@ -744,6 +1324,7 @@ export class MarkdagView {
             const tagLabels = document.createElement('span');
             tagLabels.className = 'mdag-tags';
             this.fillTags(tagLabels, node.id);
+            this.listenTagClicks(tagLabels, () => node, 'node');
             box.append(tagLabels);
         }
         if (node.details !== null) element.dataset.hasDetails = '';
@@ -783,10 +1364,38 @@ export class MarkdagView {
         return element;
     }
 
+    // ノードの文字の上の押下とダブルクリックを、図の領域 (パンとズーム) へ伝えない。
+    // ただし、中ボタンでパンする設定では、文字の上からの中ボタンのドラッグもパンにするので、中ボタンの mousedown は通す
+    private readonly shieldContent = (event: Event): void => {
+        if (event.type === 'mousedown' && (event as MouseEvent).button === 1 && this.dragToPanAllows('middle')) return;
+        event.stopPropagation();
+    };
+
     // ロゴの SVG を入れる (null は引けなかった)。入れたものが変わったら、その ref を使うノードだけロゴを描き直す。
     // 文書を差し替えても置き場は残る (同じ ref をもう一度解決しなくてよい)
     setIconSvg(ref: string, svg: string | null): void {
         if (!this.iconSvgs.set(ref, svg)) return;
+        this.redrawLogos(ref);
+        // 図の外でロゴを出す側 (凡例のパネルなど) が、描き直したあとの置き場から引き直せるように知らせる
+        this.hooks.onIconSvg?.(ref);
+    }
+
+    // グループの icon のロゴの要素を、呼ぶたびに新しく作って返す (図の外の凡例のパネル向け。引けたロゴと絵文字は図の凡例の行と同じもの)。
+    // SVG がまだ届いていなければ中身のない置き場の要素で、届いたら onIconSvg で知らせる (呼び直すとロゴが入る)。
+    // 表にない alias と引けなかった SVG は書いたとおりの文字。icon のないグループと知らない id は null
+    groupLogo(id: string): Element | null {
+        const group = this.model?.groups.find((item) => item.id === id);
+        const html = group ? groupLogoHtml(group, this.iconContext()) : null;
+        if (html === null) return null;
+        const holder = document.createElement('span');
+        holder.innerHTML = html;
+        const logo = holder.firstElementChild;
+        logo?.remove();
+        return logo;
+    }
+
+    // その ref のロゴを使う所 (ノード、開いている吹き出し、枠、凡例) を、今の置き場の中身で描き直す
+    private redrawLogos(ref: string): void {
         const context = this.iconContext();
         if (!context || !this.model) return;
         for (const [id, element] of this.elements) {
@@ -811,6 +1420,8 @@ export class MarkdagView {
         if (groupIconRefs(this.model).has(ref)) {
             this.syncLegend();
             this.drawFrames(this.displayed);
+            // 枠のラベルの幅がロゴのぶん変わるので、枠のラベルに重ねた要素を置き直す
+            this.placeOverlays();
         }
         this.scheduleUpdate();
     }
@@ -830,12 +1441,53 @@ export class MarkdagView {
     }
 
     // タグは書いたとおりの文字で見せ、引けたロゴがあればその前に置く。ロゴがなければ文字だけ (textContent)。
-    // ノードの中のタグと、吹き出しのタグの行の両方に使う
+    // ノードの中のタグと、吹き出しのタグの行の両方に使う。GUI 編集 (interaction が edit) では、押したタグが分かるよう
+    // タグごとの要素 (.mdag-tag[data-tag-key]) に分ける。並び、間の空白 1 つ、文字とロゴは分けないときと同じ
     private fillTags(tagLabels: HTMLElement, id: number): void {
-        const content = tagLineContent(this.model?.tagsOf.get(id) ?? [], this.model?.tagKeys ?? [], this.iconContext());
-        if ('html' in content) tagLabels.innerHTML = content.html;
-        else tagLabels.textContent = content.text;
+        const tags = this.model?.tagsOf.get(id) ?? [];
+        const tagKeys = this.model?.tagKeys ?? [];
+        if (this.options.interaction === 'edit') {
+            const elements = tagParts(tags, tagKeys, this.iconContext()).map(({ key, html }) => {
+                const tag = document.createElement('span');
+                tag.className = 'mdag-tag';
+                tag.dataset.tagKey = key;
+                tag.innerHTML = html;
+                return tag;
+            });
+            tagLabels.replaceChildren(...elements.flatMap((tag, index) => (index === 0 ? [tag] : [' ', tag])));
+        } else {
+            const content = tagLineContent(tags, tagKeys, this.iconContext());
+            if ('html' in content) tagLabels.innerHTML = content.html;
+            else tagLabels.textContent = content.text;
+        }
         wrapEmoji(tagLabels);
+    }
+
+    // 描いてあるタグ (ノードの中と、開いている吹き出しの中) を、今の interaction の分け方で作り直す
+    private refillTags(): void {
+        for (const [id, box] of this.boxes) {
+            const line = box.querySelector<HTMLElement>(':scope > .mdag-tags');
+            if (line) this.fillTags(line, id);
+        }
+        const shown = this.popoverNode;
+        const line = shown && !this.popover.hidden ? this.popover.querySelector<HTMLElement>('.mdag-popover-tags') : null;
+        if (shown && line) this.fillTags(line, shown.id);
+    }
+
+    // タグの要素のクリックを onTagClick で知らせる (タグが要素に分かれるのは GUI 編集のときだけ)。
+    // area はノードの中のタグの行か吹き出しで、相手のノードはクリックの時点で引く。押した所から 4px より動いて離したものはクリックにしない
+    private listenTagClicks(area: HTMLElement, nodeOf: () => OutlineNode | null, place: 'node' | 'popover'): void {
+        let press: { x: number; y: number } | null = null;
+        area.addEventListener('pointerdown', (event) => (press = { x: event.clientX, y: event.clientY }));
+        area.addEventListener('click', (event) => {
+            const moved = movedFrom(press, event);
+            press = null;
+            const tag = event.target instanceof Element ? event.target.closest<HTMLElement>('.mdag-tag') : null;
+            const node = nodeOf();
+            if (moved || !node || this.options.interaction !== 'edit' || !tag || !area.contains(tag)) return;
+            if (!tag.parentElement?.matches('.mdag-tags, .mdag-popover-tags')) return;
+            this.hooks.onTagClick?.(node, tag.dataset.tagKey ?? '', place, event);
+        });
     }
 
     // 飾りを付け直す。フックの外の状態が変わって、返す飾りが変わったときに呼ぶ
@@ -873,14 +1525,16 @@ export class MarkdagView {
 
     // ノードの文字 (内容か、開いて表示した詳細) のクリックを、チェックの切り替えに読み替える。
     // タスクのノードでは、タスクを切り替える。ただし、自分の操作を持つ入れ子の部分の中のクリックは、その部分のものとして扱い、
-    // タスクは切り替えない。タスクでないノードでは、HTML で直接書いたチェックボックスを切り替える
+    // タスクは切り替えない。タスクでないノードでは、HTML で直接書いたチェックボックスを切り替える。
+    // GUI 編集では、タスクを切り替えるのは先頭の状態の絵のクリックだけ (文字と詳細のクリックは編集の操作に使う)
     private handleTextClick(node: OutlineNode, area: HTMLElement, event: MouseEvent): void {
         const target = event.target instanceof Element ? event.target : null;
         if (!target || target.closest(INTERACTIVE) || (window.getSelection()?.toString() ?? '') !== '') return;
         const zone = node.task ? findNestedZone(area, target) : area;
-        this.hooks.onNodeClick?.(node, zone === null);
-        if (zone === null) this.hooks.onToggleTask?.(node, this.taskCycle());
-        else findLoneCheckbox(zone, target)?.click();
+        const toggles = zone === null && (this.options.interaction !== 'edit' || onTaskIcon(area, target));
+        this.hooks.onNodeClick?.(node, toggles);
+        if (toggles) this.hooks.onToggleTask?.(node, this.taskCycle());
+        else if (zone !== null) findLoneCheckbox(zone, target)?.click();
     }
 
     private detailsMode(): DisplayMode {
@@ -970,6 +1624,8 @@ export class MarkdagView {
             body.append(line);
         }
         this.popover.replaceChildren(body);
+        // どのノードの吹き出しかを要素にも示す (見た目と操作は変えない)
+        this.popover.dataset.id = String(node.id);
         this.popover.hidden = false;
         this.positionPopover();
         this.hooks.onDetailsShow?.(node, pinned, byUser);
@@ -989,6 +1645,7 @@ export class MarkdagView {
         this.popoverNode = null;
         this.popoverPinned = false;
         this.popover.hidden = true;
+        this.popover.removeAttribute('data-id');
         if (shown) this.hooks.onDetailsHide?.(shown, pinned);
     }
 
@@ -1117,6 +1774,7 @@ export class MarkdagView {
         for (const element of this.edgeLayer.querySelectorAll<SVGElement>('[data-key]')) {
             if (!wanted.has(element.dataset.key ?? '')) element.remove();
         }
+        const pressable = this.edgesPressable();
         for (const placed of this.edges) {
             const key = this.edgeKey(placed);
             const { edge } = placed;
@@ -1133,9 +1791,14 @@ export class MarkdagView {
                     casing.dataset.key = key;
                     layers.unshift(casing);
                 }
-                // 文書が markdag.edgeHighlight: false を指定していれば、線を選ぶ操作そのものを置かない
-                if (this.model?.edgeHighlight !== false) layers.push(this.createEdgeHit(key, placed));
                 this.edgeLayer.append(...layers);
+            }
+            // 線を押す帯は線のすぐ後ろに置く。押せるかは文書の指定と interaction で決まり、interaction を切り替えたら足すか外す
+            const hit = this.edgeLayer.querySelector<SVGPathElement>(`path.mdag-edge-hit[data-key="${key}"]`);
+            if (pressable && !hit) path.after(this.createEdgeHit(key, placed));
+            else if (!pressable && hit) {
+                hit.remove();
+                if (this.hoveredEdge === key) this.hoveredEdge = null;
             }
             path.dataset.kind = edge.excludedFromLayout ? 'excluded' : edge.kind;
             path.classList.toggle('mdag-layout-link', placed.isLayoutLink);
@@ -1179,14 +1842,16 @@ export class MarkdagView {
             this.hoveredEdge = null;
             this.applyHighlight();
         });
-        // 図をドラッグして動かしたときに、離した場所の線を選んでしまわないようにする
+        // 図をドラッグして動かしたときに、離した場所の線を選んでしまわないようにする。GUI 編集では選択を変えず、押したことだけを知らせる
         let down: { x: number; y: number } | null = null;
         hit.addEventListener('pointerdown', (event) => (down = { x: event.clientX, y: event.clientY }));
         hit.addEventListener('click', (event) => {
-            const moved = down !== null && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 4;
+            const moved = movedFrom(down, event);
             down = null;
             if (moved) return;
-            this.applySelectEdge(this.selectedEdge === key ? null : key, true);
+            if (this.options.interaction !== 'edit') this.applySelectEdge(this.selectedEdge === key ? null : key, true);
+            const current = this.find(key);
+            if (current) this.hooks.onEdgeClick?.(current, event);
         });
         return hit;
     }
@@ -1204,7 +1869,10 @@ export class MarkdagView {
         this.selectedEdge = key;
         // 線とグループの強調は同時にかけない。あとから選んだほうだけを残し、外れたほうも解除として知らせる
         const clearedGroup = key !== null && this.selectedGroup !== null;
-        if (key !== null) this.selectedGroup = null;
+        if (key !== null) {
+            this.selectedGroup = null;
+            this.alsoSelectedGroups = [];
+        }
         this.applyHighlight();
         this.hooks.onSelectEdge?.(edge, byUser);
         if (clearedGroup) this.hooks.onSelectGroup?.(null, byUser);
@@ -1214,11 +1882,17 @@ export class MarkdagView {
         return key === null ? undefined : this.edges.find((placed) => this.edgeKey(placed) === key);
     }
 
-    // グループに属するノードと、そこに出入りする線、その線の反対側のノードに印を付ける。
-    // そのグループが今の文書にないときは、何も印を付けずに false を返す
-    private markGroup(id: string): boolean {
+    // 今の文書でそのグループに属するノードがあるか
+    private hasGroupMembers(id: string): boolean {
+        for (const ids of this.model?.groupsOf.values() ?? []) if (ids.includes(id)) return true;
+        return false;
+    }
+
+    // どれかのグループに属するノードと、そこに出入りする線、その線の反対側のノードに印を付ける。
+    // どのグループにも属するノードがないときは、何も印を付けずに false を返す
+    private markGroups(groups: readonly string[]): boolean {
         const members = new Set<number>();
-        for (const [nodeId, ids] of this.model?.groupsOf ?? []) if (ids.includes(id)) members.add(nodeId);
+        for (const [nodeId, ids] of this.model?.groupsOf ?? []) if (ids.some((id) => groups.includes(id))) members.add(nodeId);
         if (members.size === 0) return false;
         for (const nodeId of members) this.nodeLevels.set(nodeId, 1);
         for (const placed of this.edges) {
@@ -1237,10 +1911,28 @@ export class MarkdagView {
         this.applySelectGroup(id, false);
     }
 
+    // 複数のグループをまとめて強調する (選んだどれかのグループにつながるものを残す)。先頭を代表 (selectGroup の選択) にし、
+    // 受け口 (beforeSelectGroup、onSelectGroup) は代表が変わるときだけ代表の id で呼ぶ。[] は selectGroup(null)、1 つは selectGroup(id) と同じ
+    selectGroups(ids: readonly string[]): void {
+        this.applySelectGroups(ids, false);
+    }
+
     private applySelectGroup(id: string | null, byUser: boolean): void {
-        if (id === this.selectedGroup) return;
+        this.applySelectGroups(id === null ? [] : [id], byUser);
+    }
+
+    private applySelectGroups(ids: readonly string[], byUser: boolean): void {
+        const [id = null, ...rest] = [...new Set(ids)];
+        const sameRest = rest.length === this.alsoSelectedGroups.length && rest.every((item, index) => item === this.alsoSelectedGroups[index]);
+        if (id === this.selectedGroup) {
+            if (sameRest) return;
+            this.alsoSelectedGroups = rest;
+            this.applyHighlight();
+            return;
+        }
         if (this.hooks.beforeSelectGroup?.(id, byUser) === false) return;
         this.selectedGroup = id;
+        this.alsoSelectedGroups = rest;
         const clearedEdge = id !== null && this.selectedEdge !== null;
         if (id !== null) this.selectedEdge = null;
         this.applyHighlight();
@@ -1254,7 +1946,13 @@ export class MarkdagView {
         this.nodeLevels.clear();
         this.edgeLevels.clear();
         // 選んでいた線やグループが、描き直しのあとにもあるとは限らない。なければ選択を解く
-        if (this.selectedGroup !== null && !this.markGroup(this.selectedGroup)) this.selectedGroup = null;
+        // (代表のグループがなくなったら一緒に強調していたものも解き、残りのうちなくなったものは落とす)
+        if (this.selectedGroup !== null && !this.hasGroupMembers(this.selectedGroup)) {
+            this.selectedGroup = null;
+            this.alsoSelectedGroups = [];
+        }
+        this.alsoSelectedGroups = this.alsoSelectedGroups.filter((id) => this.hasGroupMembers(id));
+        if (this.selectedGroup !== null) this.markGroups(this.selectedGroupIds());
         // 選んでいるときはその線、選んでいないときは重ねている線を、つながりの起点にする。
         // 重ねているだけのときはほかを薄くせず、太さだけを付けるので、押したときの形が先に見える
         const anchor = picked ?? (this.selectedEdge === null && this.selectedGroup === null ? this.find(this.hoveredEdge) : undefined);
@@ -1314,23 +2012,36 @@ export class MarkdagView {
         this.applyFrameHighlight();
     }
 
+    // 代表と一緒に強調しているグループ (代表が先頭。選んでいなければ空)
+    private selectedGroupIds(): string[] {
+        return this.selectedGroup === null ? [] : [this.selectedGroup, ...this.alsoSelectedGroups];
+    }
+
     // 選んだグループ以外の枠を薄くする。枠は描き直しのたびに作り直すので、選択が変わったときにも付け直す。
-    // 選んだグループに内包されている (メンバーがすべて選んだグループにも属している) 枠は、中身と一緒に残す
+    // 選んだグループに内包されている (メンバーがすべて選んだグループのどれかにも属している) 枠は、中身と一緒に残す
     private applyFrameHighlight(): void {
-        const selected = this.selectedGroup;
+        const selected = this.selectedGroupIds();
         const nested = (id: string): boolean => {
             let members = 0;
             for (const ids of this.model?.groupsOf.values() ?? []) {
                 if (!ids.includes(id)) continue;
-                if (selected !== null && !ids.includes(selected)) return false;
+                if (selected.length > 0 && !ids.some((group) => selected.includes(group))) return false;
                 members++;
             }
             return members > 0;
         };
         for (const element of this.frameLayer.querySelectorAll<SVGElement>('[data-group]')) {
             const id = element.dataset.group ?? '';
-            element.style.opacity = selected === null || id === selected || nested(id) ? '' : '0.35';
+            element.style.opacity = selected.length === 0 || selected.includes(id) || nested(id) ? '' : '0.35';
         }
+    }
+
+    // 押した枠の要素 (枠か、枠のラベルの文字かロゴ) が、描いた順でそのグループの何番目の枠か。描いた枠の控えにない要素は 0
+    private frameIndexOf(element: Element): number {
+        const at = this.drawnFrames.findIndex((frame) => frame.outline === element || frame.label.some((part) => part === element));
+        const pressed = this.drawnFrames[at];
+        if (!pressed) return 0;
+        return this.drawnFrames.slice(0, at).filter((frame) => frame.id === pressed.id).length;
     }
 
     // ノードの側の見た目。下線と開閉の円は、線と 1 本につながって見えるので、線と同じ太さと濃さにする。
@@ -1475,11 +2186,14 @@ export class MarkdagView {
         // 下線は毎回作り直すので、選んでいる線に合わせた薄さを付け直す
         this.applyNodeHighlight();
         this.drawFrames(rects);
+        // 重ねた要素は、このコマで描いたノードと枠の位置に合わせる (1 コマ遅れない)
+        this.placeOverlays();
     }
 
     // 枠の層 (区切りの帯と、グループの枠とラベル) を描き直す。配置のたびと、枠のロゴの SVG が入ったときに呼ぶ
     private drawFrames(rects: Map<number, Rect>): void {
         this.frameLayer.innerHTML = '';
+        this.drawnFrames = [];
         if (this.options.showGaps) {
             for (const [id, rect] of rects) {
                 const gap = this.gaps.get(id) ?? 0;
@@ -1493,7 +2207,7 @@ export class MarkdagView {
             }
         }
         // 枠は最も下の層に置くので、重なったところではノードと線のクリックが優先される
-        const clickable = this.model?.groupHighlight !== false;
+        const clickable = this.framesPressable();
         const iconContext = this.iconContext();
         for (const frame of this.frames) {
             const outline = this.outlineOf(frame, rects);
@@ -1534,6 +2248,7 @@ export class MarkdagView {
             }
             if (clickable) for (const element of elements) element.dataset.group = frame.group.id;
             this.frameLayer.append(...elements);
+            this.drawnFrames.push({ id: frame.group.id, outline: shape, label: elements.slice(1) });
         }
         this.applyFrameHighlight();
     }

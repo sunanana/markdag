@@ -1,0 +1,25 @@
+kind: 正常
+checks: >-
+    Delete と帯の「削除」で選んだノードを配下ごと消し、消したノードの親を選び、結果を通知で知らせる。消したノードを指す relations の項目は外す (空になったキーも外す)。
+    ルートは Delete で消さず理由を知らせる。⌘Z / Ctrl+Z で戻し、⌘⇧Z / Ctrl+Shift+Z でやり直す。道具箱の「戻る」も同じで、戻すものがなければ押せない
+behaviors: [B-001, B-037, B-016, B-038, B-039, B-040, B-003, B-004, B-008, B-009, B-081]
+states: [C2.c13, C2.c14]
+steps:
+    - click: { node: バック }
+    - key: Delete
+      expect: { source: after-delete.md, selection: nodes:実装, notice: { kind: info, text: 「バック」を消しました } }
+    - key: Escape
+    - click: { node: 画面 }
+    - click: { bar: delete }
+      expect: { source: after-delete2.md, selection: nodes:設計, notice: { kind: info, text: '「画面」を消しました。depends「画面 --> 公開」を外した (片側の項が全部なくなった)' }, edges: [] }
+    - click: { node: 計画 }
+    - key: Delete
+      expect: { source: after-delete2.md, selection: nodes:計画, notice: { kind: error } }
+    - key: ControlOrMeta+z
+      expect: { source: after-delete.md, edges: ['depends:画面>公開'] }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, tool_disabled: [undo] }
+    - key: ControlOrMeta+Shift+z
+      expect: { source: after-delete.md, tool_disabled: [] }
+    - click: { tool: undo }
+      expect: { source: input.md, tool_disabled: [undo], focus: diagram }

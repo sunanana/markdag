@@ -1,0 +1,14 @@
+kind: 正常
+checks: >-
+    付け替え: 画面を実装の下へ移すと、もとの行を消し、移す先の最後の子のあとに、移す先の子の形 (- の項目) で書く。移したノードを選ぶ
+behaviors: [B-055, B-056]
+op:
+    kind: moveNode
+    node: 画面
+    parent: 実装
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [画面] }
+    rename: null
+    notes: []

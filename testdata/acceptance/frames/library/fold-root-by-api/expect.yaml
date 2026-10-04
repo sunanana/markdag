@@ -1,8 +1,9 @@
 kind: 境界
 checks: >-
-    描いたあとに view.setFolded で枠の根 (設計) を閉じると、a は枠にならず、b の枠だけが残る。閉じた設計は b の枠の上
+    描いたあとに view.setFolded で枠の根 (設計) を閉じると、a は見えているメンバー 1 つ (設計) の枠になり、b の枠も残る。
+    閉じた設計は b の枠の上、b の根の実装は a の枠の下
 combos: [2-2]
-decisions: [writing-guide の groups の規則]
+decisions: [gui-editor の F-02 (メンバーが 1 つの所も枠。scope.md の「触る F-02」、records/deviations.md の D-012)]
 call:
     api: >-
         render(element, input.md, { animate: false, onLayout }) を 1800x1100 の要素に描き、actions を順に呼んでから、
@@ -13,9 +14,11 @@ expect:
     diagnostics: []
     visible: 5
     frames:
+        - { group: a, members: [設計], inside: [] }
         - { group: b, members: [実装, フロント, バック], inside: [] }
-    unframed: { a: [設計] }
+    unframed: {}
     overlap: { disjoint: 0, crossing: 0 }
     intrusions: 0
     sides:
         設計: { b: 上 }
+        実装: { a: 下 }

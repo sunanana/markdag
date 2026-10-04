@@ -325,34 +325,50 @@ fn describe(value_type: &TagValueType) -> String {
 }
 
 // 規則 2.4: \s は JS_WHITESPACE の文字クラス (全角空白 U+3000 と NBSP を含み、U+0085 を含まない)
-// 台帳: formatTag の /[\s,"]/ は固定の regex
+// 台帳: formatTag の /[\s,"\\]/ は固定の regex
 static NEEDS_QUOTE: LazyLock<Regex> = LazyLock::new(|| {
     let whitespace: String = JS_WHITESPACE
         .iter()
         .map(|c| regex::escape(&c.to_string()))
         .collect();
-    Regex::new(&format!("[{whitespace},\"]")).expect("固定の正規表現")
+    Regex::new(&format!("[{whitespace},\"\\\\]")).expect("固定の正規表現")
 });
+// 囲まずに書けるキー: 文字、数字、_、- だけ (解析の TRAILING_TOKEN の囲まないキーと同じ字)。ASCII の数字だけのキーは解析が印に読まないので囲む
+static PLAIN_KEY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[\p{L}\p{N}_-]+$").expect("固定の正規表現"));
+static DIGITS_ONLY: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[0-9]+$").expect("固定の正規表現"));
+
+// " で囲み、中の \ と " を逃がす
+fn quoted(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
+}
 
 /// 原文: formatTag
-/// タグを本文に書いた形に戻す。空白や , を含む値は " で囲む
+/// タグを本文に書いた形に戻す。キーは文字、数字、_、- の外の字を含むか数字だけなら " で囲み、値は空白、`,`、`"`、`\` のどれかを
+/// 含むか空なら " で囲む (空の値は `""`)。囲みの中の " は \"、\ は \\ と書く (解析が同じキーと値に読み戻す形)
 // 規則 2.6 (A-031): Pick<NodeTag, 'key' | 'values'> は、呼び手 (lintTags) が NodeTag 全体を持つので &NodeTag で受ける
 pub fn format_tag(tag: &NodeTag) -> String {
+    let key = if PLAIN_KEY.is_match(&tag.key) && !DIGITS_ONLY.is_match(&tag.key) {
+        tag.key.clone()
+    } else {
+        quoted(&tag.key)
+    };
     if tag.values.is_empty() {
-        return format!("#{}", tag.key);
+        return format!("#{key}");
     }
     let values: Vec<String> = tag
         .values
         .iter()
         .map(|value| {
-            if NEEDS_QUOTE.is_match(value) {
-                format!("\"{value}\"")
+            if value.is_empty() || NEEDS_QUOTE.is_match(value) {
+                quoted(value)
             } else {
                 value.clone()
             }
         })
         .collect();
-    format!("#{}:{}", tag.key, values.join(","))
+    format!("#{key}:{}", values.join(","))
 }
 
 // 原文の NamedType
@@ -1020,9 +1036,9 @@ pub fn lint_tags(
     };
     // unique のキーの、値ごとの出現
     // 台帳: seen は IndexMap<(String, String), Vec<Entry>>。規則 2.3 (A-015): `${key}\u0000${value}` の連結のキーは組。
-    // 組にしてよい根拠: タグのキーは document.ts:97 (TRAILING_TOKEN) の `[\p{L}\p{N}_-]+` の字だけなので \u0000 を含まず、
-    // 連結は最初の \u0000 で一意に分かれる (値が \u0000 を含んでもよい)。lint_tags を直接呼んでキーに \u0000 を入れると、原文の連結は
-    // 別のキーと値の組を同じと見るが、組では区別する (台帳 79 行の文面の直しは A-076)
+    // 組にしてよい根拠: 囲まないタグのキーは TRAILING_TOKEN の `[\p{L}\p{N}_-]+` の字だけなので \u0000 を含まず、
+    // 連結は最初の \u0000 で一意に分かれる (値が \u0000 を含んでもよい)。" で囲んだキー (2026-10-04 に足した) と lint_tags を直接呼んだときの
+    // キーは \u0000 を含みうるので、原文の連結は別のキーと値の組を同じと見うるが、組では区別する (台帳 79 行の文面の直しは A-076)
     let mut seen: IndexMap<(String, String), Vec<Entry>> = IndexMap::new();
 
     for node in nodes {
@@ -1065,7 +1081,15 @@ pub fn lint_tags(
                                 .collect::<Vec<String>>()
                                 .join("、")
                         ),
-                        Some(format!("#{}:値 の形で書きます", tag.key)),
+                        // キーは本文に書く形 (要るときは " で囲む)
+                        Some(format!(
+                            "{} の形で書きます",
+                            format_tag(&NodeTag {
+                                key: tag.key.clone(),
+                                values: vec!["値".to_string()],
+                                at: tag.at.clone(),
+                            })
+                        )),
                         &tag.at,
                     );
                 }
@@ -1213,6 +1237,8 @@ mod tests {
         LazyLock::force(&DURATION);
         LazyLock::force(&NODE_ID);
         LazyLock::force(&NEEDS_QUOTE);
+        LazyLock::force(&PLAIN_KEY);
+        LazyLock::force(&DIGITS_ONLY);
     }
 
     #[test]
@@ -1445,7 +1471,7 @@ mod tests {
             (&["a b"], "#k:\"a b\""),
             (&["a\u{3000}b"], "#k:\"a\u{3000}b\""),
             (&["a,b"], "#k:\"a,b\""),
-            (&["a\"b"], "#k:\"a\"b\""),
+            (&["a\"b"], "#k:\"a\\\"b\""),
             (&["plain", "x y"], "#k:plain,\"x y\""),
             (&["a\u{a0}b"], "#k:\"a\u{a0}b\""),
             (&["a\u{85}b"], "#k:a\u{85}b"),
@@ -1803,7 +1829,7 @@ mod tests {
     fn tags_lint_enum_closest_hint() {
         check_lint(
             r##"{"sources":[],"keys":{"p":{"type":"enum","values":["high","medium","low"]}},"tagKeys":null,"nodes":[["root",null,[]],["A",null,[["p",2,"hihg"],["p",2,"zzzzzz"],["p",2,"low"],["p",2,"mediu"],["p",2,""]]]],"options":{"severity":"warning","unknownKey":"allow"}}"##,
-            r##"[{"severity":"warning","code":"tag-type","message":"「A」の #p:hihg: high / medium / low のどれかで書きます","hint":"もしかして「high」","path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:zzzzzz: high / medium / low のどれかで書きます","hint":null,"path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:mediu: high / medium / low のどれかで書きます","hint":"もしかして「medium」","path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:: high / medium / low のどれかで書きます","hint":null,"path":null,"at":{"line":2,"column":1,"length":1}}]"##,
+            r##"[{"severity":"warning","code":"tag-type","message":"「A」の #p:hihg: high / medium / low のどれかで書きます","hint":"もしかして「high」","path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:zzzzzz: high / medium / low のどれかで書きます","hint":null,"path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:mediu: high / medium / low のどれかで書きます","hint":"もしかして「medium」","path":null,"at":{"line":2,"column":1,"length":1}},{"severity":"warning","code":"tag-type","message":"「A」の #p:\"\": high / medium / low のどれかで書きます","hint":null,"path":null,"at":{"line":2,"column":1,"length":1}}]"##,
         );
     }
 

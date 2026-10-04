@@ -39,11 +39,15 @@ describe('グループの枠', () => {
     const { frames } = layoutDocument(input, model);
     const frameOf = (id: string) => frames.find((frame) => frame.group.id === id);
 
-    it('内側に枠を含む枠は、入れ子の段数を持つ。1 ノードだけのまとまりは枠にしない', () => {
+    // 期待を変えた: メンバーが 1 つのまとまりも枠にするようにした (前は枠にしなかった)。
+    // 9 (効果測定) は backend と frontend の両方で 1 つのまとまり。2 つは同じメンバーなので、groups で先の backend が外側
+    it('内側に枠を含む枠は、入れ子の段数を持つ。1 ノードだけのまとまりも枠にする', () => {
         expect(frames.map((frame) => [frame.group.id, frame.members, frame.level])).toEqual([
             ['dev', [2, 3, 4, 5, 6, 7, 8], 1],
+            ['backend', [9], 1],
             ['backend', [6, 7, 8], 0],
             ['frontend', [3, 4, 5], 0],
+            ['frontend', [9], 0],
         ]);
     });
 

@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    frontmatter がない文書で線を引くと (depends)、文書の先頭に frontmatter と markdag: を作り、relations と depends のキーを足して 1 行書く。
+    作ったことを知らせ、引いた線を選ぶ
+behaviors: [B-017, B-018, B-019, B-125]
+op:
+    kind: addRelation
+    from: 画面
+    to: 公開
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: edge, edge: { kind: depends, source: 画面, target: 公開 } }
+    rename: null
+    notes: [{ code: frontmatter-added, count: 1 }, { code: markdag-added, count: 0 }]

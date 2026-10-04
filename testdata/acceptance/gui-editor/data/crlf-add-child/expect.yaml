@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    改行が CRLF の文書で子を足すと、足した行も CRLF で書く (ほかの行は変えない)。入れ子のない文書の子は字下げ 4 で書く
+behaviors: [B-021, B-024]
+op:
+    kind: addChild
+    parent: 設計
+    label: 新しいノード
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [新しいノード] }
+    rename: { kind: node, node: 新しいノード }
+    notes: []

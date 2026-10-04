@@ -1,0 +1,14 @@
+kind: 正常
+checks: >-
+    グループにまとめる: 選んだノードの 1 行目の末尾に %group1 を付け、markdag.groups に使われていない最小の番号の定義
+    (label グループ 1、決まった色の 1 番目、boundary: true) を足す。そのグループを選び、すぐ名前の入力を開く相手にする
+behaviors: [B-106, B-107, B-108, B-109, B-110]
+op:
+    kind: groupNodes
+    nodes: [画面, API]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: group, id: group1 }
+    rename: { kind: group, id: group1 }
+    notes: []

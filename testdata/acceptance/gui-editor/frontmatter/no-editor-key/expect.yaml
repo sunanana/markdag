@@ -1,0 +1,9 @@
+kind: 正常
+checks: >-
+    markdag.editor を書いていない文書は診断を出さず、既定 (mode view、default view、segment は display true と top-left) に読む。
+    mount すると閲覧だけで、切り替えのセグメントも道具箱も出さない
+behaviors: [B-175, B-173]
+expect:
+    diagnostics: []
+    editor: { mode: view, default: view, segment: { display: true, position: top-left } }
+    screen: { mode: view, segment: null, toolbox: false }

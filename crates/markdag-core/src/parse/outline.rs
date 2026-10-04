@@ -5,6 +5,7 @@
 // 表とコードブロックと画像だけの段落は Block のノード。親の children の level は最初に来た子で決まり、より小さい level が来たら作り直し、
 // より大きい level は捨てる (addChild)。そのあと markmap-lib の cleanNode で空の包みを畳み、ルートの内容が空なら frontmatter の title で補う。
 // ノードの内容の HTML は HTML の層が markdown-it と同じ形で書き、行の範囲 (data-lines) もその層のトークンの map から取る。
+// markmap にない規則として、見出しの行のあと空行だけをはさんで続く引用ブロックを、見出しの詳細の候補として見出しの parts に足す (2026-10-04)。
 use std::sync::LazyLock;
 
 use comrak::arena_tree::NodeEdge;
@@ -27,7 +28,7 @@ const LEVEL_LIST_ITEM: u8 = 9;
 
 /// ノードになった要素 (原文の payload.tag。`h1`〜`h6`、`ul`、`ol`、`li`、`table`、`pre`、`img`)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum BlockTag {
+pub(crate) enum BlockTag {
     Heading(u8),
     Ul,
     Ol,
@@ -50,7 +51,9 @@ pub(super) struct OutlineTree {
     /// payload.fold (magic comment の `fold` が 1、`foldAll` が 2)。なければ 0 (旧実装の `?? 0`)
     pub(super) fold: u8,
     /// 内容を、項目の直下の Markdown の引用ブロック (詳細の候補。AST の BlockQuote) の前後で分けたもの。
-    /// 項目 (li) で引用ブロックがあるときだけ持ち、それ以外は空。つなげると trimEnd の前の内容になる
+    /// 項目 (li) で引用ブロックがあるときだけ持ち、つなげると trimEnd の前の内容になる。
+    /// 見出しは、見出しの行のあと空行だけをはさんで続く引用ブロックがあるときだけ持ち、見出しの内容のあとにその引用ブロックを並べたもの
+    /// (content は見出しの内容だけのまま。詳細は markdag キーのある文書だけが読む)。それ以外は空
     pub(super) parts: Vec<ContentPart>,
     /// 名前 (refText) を持てるか。名前は 1 行目の文字で、1 行目が空の項目と、見出しの直下の表とコードのノード
     /// (ラベルの行を持てない) は持たない (A-219)
@@ -133,6 +136,33 @@ pub(super) fn build_outline<'a>(
 /// 本文 (normalize_source を当てたもの) を comrak で読む。アウトラインの組み立てと、model 層が原文から出す本文の診断が同じ読み方をする
 pub(super) fn parse_body<'a>(arena: &'a Arena<'a>, body: &str) -> &'a AstNode<'a> {
     parse_document(arena, body, &comrak_options())
+}
+
+/// 1 行の文字を本文の書き始めとして読んだときの形
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LineBlock {
+    /// 段落 1 つ (文字のまま読まれる)
+    Paragraph,
+    /// 番号付きのリスト
+    OrderedList,
+    /// それ以外 (見出し、引用、印のリスト、区切り線、コード、HTML のブロック、参照の定義など)
+    Other,
+}
+
+/// 文字だけを本文と同じ読み方で読み、段落 1 つになるかを返す。書き換えの層が、ノードの名前の書き始めが
+/// ブロックに読まれないように逃がすかを決めるのに使う
+pub(crate) fn line_block(text: &str) -> LineBlock {
+    let arena = Arena::new();
+    let document = parse_body(&arena, &normalize_source(text));
+    let mut children = document.children();
+    let Some(first) = children.next() else {
+        return LineBlock::Other;
+    };
+    match &first.data().value {
+        NodeValue::Paragraph if children.next().is_none() => LineBlock::Paragraph,
+        NodeValue::List(list) if list.list_type == ListType::Ordered => LineBlock::OrderedList,
+        _ => LineBlock::Other,
+    }
 }
 
 // 入れ子の段に数える節: 子を持つ入れ物のうち、段に数えない形 (文書、リストの項目、段落、見出し、表の枠) 以外。
@@ -318,8 +348,11 @@ impl<'a> Builder<'_, 'a, '_> {
 
     // 原文: checkNodes。DOM の要素の並びの代わりに AST のブロックの並びを見る。node は入れ子のリストを読むときの親の li
     fn check_nodes(&mut self, children: Vec<&'a AstNode<'a>>, node: Option<usize>) {
+        // 見出しの詳細を受けるもの: 直前のブロックが見出しか、見出しの詳細にした引用ブロックなら、その見出しのノードと直前のブロックの終わりの行
+        let mut details_heading: Option<(usize, usize)> = None;
         for child in children {
             let value = child.data().value.clone();
+            let receiver = details_heading.take();
             match value {
                 // 'div,p' の規則: 包み。子の要素のうち `p>img:only-child` だけがノードになる (ほかの要素は規則を持たず捨てられる)。
                 // data は最も近い p のもの (`$child.closest('p').data()`)
@@ -367,6 +400,19 @@ impl<'a> Builder<'_, 'a, '_> {
                     };
                     let id = self.add_child(parent, props);
                     self.heading_stack.push((id, level));
+                    details_heading = Some((id, child.data().sourcepos.end.line));
+                }
+                // 見出しの詳細: 見出しの行のあと、空行だけをはさんで続く引用ブロック (2 つ以上なら続くものを全部)。
+                // ほかのブロック (段落、リスト、表、コード、HTML のブロック、区切り線、見出し) や空でない行が先に来たら詳細にしない (捨てる)
+                NodeValue::BlockQuote => {
+                    if let Some((heading, end_line)) = receiver
+                        && self
+                            .tokens
+                            .blank_between(end_line, child.data().sourcepos.start.line)
+                    {
+                        self.add_heading_details(heading, child);
+                        details_heading = Some((heading, child.data().sourcepos.end.line));
+                    }
                 }
                 // 'ul,ol' の規則: 中身のない容器のノードで、子の li を読む
                 NodeValue::List(list) => {
@@ -414,11 +460,34 @@ impl<'a> Builder<'_, 'a, '_> {
                     };
                     self.add_child(parent, props);
                 }
-                // blockquote と hr は規則を持たないので捨てる (中も読まない)。
+                // 見出しの詳細でない blockquote と hr は規則を持たないので捨てる (中も読まない)。
                 // 生の HTML ブロックの中の要素 (`<h2>`、`<ul>`、`<table>` など) は DOM ではノードになるが、AST では 1 つの HtmlBlock なので拾わない。見出しを含むときは html-heading-ignored の警告を出す (A-112。accepted.md の 16、28 (1))
                 _ => {}
             }
         }
+    }
+
+    // 見出しのノードの parts に、詳細にする引用ブロックを足す (最初の 1 つの前に見出しの内容を置く)。split_details が項目と同じく切り分ける
+    fn add_heading_details(&mut self, heading: usize, quote: &'a AstNode<'a>) {
+        // トークンの列は引用ブロックの区間を必ず持ち、heading は nodes の添字なので、どちらの else にも来ない
+        let Some((open, close)) = self.tokens.range_of(quote) else {
+            return;
+        };
+        let part = ContentPart::Quote {
+            open: self.tokens.render_range(open, open + 1),
+            inner: self.tokens.render_range(open + 1, close),
+            close: self.tokens.render_range(close, close + 1),
+        };
+        let Some(node) = self.nodes.get_mut(heading) else {
+            return;
+        };
+        if node.parts.is_empty() {
+            // 見出しの要素の閉じのあとの改行 (`</h2>\n`) にあたる改行で、見出しの内容と引用ブロックを分ける
+            node.parts
+                .push(ContentPart::Html(format!("{}\n", node.html)));
+        }
+        node.parts.push(part);
+        node.parts.push(ContentPart::Html(String::new()));
     }
 
     fn parent_of(&mut self, node: Option<usize>, level: u8) -> usize {

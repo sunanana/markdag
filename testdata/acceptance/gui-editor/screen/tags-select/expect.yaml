@@ -1,0 +1,28 @@
+kind: 正常
+checks: >-
+    吹き出しのタグ (tags.display: hover) を押すと、そのノードを選んで押したタグの編集を開く。2 つを選んで帯の「タグ選択」を押すと、使われているタグを並べ (一部に付いている印)、
+    行を押すたびに付け外しする (一部なら全部に付け、全部なら全部から外す)。付けたタグは最近使ったタグの段にも出る。絞り込みの欄に入れた文字を含むタグだけを出す
+behaviors: [B-054, B-138, B-129, B-137, B-142, B-143, B-144, B-146, B-147]
+states: [D1.d1, D8.d5, D7.d5]
+steps:
+    - hover: { node: 画面 }
+      expect: { popover: true }
+    - click: { popover_tag: owner }
+      expect: { selection: nodes:画面, input: tag-add, tag_fields: { key: owner, value: alice } }
+    - key: Escape
+      expect: { input: none }
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+    - click: { bar: tag-select }
+      expect: { input: tag-select, focus: tag-filter, tag_rows: ['owner:alice=some'] }
+    - click: { tag_row: 'owner:alice' }
+      expect: { source: after-toggle.md, tag_rows: ['owner:alice=all', 'owner:alice=all'] }
+    - click: { tag_row: 'owner:alice' }
+      expect: { source: after-untoggle.md, tag_rows: ['owner:alice=none', 'owner:alice=none'] }
+    - type: own
+      expect: { tag_rows: ['owner:alice=none', 'owner:alice=none'] }
+    - type: x
+      expect: { tag_rows: [] }
+    - key: Escape
+      expect: { input: none, selection: 'nodes:画面,API' }

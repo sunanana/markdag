@@ -198,15 +198,13 @@ pub fn compute_frames(
             list.push(id);
             components.insert(root, list);
         }
-        // メンバーが 1 つだけのまとまりは、色帯で所属が分かるので枠にしない
+        // まとまりごとに 1 つの枠。メンバーが 1 つだけのまとまりも枠にする (原文は色帯に任せて枠にしなかった)
         for component in components.into_values() {
-            if component.len() >= 2 {
-                frames.push(Frame {
-                    group: group.clone(),
-                    members: component,
-                    level: 0,
-                });
-            }
+            frames.push(Frame {
+                group: group.clone(),
+                members: component,
+                level: 0,
+            });
         }
     }
 
@@ -586,8 +584,10 @@ mod tests {
         }
     }
 
+    // 期待を変えた: メンバーが 1 つのまとまりも枠にするようにした (前はメンバーが 1 つのまとまりを落とした)。
+    // 9 (効果測定) は backend と frontend の両方で 1 つのまとまり。2 つは同じメンバーなので、groups で先の backend が外側 (level 1)
     #[test]
-    fn frames_nested_frames_have_levels_and_single_member_components_are_dropped() {
+    fn frames_nested_frames_have_levels_and_single_member_components_are_frames() {
         let (_, frames) = frames();
         let rows: Vec<(&str, Vec<u32>, u32)> = frames
             .iter()
@@ -597,8 +597,10 @@ mod tests {
             rows,
             vec![
                 ("dev", vec![2, 3, 4, 5, 6, 7, 8], 1),
+                ("backend", vec![9], 1),
                 ("backend", vec![6, 7, 8], 0),
                 ("frontend", vec![3, 4, 5], 0),
+                ("frontend", vec![9], 0),
             ]
         );
     }
@@ -642,10 +644,12 @@ mod tests {
         assert_eq!(spacing.between(4, 5), 0.0);
         // フロントエンドの枠の下と、バックエンドの枠の上 (どちらも開発の枠の中)
         assert_eq!(spacing.between(5, 7), level0.bottom + level0.top);
-        // 開発の枠の外のノードが下に来るときは、外側の枠の下の余白が入るだけ空ける。上に来るときは、上の余白とラベルの行
-        assert_eq!(spacing.between(8, 9), level1.bottom);
-        assert_eq!(spacing.between(9, 2), level1.top);
-        assert_eq!(spacing.between(1, 9), 0.0);
+        // 期待を変えた: メンバーが 1 つのまとまりも枠にするので、9 は backend [9] (level 1) と frontend [9] (level 0) の枠に入る。
+        // 開発の枠の外の 9 が下に来るときは、開発の枠の下の余白と、9 を囲む外側の枠 (backend [9]) の上の余白とラベルの行を空ける。
+        // 9 が上に来るときは、9 を囲む外側の枠の下の余白と、開発の枠の上の余白とラベルの行。枠のないルートとの間は 9 の側だけ
+        assert_eq!(spacing.between(8, 9), level1.bottom + level1.top);
+        assert_eq!(spacing.between(9, 2), level1.bottom + level1.top);
+        assert_eq!(spacing.between(1, 9), level1.top);
         assert_eq!(frame_of(&frames, "dev").level, 1);
     }
 
@@ -957,13 +961,17 @@ mod tests {
     #[test]
     fn frame_blocks_nested_groups_are_all_blocks_from_the_inside() {
         let (graph, frames) = frames();
-        // frames は dev (level 1)、backend、frontend の順。backend と frontend はメンバー 3、level 0 で同じなので frames の順
+        // 期待を変えた: メンバーが 1 つのまとまりも枠にするので、9 の 1 つのまとまりも枠になる。
+        // frames は dev (level 1)、backend [9] (level 1)、backend [6, 7, 8]、frontend [3, 4, 5]、frontend [9] の順。
+        // メンバー 1 つの 2 つ (根 9、親はルート) が先で、level の低い frontend [9] が前。メンバー 3 の 2 つは level 0 で同じなので frames の順
         let (blocks, loose) = blocks_of(&graph, &frames);
         assert_eq!(
             blocks,
             vec![
-                row(1, "backend", Some(2), &[6]),
-                row(2, "frontend", Some(2), &[3]),
+                row(4, "frontend", Some(1), &[9]),
+                row(1, "backend", Some(1), &[9]),
+                row(2, "backend", Some(2), &[6]),
+                row(3, "frontend", Some(2), &[3]),
                 row(0, "dev", Some(1), &[2]),
             ]
         );
@@ -1253,7 +1261,8 @@ mod tests {
 
     #[test]
     fn frame_blocks_single_member_frame_is_a_block() {
-        // compute_frames はメンバー 1 つの枠を作らないので手で組む。3 は子 4、5 (メンバーでない) を持つが、条件 1 は調べない。
+        // compute_frames を通さずに手で組む (compute_frames の 1 つのメンバーの枠は frame_blocks_nested_groups_are_all_blocks_from_the_inside が見る)。
+        // 3 は子 4、5 (メンバーでない) を持つが、条件 1 は調べない。
         // 根は 3 だけで、条件 2 と 3 を満たすので箱
         let graph = project(&input()).unwrap();
         let frames = vec![frame("one", &[3], 0), frame("leaf", &[9], 0)];
