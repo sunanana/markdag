@@ -7,3 +7,4 @@ test/spike
 docs/ignore
 sample
 target
+editor/dist
