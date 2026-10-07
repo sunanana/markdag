@@ -1,0 +1,21 @@
+kind: 境界 (決定 S-08 a)
+os: win
+decided: [S-08]
+checks: >-
+    win の Alt だけを押して離しても、ページの中では何も変わらない (選択もフォーカスも図のまま)。Alt+Enter で下の兄弟の名前の入力へ移ったあと Alt を押して離しても、フォーカスは名前の入力のまま
+note: >-
+    決定 S-08 (2026-10-06、a: ページでは Alt の既定の動きを止めない。実際の Windows のブラウザーでは、Alt を押して離すとブラウザのメニューへフォーカスが移ることがある (読み。Mac の上では確かめられない))。
+    この例は navigator を Windows に見せかけた chromium で、ページの中で変わらないことだけを照らす。確認ページは本物の navigator で開くので、Mac で開くとこの例は飛ばす
+states: [keys:A1.a1, keys:A2.a1, keys:A1.a3]
+steps:
+    - click: { node: 決める }
+    - keydown: Alt
+    - keyup: Alt
+      expect: { source: input.md, input: none, focus: diagram, selection: nodes:決める }
+    - key: Alt+Enter
+      expect: { input: name, input_value: 書く, focus: 'name-input:node', selection: nodes:書く }
+    - keydown: Alt
+    - keyup: Alt
+      expect: { input: name, input_value: 書く, focus: 'name-input:node', selection: nodes:書く }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:書く }

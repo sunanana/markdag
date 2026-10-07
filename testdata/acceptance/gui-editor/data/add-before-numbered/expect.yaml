@@ -1,0 +1,6 @@
+kind: 正常
+checks: >-
+    番号付きの項目 (2. 更新) の上に足すと、足した項目に選んだ項目の番号 (2.) を書き、後ろの兄弟の番号を振り直す (3. 更新、4. 再開)。番号付きの項目の名前は番号を含む (2. 新しいノード)
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す)]
+op: { kind: addSiblingBefore, node: 2. 更新, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [2. 新しいノード] }, rename: { kind: node, node: 2. 新しいノード }, notes: [] }

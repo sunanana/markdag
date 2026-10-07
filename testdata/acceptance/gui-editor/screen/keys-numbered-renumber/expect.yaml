@@ -1,0 +1,22 @@
+kind: 正常
+os: mac
+checks: >-
+    番号付きのリストに上 (Shift+⌘Enter) か下 (⌘Enter) に兄弟を足すと、足した項目と後ろの兄弟の番号を振り直す (0.12.0 は振り直さなかった)。
+    Delete で項目を消しても、残った兄弟の番号を振り直す。図のノードの名前 (最初の番号から数えた番号) と原文の番号がそろう
+states: [keys:P7.e4, keys:P7.e3]
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す), やらない 3 (削除と移動でも番号を振り直す)]
+steps:
+    - click: { node: 2. 更新 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-above.md, input: name, input_value: 新しいノード, selection: nodes:2. 新しいノード }
+    - key: Enter
+      expect: { source: after-above.md, input: none, selection: nodes:2. 新しいノード }
+    - key: Meta+Enter
+      expect: { source: after-below.md, input: name, input_value: 新しいノード, selection: nodes:3. 新しいノード }
+    - key: Enter
+      expect: { source: after-below.md, input: none, selection: nodes:3. 新しいノード }
+    - key: Delete
+      expect: { source: after-above.md, selection: nodes:作業, notice: { kind: info, text: 「3. 新しいノード」を消しました } }
+    - click: { node: 2. 新しいノード }
+    - key: Delete
+      expect: { source: input.md, selection: nodes:作業, notice: { kind: info, text: 「2. 新しいノード」を消しました } }

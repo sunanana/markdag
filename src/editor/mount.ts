@@ -7,8 +7,12 @@
 // 操作の帯は道具箱の右から図の領域の右の端の手前までに収まるよう左右にずらし、名前の入力、詳細の入力、タグのパネルを開いている間は出さない。
 // 全体表示 (GUI 編集で開いた直後、道具箱のズームリセット、fit) は、GUI 編集では道具箱と左の隅のセグメントを避けた所に収める (閲覧では図の領域の全体)。
 // 閲覧から GUI 編集へ移るときは、見る人がまだ図を動かしていなければ (最後の全体表示のままなら) GUI 編集の全体表示にし直す。
-// 操作の命令 (名前、子、兄弟、削除、合流、詳細) を帯のボタン、道具箱、キー (Enter、Tab、Delete / Backspace、J、D)、ノードの文字と詳細のダブルクリックから受けて命令の部品に渡す。
+// 操作の命令 (名前、子、兄弟、削除、合流、詳細) を帯のボタン、道具箱、キー (Enter、修飾キーつきの Enter、Shift+Enter、Tab、Shift+Tab、Delete / Backspace、J、D)、
+// ノードの文字と詳細のダブルクリックから受けて命令の部品に渡す。Enter の修飾キーの割り当て (兄弟を足すキーと兄弟へ移るキー) は、開くときに 1 回見分けた
+// OS の区分 (mac か win) で決める。Space を押して、ポインタもほかのキーも押さずに離したら、選んだノードのうちタスクのものの印をまとめて 1 つ進める
+// (図の側の口で、印のクリックと同じ確かめを全部に当て、1 回の書き換えにする。履歴も 1 つ)。
 // 道具は道具箱と H (手のひら) / V (選択) で替える (合流先を選ぶ途中ならやめてから替える)。最初の道具は選択。
+// 編集の層の操作と元に戻す / やり直すで原文を書き換えても、関係のない閉じた枝は閉じたままにする。
 // 選択の道具でのノードのドラッグは、ポインタの下の移せる先に枠を出し、離した所のノードへの付け替えの命令にする (ノードの外なら案内)。
 // 選択の道具で選んだノードに点を出し (1 つなら選択の枠の右下の角に線を引く点、2 つ以上なら全体の右に選択全体の点)、点のドラッグを離した所のノードへの
 // 線を引く命令か合流の命令にする (ノードの外なら案内)。1 つのノードには子を足す + (右) と兄弟を足す + (下) も出し、押したら足して名前の入力を開く
@@ -60,10 +64,11 @@ import {
     type ViewTransform,
 } from '../core';
 import { EditCommands, isDropCandidate } from './commands';
-import { commandForKey, isComposingKey } from './keys';
+import { carriedFolds } from './folds';
+import { commandForKey, isComposingKey, type KeyCommand, type KeyPlatform } from './keys';
 import { initialLegendOpen, legendContent, sameLegendDisplay } from './legend';
 import { arrowTarget, startNode, type ArrowKey, type Point } from './navigation';
-import { isAdditive, PointerInput } from './pointer';
+import { isAdditive, isApplePlatform, PointerInput } from './pointer';
 import {
     addNodes,
     drawnParts,
@@ -105,7 +110,8 @@ type RenderKeys = 'theme' | 'animate' | 'injectStyle' | 'types' | 'icons' | 'res
 export interface EditorOptions extends Pick<RenderOptions, RenderKeys> {
     // 既定は document (文書の markdag.editor.mode に従う)。view、edit、switch は文書の mode だけを上書きする
     mode?: EditorModeOption;
-    // 図の側の操作で原文が変わった (GUI 編集の操作で原文が変わったとき、元に戻す / やり直す、タスクの印、フックの api.update)。setSource では呼ばない
+    // 図の側の操作で原文が変わった (GUI 編集の操作で原文が変わったとき、元に戻す / やり直す、タスクの印、Space でタスクを進めたとき、フックの api.update)。
+    // setSource では呼ばない
     onChange?: (markdown: string) => void;
     // 閲覧と GUI 編集が切り替わった。byUser はセグメントを押したときだけ true。mount では呼ばない (初めのモードは getMode で読む)
     onModeChange?: (mode: EditorMode, byUser: boolean) => void;
@@ -135,6 +141,9 @@ export interface MarkdagEditor {
     // アプリの受け口の包みを止めてから、render の destroy を呼ぶ。2 回目以降は何もしない
     destroy(): void;
 }
+
+// ノードを 1 つ選んでいるときだけ受けるキーの命令 (ボタンの上では受けない。グループを選んでいるときは rename だけを受ける)
+const NODE_KEY_COMMANDS: ReadonlySet<KeyCommand> = new Set(['rename', 'add-child', 'add-sibling', 'add-sibling-before', 'rename-parent', 'rename-previous', 'rename-next']);
 
 // 包まずにそのまま render に渡すオプション
 const PASSED_OPTIONS = ['theme', 'animate', 'injectStyle', 'types', 'icons', 'resolveIcon', 'hookRefs', 'hooks', 'onDiagnostic', 'onHookError'] as const satisfies ReadonlyArray<RenderKeys>;
@@ -218,6 +227,8 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     let pointerOnContainer = false;
     // 最後のポインタの位置 (画面の座標)。ポインタがウィンドウの外へ出たら null
     let pointerAt: Point | null = null;
+    // ポインタのボタンを押しているか (最後に受けたポインタの出来事の buttons で見る)
+    let pointerHeld = false;
     // 選んでいるもの (閲覧ではいつも選択なし)
     let selection: EditorSelection = NO_SELECTION;
     // グループ 1 つを枠かラベルの押下で選んだ (かダブルクリックで名前の入力を開いた) ときの、そのグループと押した枠 (描いた順の番号)。
@@ -258,11 +269,13 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         };
     }
 
+    // Enter の修飾キーの割り当ての区分は、開くときに 1 回だけ見分ける
+    const keyPlatform: KeyPlatform = isApplePlatform() ? 'mac' : 'win';
     // 編集の層の部品は図を描く前に作る (図を描く途中の知らせでも部品がある)。要素は図を描いたあとに置く
     const tools = new Tools(showTools);
     const toolbox = new Toolbox(pressToolbox, chooseDetailsMode);
     toolbox.showDetailsMode(detailsChoice);
-    const hint = new Hint();
+    const hint = new Hint(keyPlatform);
     const snackbar = new Snackbar();
     const bar = new ContextBar(pressBar);
     const bounds = document.createElement('div');
@@ -273,6 +286,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         onNotice: (message, kind) => snackbar.show(message, kind),
         onChange: options.onChange,
         onHistoryChange: showHistory,
+        beforeRedraw: keepFolds,
     });
     const diagram = render(
         container,
@@ -292,6 +306,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     const commands = new EditCommands({
         view,
         source,
+        keyPlatform,
         editing: () => !destroyed && mode === 'edit',
         selection: () => selection,
         select: (next) => select(next, true),
@@ -669,6 +684,16 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         corners.place(segment.element, corner, 'segment');
     }
 
+    // 編集の層の操作か元に戻す / やり直すで原文を差し替える前に、閉じている枝を控える。返す関数は描き直したあとに、控えた枝のうち
+    // 書き換えたあとの文書に残るものを閉じたままにし、ほかは開く (図は木の形が変わると開閉を文書の初めの閉じ方に戻すため。
+    // 関係のない閉じた枝を開かず、開いていた枝を閉じない。閉じた枝が 1 つもなくても置き直す)。
+    // 足したノードと戻したノードを見せるために開くのは、そのあとの選び直しが行う
+    function keepFolds(): () => void {
+        const before = view.getDocument()?.parsed.nodes ?? [];
+        const folded = view.getFolded();
+        return () => view.setFolded(carriedFolds(before, folded, view.getDocument()?.parsed.nodes ?? []));
+    }
+
     // 原文が変わって描き直したあと (図は選択の印を外している)。矩形選択の途中をやめ、外からの差し替えと元に戻す / やり直すでは
     // 名前の入力と詳細の入力を保存せずに閉じ (前の原文で入れたものを新しい原文に当てない)、モードを合わせ直してから、
     // 履歴から戻した選択か今の選択のうち、描き直した図に同じ id と refText で残るノードを選び直す。
@@ -693,6 +718,9 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         }
         const drawn = drawnParts(view.getDocument());
         select(mode === 'edit' ? keepDrawn(redraw.cause === 'history' ? redraw.restored : selection, drawn) : NO_SELECTION, true);
+        // 元に戻す / やり直すで選び直したノードは、閉じた枝の中に隠さない (祖先を開く。図は動かさない)。
+        // 閉じた枝は書き換える前のまま閉じておくので、戻したノードが見えないまま選ばれて、消せてしまわないように
+        if (redraw.cause === 'history' && !destroyed) for (const node of selectedNodes(selection)) view.revealNode(node.id);
     }
 
     // 文書の markdag.editor が変わったときだけ、mode の設定と default に合わせ直す
@@ -1181,11 +1209,13 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     }
 
     function keyDown(event: KeyboardEvent): void {
+        // Space を押している間にほかのキーを押したら、Space を離してもタスクの印を進めない (どこに向けたキーでも)
+        if (event.key !== ' ') tools.interruptSpace();
         // 変換中 (IME) のキーは何にも使わない。タグのパネルの中のキーはパネルのもの
         if (destroyed || isComposingKey(event) || !ownsKeys() || commands.tagPanelContains(event.target)) return;
         // 閲覧はキーの操作を切る。削除になるキーは既定の動きだけを止める (文字を打つ要素の上を除く)
         if (mode !== 'edit') {
-            if (commandForKey(event) === 'delete' && !isTextEntry(event.target)) event.preventDefault();
+            if (commandForKey(event, keyPlatform) === 'delete' && !isTextEntry(event.target)) event.preventDefault();
             return;
         }
         // カラーピッカーか詳細表示の選択肢を開いている間の Esc は、それを閉じるだけ (選択を解かない)
@@ -1198,16 +1228,18 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         if (event.key === ' ' && !event.metaKey && !event.ctrlKey && !event.altKey) {
             // ボタンと文字を打つ要素の Space はその要素のもの (押す、空白を打つ)
             if (event.target instanceof HTMLButtonElement || isTextEntry(event.target)) return;
-            // ページをスクロールさせない
+            // ページをスクロールさせない。押している間はパンし、ほかを押さずに離したらタスクの印を進める (keyUp。Shift つきは進めない)
             event.preventDefault();
-            tools.holdSpace();
+            tools.holdSpace(event);
+            // ポインタを押したまま (ドラッグや矩形選択の途中) 押した Space は、離してもタスクの印を進めない
+            if (pointerHeld) tools.interruptSpace();
             return;
         }
         // 矩形選択の途中の Esc は、修飾キー (⌘、Ctrl など) を押していても矩形をやめる (表では命令にならない組み合わせも受ける)
-        const command = event.key === 'Escape' && pointer.marqueeing ? 'cancel' : commandForKey(event);
+        const command = event.key === 'Escape' && pointer.marqueeing ? 'cancel' : commandForKey(event, keyPlatform);
         if (command === null || isTextEntry(event.target)) return;
-        if (command === 'rename' || command === 'add-child') {
-            // ボタンの Enter (押す) と Tab (フォーカスの移動) はボタンのもの。ノードを 1 つ選んでいるときだけ受ける。
+        if (NODE_KEY_COMMANDS.has(command)) {
+            // ボタンの Enter (押す) と Tab / Shift+Tab (フォーカスの移動) はボタンのもの。ノードを 1 つ選んでいるときだけ受ける。
             // グループを選んでいるときは Enter だけを受けて、グループの名前の入力を開く
             if (event.target instanceof HTMLButtonElement) return;
             const group = selectedGroup(selection);
@@ -1217,10 +1249,23 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
                 return;
             }
             const node = singleNode();
-            if (node === null) return;
+            if (node === null) {
+                // 何かを選んでいる (ノード 1 つ以外: 2 つ以上、グループ、線、合流先を選ぶ途中) ときの Tab と Shift+Tab は、何もせず、
+                // フォーカスも図の外へ動かさない。ノードを 2 つ以上選んでいる (合流先を選ぶ途中を含む) ときは、Enter と修飾キーつきの
+                // Enter も何もせず、既定の動きを止める (選択中のキーをブラウザに流さない)。何も選んでいないときはブラウザの既定のまま。
+                // グループと線を選んでいるときの Shift+Enter と修飾キーつきの Enter は、既定の動きを止めない
+                const tabs = command === 'add-child' || command === 'rename-parent';
+                if ((tabs && selection.kind !== 'none') || selectedNodes(selection).length > 1) event.preventDefault();
+                return;
+            }
             event.preventDefault();
             if (command === 'rename') commands.rename(node);
-            else commands.add('child', node);
+            else if (command === 'add-child') commands.add('child', node);
+            else if (command === 'add-sibling') commands.add('sibling', node);
+            else if (command === 'add-sibling-before') commands.add('sibling-before', node);
+            else if (command === 'rename-parent') commands.renameToward('parent', node);
+            else if (command === 'rename-previous') commands.renameToward('previous', node);
+            else if (command === 'rename-next') commands.renameToward('next', node);
             return;
         }
         // 矢印キーでページをスクロールさせない。⌘G / Ctrl+G ではブラウザの検索を出さない
@@ -1247,14 +1292,25 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         else if (command === 'join') {
             if (!joinNew()) snackbar.show(JOIN_FEW_NOTICE, 'error');
         } else if (command === 'group') groupSelected();
-        else moveSelection(command);
+        else if (command === 'ArrowLeft' || command === 'ArrowRight' || command === 'ArrowUp' || command === 'ArrowDown') moveSelection(command);
         // 名前の入力か詳細の入力かタグのパネルを開いたら、フォーカスはその中に置いたままにする
         if (onButton) returnFocus();
     }
 
-    // Space を離したら、どこで離しても (ポインタが図の外へ出ていても) パンをやめる
+    // Space を離したら、どこで離しても (ポインタが図の外へ出ていても) パンをやめる。押してから、ポインタもほかのキーも押さずに離したら、
+    // 選んだノードのうちタスクのものの印を進める
     function keyUp(event: KeyboardEvent): void {
-        if (event.key === ' ' && !destroyed) tools.releaseSpace();
+        if (event.key !== ' ' || destroyed) return;
+        if (tools.releaseSpace() && mode === 'edit') toggleSelectedTasks();
+    }
+
+    // 選んだノードのうち、描いている図に同じ id と refText で残るタスクのものの印を、図の側の口でまとめて 1 つ進める
+    // (印のクリックと同じ確かめを relations の上流から当て、断られたらそこでやめて何も変えない。理由はアプリの onDiagnostic に出る)。
+    // タスクを選んでいなければ何もしない
+    function toggleSelectedTasks(): void {
+        const nodes = view.getDocument()?.parsed.nodes ?? [];
+        const ids = selectedNodes(selection).flatMap((target) => (nodes.some((node) => node.id === target.id && node.refText === target.refText && node.task !== null) ? [target.id] : []));
+        if (ids.length > 0) diagram.toggleTasks(ids);
     }
 
     function listenInput(signal: AbortSignal): void {
@@ -1274,6 +1330,18 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
                 (event) => {
                     pointerOnContainer = event.target instanceof Node && container.contains(event.target);
                     pointerAt = { x: event.clientX, y: event.clientY };
+                },
+                { capture: true, signal },
+            );
+        }
+        // Space を押している間にポインタを押したら (Space+ドラッグのパンを含む)、離してもタスクの印を進めない
+        document.addEventListener('pointerdown', () => tools.interruptSpace(), { capture: true, signal });
+        // ボタンを離した所がウィンドウの外で pointerup が届かなくても、次にポインタが動いたときの buttons で戻る
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'] as const) {
+            document.addEventListener(
+                type,
+                (event) => {
+                    pointerHeld = type !== 'pointercancel' && event.buttons !== 0;
                 },
                 { capture: true, signal },
             );

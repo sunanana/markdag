@@ -1,0 +1,7 @@
+kind: 境界
+checks: >-
+    title のない frontmatter の文書 (リストだけ。ルートはリストの入れ物で名前は空) のルートの名前を変えると、frontmatter の最上位の末尾に title: 手順 を足す。
+    ほかのキー (markdag) と本文は変えない。新しい名前のルートを選ぶ
+decisions: [ルートのタイトル (例の承認で決めた。決めた名前を title に書き、なければ足す)]
+op: { kind: renameNode, node: { id: 1 }, label: 手順 }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [手順] }, rename: null, notes: [] }

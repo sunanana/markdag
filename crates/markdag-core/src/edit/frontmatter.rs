@@ -3,6 +3,7 @@
 // その行を消すか、その行の値の範囲を書き直す。キーの並び、字下げ、コメントの行を保つ (足すキーは写像の末尾、足す項目は一覧の末尾)。
 // 道すじを手前からたどり、フロー形式の写像と一覧には足せないので断り (書き直しの側が字下げの形にしてやり直す)、
 // 写像のいる所が写像でなければ断る。
+// 行を持たないルートの名前 (最上位の title) も書く (title がなければ足し、frontmatter がなければ作る。markdag キーは足さない)。
 // markdag キーのない文書には、書き換える前に markdag: を (frontmatter のない文書には frontmatter ごと) 足す
 // (markdag キーのない文書では本文の行末の %、#、$ が印として読まれないため)。文書の先頭の BOM は frontmatter を作るときと、
 // BOM のせいで読まれていない frontmatter (BOM のすぐあとが --- の行) に足すときに外す。
@@ -120,6 +121,92 @@ pub(super) fn with_markdag<'a>(
             bom: false,
             markdag: true,
         }),
+    ))
+}
+
+/// 最上位の title の値を written (YAML に書く字。引用符を含む) にする行の列と、frontmatter を作ったか、先頭の BOM を外したか
+/// (markdag キーは足さない)。title があれば値を書き直し (set_value)、なければ最上位の写像の末尾 (空の frontmatter なら閉じの --- の前) に
+/// `title: <値>` を足す。frontmatter がなければ with_markdag と同じく文書の先頭に作る (もとの 1 行目が空でなければ閉じの --- のあとに
+/// 空行をはさむ。先頭の BOM は外す)。YAML として読めなければ frontmatter-invalid、最上位がフロー形式なら flow-style で断る
+pub(super) fn with_title<'a>(
+    source: &str,
+    original: &'a [&'a str],
+    written: &str,
+) -> Result<(LinePlan<'a>, MarkdagAdded), EditReason> {
+    let locator = FrontmatterLocator::new(Some(source));
+    let carriage = carriage_of(source);
+    let mut plan = LinePlan::new(original);
+    let entry = format!("title: {written}");
+    let Some((_, close)) = locator.fence_lines() else {
+        let (first, first_carriage) = split_carriage(original.first().copied().unwrap_or(""));
+        let unmarked = first.strip_prefix('\u{feff}');
+        // BOM のすぐあとが --- の行なら、BOM を外すとその frontmatter が読まれるので、外した原文の frontmatter に書く
+        if unmarked == Some("---")
+            && let Some(text) = source.strip_prefix('\u{feff}')
+            && FrontmatterLocator::new(Some(text)).fence_lines().is_some()
+        {
+            let lines: Vec<&str> = text.split('\n').collect();
+            let (inner, _) = with_title(text, &lines, written)?;
+            plan.rewrite(0, format!("---{first_carriage}"));
+            return Ok((
+                plan.then(&inner),
+                MarkdagAdded {
+                    frontmatter: false,
+                    bom: true,
+                    markdag: false,
+                },
+            ));
+        }
+        if let Some(rest) = unmarked {
+            plan.rewrite(0, format!("{rest}{first_carriage}"));
+        }
+        let mut lines: Vec<String> = ["---", entry.as_str(), "---"]
+            .iter()
+            .map(|line| format!("{line}{carriage}"))
+            .collect();
+        if !is_blank(unmarked.unwrap_or(first)) {
+            lines.push(carriage.to_string());
+        }
+        plan.insert(0, lines);
+        return Ok((
+            plan,
+            MarkdagAdded {
+                frontmatter: true,
+                bom: unmarked.is_some(),
+                markdag: false,
+            },
+        ));
+    };
+    if !locator.syntax_errors().is_empty() {
+        return Err(refusal(
+            EditReasonCode::FrontmatterInvalid,
+            "frontmatter を YAML として読めないので、書き直せません。YAML の誤りを直してください",
+            None,
+        ));
+    }
+    match locator.block(&[]) {
+        // 空の frontmatter (コメントだけのものを含む)
+        None => plan.insert(close as usize, vec![format!("{entry}{carriage}")]),
+        Some(whole) if whole.flow => return Err(flow_style(None)),
+        Some(whole) if whole.shape != BlockShape::Map => return Err(not_map(None)),
+        Some(_) if locator.block(&[key("title")]).is_some() => {
+            set_value(source, &mut plan, &["title"], written)?;
+        }
+        Some(whole) => {
+            let indent = whole.child_indent.unwrap_or(0) as usize;
+            plan.insert(
+                whole.last_line as usize + 1,
+                vec![format!("{}{entry}{carriage}", " ".repeat(indent))],
+            );
+        }
+    }
+    Ok((
+        plan,
+        MarkdagAdded {
+            frontmatter: false,
+            bom: false,
+            markdag: false,
+        },
     ))
 }
 

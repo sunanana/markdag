@@ -1,0 +1,25 @@
+kind: 正常
+os: win
+checks: >-
+    win の使わない修飾キー (Windows キー。KeyboardEvent の metaKey) の Enter と、修飾キーを 2 つ以上押した Enter (Ctrl+Alt、Windows キー+Ctrl+Alt) は、
+    選択中も名前の入力中も何もしない (Shift を足しても同じ)
+note: 確認ページは本物の navigator で開くので、Mac で開くとこの例は飛ばす (例の OS の区分とページの区分が違う)。e2e は navigator を Windows に見せかけて通す。実際の Windows では Windows キーとの組み合わせを OS が先に使い、ページまで届かないことがある (確かめていない)
+states: [keys:K2.e7, keys:K2.e8, keys:K2.e9, keys:I1.e7, keys:I1.e8, keys:C1.c1, keys:C1.c11, keys:C1.c13, keys:C2.c1, keys:C2.c2, keys:C2.c11]
+steps:
+    - click: { node: 決める }
+    - key: Meta+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Control+Alt+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Meta+Control+Alt+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Enter
+    - type: 決定
+    - key: Meta+Enter
+      expect: { source: input.md, input: name, input_value: 決定, focus: 'name-input:node', selection: nodes:決める }
+    - key: Shift+Meta+Enter
+      expect: { source: input.md, input: name, input_value: 決定, selection: nodes:決める }
+    - key: Control+Alt+Enter
+      expect: { source: input.md, input: name, input_value: 決定, selection: nodes:決める }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:決める }

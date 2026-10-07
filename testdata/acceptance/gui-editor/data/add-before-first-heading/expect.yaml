@@ -1,0 +1,8 @@
+kind: 境界 (決定 S-05 a)
+decided: [S-05]
+checks: >-
+    最初の見出し (設計。兄弟の先頭) の上に足すと、親の見出しのすぐ下 (設計の前) に ## 新しいノード を書く
+note: >-
+    決定 S-05 (2026-10-06、a: 最初の兄弟の上にも足せる。親の見出し「計画」のすぐ下に書く)
+op: { kind: addSiblingBefore, node: 設計, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }

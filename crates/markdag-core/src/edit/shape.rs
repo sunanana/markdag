@@ -1,16 +1,18 @@
 // 原文なし。
 // 書くノードの行の形と字下げの書き方。足す行の行頭 (ATX の見出しの # の並びか、字下げとリストの印) を、並ぶノード
-// (親の最後の子か自分) の形か、子のないときの形から決める。入れ子の項目の字下げの桁は文書の入れ子の幅から求め、
-// タブを使う文書では 4 桁ごとのタブと残りの空白で書く。書いた行の前後にはさむ空行 (見出しの前後と、段落の前の項目) も
-// ここで決める。付け替えで動かすブロックは、移す先での形で行頭を書き直し、2 行目からの字下げを新しい内容の桁に合わせ
-// (元の内容の桁より深い所の字は原文のまま)、配下の見出しの段をずらす (6 段を超えるものと、項目にした見出しの配下の見出しは
-// 入れ子の項目にする)。
+// (親の最後の子か自分) の形か、子のないときの形から決める。自分の前に並べる兄弟は自分と同じ番号で書く (後ろの番号は振り直しが書き直す)。
+// 2 つ以上の項目を全部同じ番号で書いたリスト (「1. 1. 1.」のように番号を表示に任せる書き方) に並べる項目は、どの側でもその番号で書く。
+// 入れ子の項目の字下げの桁は文書の入れ子の幅から求め、タブを使う文書では 4 桁ごとのタブと残りの空白で書く。
+// 書いた行の前後にはさむ空行 (見出しの前後と、段落の前の項目) もここで決める。付け替えで動かすブロックは、移す先での形で
+// 行頭を書き直し、2 行目からの字下げを新しい内容の桁に合わせ (元の内容の桁より深い所の字は原文のまま)、配下の見出しの段をずらす
+// (6 段を超えるものと、項目にした見出しの配下の見出しは入れ子の項目にする)。番号付きの項目の番号の振り直しでは、1 行目の数字だけを
+// 書き直し、桁が増えて子と詳細の字下げが新しい内容の桁に届かなくなるときだけ、届くだけずらす。
 // 桁はタブを次の 4 の倍数の桁まで進めて数える (CommonMark のタブ止め)。
 use std::sync::LazyLock;
 
 use regex::Regex;
 
-use super::blocks::ParsedSource;
+use super::blocks::{BOM, ParsedSource};
 use super::lines::{is_blank, split_carriage};
 use crate::parse::BlockTag;
 use crate::types::{LineRange, NodeKind, OutlineNode};
@@ -109,6 +111,20 @@ impl LineShape {
     }
 }
 
+/// 兄弟を書く側。After は node のブロックのあと、Before は node の 1 行目の前
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Side {
+    After,
+    Before,
+}
+
+// 足す項目の番号の書き方。Next は並ぶ項目に書いた番号 + 1、Same は同じ番号
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Numbering {
+    Next,
+    Same,
+}
+
 /// 書いた行の前後にはさむ空行の決め方
 pub(super) enum Spacing {
     /// 見出しと、表とコードと画像: 前の行と次の行が空でなければ、それぞれ空行をはさむ
@@ -166,17 +182,23 @@ impl<'s> ItemLead<'s> {
         marker_end + gap - self.indent_column()
     }
 
-    // 次に並べる印とそのあとの空白。番号付きは原文に書いた番号 + 1 で、区切り (. か )) を保つ
-    fn next_marker(&self) -> String {
-        let marker = match self.marker.strip_suffix(['.', ')']) {
-            Some(number) => {
+    // 番号付きの印の番号 (数字の部分)。箇条の字の印は None
+    fn number(&self) -> Option<&'s str> {
+        self.marker.strip_suffix(['.', ')'])
+    }
+
+    // 並べる項目の印とそのあとの空白。番号付きは、numbering が Next なら原文に書いた番号 + 1、Same なら同じ番号で、
+    // 区切り (. か )) を保つ
+    fn marker_numbered(&self, numbering: Numbering) -> String {
+        let marker = match self.number() {
+            Some(number) if numbering == Numbering::Next => {
                 let delimiter = &self.marker[number.len()..];
                 let next = number
                     .parse::<u64>()
                     .map_or_else(|_| number.to_string(), |value| (value + 1).to_string());
                 format!("{next}{delimiter}")
             }
-            None => self.marker.to_string(),
+            _ => self.marker.to_string(),
         };
         let gap = advance(0, self.gap);
         let gap = if gap == 0 || gap > MAX_MARKER_GAP {
@@ -188,9 +210,19 @@ impl<'s> ItemLead<'s> {
     }
 }
 
-/// node と同じ形で次に並べる行頭 (兄弟の形と、最後の子にそろえる子の形)。見出しは同じ段の ATX (下線の見出しも ATX)、
-/// 項目は同じ字下げと印 (番号付きは番号 + 1)。タスクなら未着手の記号を付ける。見出しと項目のほかは None
+/// node と同じ形で次に並べる行頭 (最後の子にそろえる子の形)。sibling_shape の After
 pub(super) fn next_shape(read: &ParsedSource<'_>, node: &OutlineNode) -> Option<LineShape> {
+    sibling_shape(read, node, Side::After)
+}
+
+/// node の兄弟として side に並べる行頭。見出しは同じ段の ATX (下線の見出しも ATX)、項目は同じ字下げと印
+/// (番号付きは After なら番号 + 1、Before なら同じ番号。node が全部同じ番号のリストの項目なら、どちらの側でも同じ番号)。
+/// タスクなら未着手の記号を付ける。見出しと項目のほかは None
+pub(super) fn sibling_shape(
+    read: &ParsedSource<'_>,
+    node: &OutlineNode,
+    side: Side,
+) -> Option<LineShape> {
     let first = read.first_line(node)?;
     match read.tag_of(node)? {
         BlockTag::Heading(level) => Some(LineShape::Heading {
@@ -199,14 +231,125 @@ pub(super) fn next_shape(read: &ParsedSource<'_>, node: &OutlineNode) -> Option<
         }),
         BlockTag::Li => {
             let lead = ItemLead::read(first.lead)?;
+            let same = side == Side::Before
+                || node
+                    .parent
+                    .and_then(|parent| read.node(parent))
+                    .is_some_and(|parent| same_number_list(read, parent));
+            let numbering = if same {
+                Numbering::Same
+            } else {
+                Numbering::Next
+            };
             Some(LineShape::Item {
                 indent: lead.indent.to_string(),
-                marker: lead.next_marker(),
+                marker: lead.marker_numbered(numbering),
                 task: first.task,
             })
         }
         _ => None,
     }
+}
+
+/// parent の直下の子が、2 つ以上の項目を全部同じ番号で書いた番号付きのリスト (「1. 1. 1.」「3. 3.」「1) 1)」のように
+/// 番号を表示に任せる書き方) か。足す (上、下、末尾、子を足す、移す先、合流)、消す、移すのどの操作のあとも全部の項目を同じ番号で書くので、
+/// 足す項目もその番号で書き、振り直さない。子は 1 つのリストの項目であること (解析が数えた番号が並びの順に 1 つずつ増える。
+/// 項目 1 つのリストが 2 つ並んだものは数えない)。項目が 1 つのリストは連番として扱う
+pub(super) fn same_number_list(read: &ParsedSource<'_>, parent: &OutlineNode) -> bool {
+    let mut first: Option<(u64, u64)> = None;
+    let mut count: u64 = 0;
+    for child in read
+        .descendants(parent)
+        .filter(|child| child.parent == Some(parent.id))
+    {
+        let (Some(written), Some(counted)) = (written_number(read, child), read.list_number(child))
+        else {
+            return false;
+        };
+        let (number, start) = *first.get_or_insert((written, counted));
+        if written != number || counted != start + count {
+            return false;
+        }
+        count += 1;
+    }
+    count >= 2
+}
+
+/// 番号付きのリストの項目の 1 行目に書いた番号。番号付きの項目でないか、番号が読めなければ None。
+/// 文書の先頭の BOM は行頭の前の字として飛ばす (BOM で始まる文書の最初の項目も、BOM のない文書と同じ番号に読む)
+pub(super) fn written_number(read: &ParsedSource<'_>, node: &OutlineNode) -> Option<u64> {
+    if read.tag_of(node)? != BlockTag::Li {
+        return None;
+    }
+    let first = read.first_line(node)?;
+    ItemLead::read(first.lead.trim_start_matches(BOM))?
+        .number()?
+        .parse()
+        .ok()
+}
+
+/// 番号付きの項目のブロックを、1 行目の番号を number に書き直した行 (行末の \r は行のまま)。文書の先頭の BOM、字下げ、区切り (. か ))、
+/// 印のあとの空白と、1 行目のそのあとの字 (タスクの記号、本文、末尾の印) はそのまま残す。番号の桁が増えて、2 行目からの子と詳細の
+/// 字下げが新しい本文の位置に届かない (この項目の子のままでなくなる) ときだけ、届くだけ同じ幅でずらす (孫や詳細の続きも同じだけ。
+/// フェンスのコードの中の行は字のまま)。元の本文の位置より浅い行 (段落や引用の怠惰な続きの行) は、字下げによらず続きに読まれるので
+/// ずらさない。届いているときと、桁が減るときは字下げを変えない。番号付きの項目でなければ None
+pub(super) fn renumbered_lines(
+    read: &ParsedSource<'_>,
+    node: &OutlineNode,
+    number: u64,
+    indentation: &Indentation,
+) -> Option<Vec<String>> {
+    let range = read.block_lines(node)?;
+    let lines = read.lines.get(range.start as usize..range.end as usize)?;
+    let first = read.first_line(node)?;
+    let unmarked = first.lead.trim_start_matches(BOM);
+    let bom = &first.lead[..first.lead.len() - unmarked.len()];
+    let lead = ItemLead::read(unmarked)?;
+    let digits = lead.number()?;
+    let marker = format!("{number}{}", &lead.marker[digits.len()..]);
+    let renumbered = ItemLead {
+        indent: lead.indent,
+        marker: &marker,
+        gap: lead.gap,
+    };
+    let (head, rest) = lines.split_first()?;
+    let (content, own) = split_carriage(head);
+    let tail = content.get(bom.len() + lead.indent.len() + lead.marker.len()..)?;
+    // 行の位置を変えない書き直しなので、行末の \r は行が持つものだけ (文書の改行を足さない)
+    let writer = LineWriter {
+        carriage: "",
+        tabs: indentation.tabs || lead.indent.contains('\t'),
+    };
+    let mut out = Vec::with_capacity(lines.len());
+    out.push(writer.ended(&format!("{bom}{}{marker}{tail}", lead.indent), own));
+    let old_column = lead.indent_column() + lead.content_width();
+    let to = renumbered.indent_column() + renumbered.content_width();
+    // この項目の中の行 (元の本文の位置より深い行) のうち、いちばん浅い字下げ。新しい本文の位置に届かなければ、そこから届くまでずらす
+    let shallowest = rest
+        .iter()
+        .map(|line| split_carriage(line).0)
+        .filter(|line| !is_blank(line))
+        .map(indent_column)
+        .filter(|&indent| indent >= old_column)
+        .min();
+    let from = match shallowest {
+        Some(indent) if indent < to => indent,
+        _ => to,
+    };
+    let code = inside_fences(read, range.start, lines.len());
+    out.extend(
+        rest.iter()
+            .zip(code.get(1..).unwrap_or_default())
+            .map(|(line, code)| {
+                let (content, own) = split_carriage(line);
+                if !is_blank(content) && indent_column(content) < old_column {
+                    writer.ended(content, own)
+                } else {
+                    writer.shifted(line, from, to, *code)
+                }
+            }),
+    );
+    Some(out)
 }
 
 /// 子のない項目の子の行頭: 親の字下げの桁に足す幅を足した桁の `- `。足す幅は文書の入れ子の幅の最小 (なければ 4) で、
@@ -659,7 +802,8 @@ mod tests {
 
     #[test]
     fn edit_shape_next_marker_counts_up_and_keeps_the_delimiter() {
-        let next = |lead: &str| ItemLead::read(lead).map(|lead| lead.next_marker());
+        let next =
+            |lead: &str| ItemLead::read(lead).map(|lead| lead.marker_numbered(Numbering::Next));
         assert_eq!(next("9) ").as_deref(), Some("10) "));
         assert_eq!(next("  * ").as_deref(), Some("* "));
         // 空の項目 (印で行が終わる) と、内容が字下げのコードになる広い空白は空白 1 つ

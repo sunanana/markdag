@@ -1,0 +1,5 @@
+kind: 境界
+checks: >-
+    ルート (計画) には兄弟がないので、上に足す操作は下に足すときと同じく末尾に子 (## 新しいノード) を足す
+op: { kind: addSiblingBefore, node: 計画, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }

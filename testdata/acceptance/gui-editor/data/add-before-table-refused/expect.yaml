@@ -1,0 +1,5 @@
+kind: 誤り
+checks: >-
+    表のノードは行の形を持たないので、上に足す操作を断る (原文を変えず、理由 block-node)
+op: { kind: addSiblingBefore, node: { id: 3 }, label: 新しいノード }
+expect: { status: refused, reason: block-node }

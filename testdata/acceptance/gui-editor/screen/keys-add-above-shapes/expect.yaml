@@ -1,0 +1,33 @@
+kind: 境界 (決定 S-05 a)
+os: mac
+decided: [S-05]
+checks: >-
+    Shift+⌘Enter (上に足す) の書き方を形ごとに。見出しは選んだ見出しの前に同じ段の見出し (## 新しいノード) を書く (最初の見出し「準備」の上にも足せる。決定 S-05 a)。
+    番号付きの項目は、足した項目と後ろの兄弟の番号を振り直す (2. 更新 の上に足すと 2. 新しいノード、3. 更新、4. 再開)。タスクは未着手の印 ([ ]) を付ける。
+    ルートには兄弟がないので、⌘Enter と同じく末尾に子を足す (通知は「子を足しました」)。どれも Esc で足す前の原文と選択に戻る
+note: >-
+    決定 S-05 (2026-10-06、a: 最初の兄弟の上にも足せる。見出しのすぐ下、文書の先頭、入れ物の先頭にも書く)
+states: [keys:P4.e4, keys:P7.e4, keys:P9.e4, keys:K4.e4]
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す)]
+steps:
+    - click: { node: 準備 }
+      expect: { selection: nodes:準備 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-heading.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード, notice: { kind: info, text: 兄弟を足しました } }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:準備 }
+    - click: { node: 2. 更新 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-numbered.md, input: name, input_value: 新しいノード, selection: nodes:2. 新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:2. 更新 }
+    - click: { node: 報告 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-task.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:報告 }
+    - click: { node: 計画 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-root.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード, notice: { kind: info, text: 子を足しました } }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:計画 }

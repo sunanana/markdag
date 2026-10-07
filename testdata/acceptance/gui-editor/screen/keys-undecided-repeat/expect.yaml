@@ -1,0 +1,41 @@
+kind: 境界 (決定 S-19 a)
+os: mac
+decided: [S-19]
+checks: >-
+    キーを押したままの繰り返し (2 回目からの keydown は repeat) も 1 回ずつ受ける。Enter を押したままにすると、名前の入力を開く、決める、開くを繰り返す。
+    Ctrl+Enter を押したままにすると下の兄弟へ続けて移り、最後の兄弟で止まる。⌘Enter を押したままにすると、兄弟を押した回数だけ足す (3 回の keydown で 3 つ)
+note: >-
+    決定 S-19 (2026-10-06、a: キーの繰り返しも 1 回ずつ受ける。Tab も同じ)
+states: [keys:R1.r1, keys:R1.r2, keys:R1.r3]
+steps:
+    - click: { node: 決める }
+    - keydown: Enter
+      expect: { input: name, input_value: 決める }
+    - keydown: Enter
+      expect: { input: none, selection: nodes:決める }
+    - keydown: Enter
+      expect: { input: name, input_value: 決める }
+    - keyup: Enter
+    - key: Escape
+    - click: { node: 調べる }
+    - keydown: Control
+    - keydown: Enter
+      expect: { input: name, input_value: 決める, selection: nodes:決める }
+    - keydown: Enter
+      expect: { input: name, input_value: 書く, selection: nodes:書く }
+    - keydown: Enter
+      expect: { input: name, input_value: 書く, selection: nodes:書く }
+    - keyup: Enter
+    - keyup: Control
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:書く }
+    - click: { node: 決める }
+    - keydown: Meta
+    - keydown: Enter
+    - keydown: Enter
+    - keydown: Enter
+      expect: { source: after-hold-add.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - keyup: Enter
+    - keyup: Meta
+    - key: Escape
+      expect: { source: after-hold-add-escape.md, input: none }

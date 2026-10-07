@@ -293,16 +293,53 @@ export interface RulesModule {
     groups: string[];
 }
 
-// そのノード自身と祖先に入ってくる線をさかのぼって、終わっていない (未完了か作業中の) タスクを集める。中止は終わった扱いで、下流を塞がない。
-// relations の線は見出しに引かれていることが多いので、配下の項目から見るには祖先の分も見る
-export function unfinishedUpstream(doc: HookDocument, node: HookNode): HookNode[] {
-    const found = new Map<number, HookNode>();
-    for (let current: HookNode | null = node; current !== null; current = current.parent === null ? null : doc.node(current.parent)) {
-        for (const upstream of doc.upstream(current.id, { transitive: true })) {
-            if (upstream.task !== null && (upstream.task.state === 'todo' || upstream.task.state === 'doing')) found.set(upstream.id, upstream);
+// 上流をたどるのに使う、ノードの親と、ノードに入ってくる relations の線の始点 (どちらも id)
+interface UpstreamGraph {
+    parentOf(id: number): number | null;
+    sourcesOf(id: number): readonly number[];
+}
+
+// createHookDocument が作った文書の、id だけで引ける表。HookDocument の形 (公開の型) に出さないよう、モジュールの中の入れ物で持つ
+const upstreamGraphs = new WeakMap<HookDocument, UpstreamGraph>();
+
+// ノードの上流の id: そのノード自身と祖先に入ってくる relations の線を推移的にさかのぼって届くノード (ツリーの親子の線はたどらない)。
+// relations の線は見出しに引かれていることが多いので、配下の項目から見るには祖先の分も見る。並びは、自分から祖先へ順に、
+// それぞれからさかのぼって届いた順 (HookDocument.upstream を transitive で呼んだときと同じ)。HookNode の写しは作らない。
+// markdag.rules の requireUpstreamDone と、まとめて進めるときの確かめの順が使う
+export function upstreamIdsOf(doc: HookDocument, id: number): Set<number> {
+    const graph = upstreamGraphs.get(doc) ?? {
+        parentOf: (target: number) => doc.node(target)?.parent ?? null,
+        sourcesOf: (target: number) => doc.upstream(target).map((node) => node.id),
+    };
+    const found = new Set<number>();
+    for (let current: number | null = id; current !== null; current = graph.parentOf(current)) {
+        // さかのぼりの起点は、線が戻ってきても自分の上流に数えない (HookDocument.upstream と同じ)
+        const seen = new Set([current]);
+        const queue = [current];
+        // 足した始点も、同じ列のまま続けてたどる (幅優先)
+        for (const target of queue) {
+            for (const source of graph.sourcesOf(target)) {
+                if (seen.has(source)) continue;
+                seen.add(source);
+                found.add(source);
+                queue.push(source);
+            }
         }
     }
-    return [...found.values()];
+    return found;
+}
+
+// ノードの上流 (upstreamIdsOf の id のノード)
+export function upstreamOf(doc: HookDocument, node: HookNode): HookNode[] {
+    return [...upstreamIdsOf(doc, node.id)].flatMap((id) => {
+        const upstream = doc.node(id);
+        return upstream === null ? [] : [upstream];
+    });
+}
+
+// 上流のうち、終わっていない (未完了か作業中の) タスク。中止は終わった扱いで、下流を塞がない
+export function unfinishedUpstream(doc: HookDocument, node: HookNode): HookNode[] {
+    return upstreamOf(doc, node).filter((upstream) => upstream.task !== null && (upstream.task.state === 'todo' || upstream.task.state === 'doing'));
 }
 
 // frontmatter の markdag.rules を、組み込みのフックにする。コードを書かずに使える規則で、
@@ -416,7 +453,7 @@ export function createHookDocument(input: HookDocumentInput): HookDocument {
         });
     };
 
-    return {
+    const doc: HookDocument = {
         get source() {
             return input.source();
         },
@@ -434,6 +471,11 @@ export function createHookDocument(input: HookDocumentInput): HookDocument {
         upstream: (id, options) => walk(id, options, relationsBackward, (node) => (node.parent === null ? [] : [node.parent])),
         downstream: (id, options) => walk(id, options, relationsForward, (node) => children.get(node.id) ?? []),
     };
+    upstreamGraphs.set(doc, {
+        parentOf: (id) => byId.get(id)?.parent ?? null,
+        sourcesOf: (id) => relationsBackward.get(id) ?? [],
+    });
+    return doc;
 }
 
 export interface HookHost {

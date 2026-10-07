@@ -1080,7 +1080,7 @@ describe('editSource の合流と参照の追随 (GUI 編集の段 6)', () => {
         it('番号付きのリストの先頭に兄弟を足すと、後ろの項目を名前で指す参照が新しい番号に書き直る (A-10)', () => {
             // 1 R / 2 手順 / 3「1. 準備」/ 4「2. 確認」/ 5 公開 → 足したあと 4「2. 新しいノード」/ 5「3. 確認」/ 6 公開
             const source = '---\nmarkdag:\n    relations:\n        depends:\n            - 2. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 確認\n## 公開\n';
-            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n2. 確認\n## 公開\n';
+            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n3. 確認\n## 公開\n';
             expectEdges(source, [[4, 5, 'depends']]);
             expectEdges(expected, [[5, 6, 'depends']]);
             const outcome = expectRewritten(source, addSibling(source, [3, '1. 準備'], '新しいノード'), expected, [4, '2. 新しいノード'], true);
@@ -1091,7 +1091,7 @@ describe('editSource の合流と参照の追随 (GUI 編集の段 6)', () => {
         it('同じ名前の項目のある番号付きのリストでも、線が足した項目へ付け替わらない (B-03)', () => {
             // 1 R / 2 手順 / 3「1. 確認」/ 4「2. 確認」/ 5 公開 → 足したあと 4「2. 確認」(足した項目) / 5「3. 確認」/ 6 公開
             const source = '---\nmarkdag:\n    relations:\n        depends:\n            - 2. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n## 公開\n';
-            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n2. 確認\n## 公開\n';
+            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n3. 確認\n## 公開\n';
             expectEdges(source, [[4, 5, 'depends']]);
             expectEdges(expected, [[5, 6, 'depends']]);
             expectNoEdge(expected, 4, 6);
@@ -1102,7 +1102,7 @@ describe('editSource の合流と参照の追随 (GUI 編集の段 6)', () => {
         it('番号付きのリストの途中を消すと、消したノードを指していない後ろの項目の参照を書き直す', () => {
             // 1 R / 2 手順 / 3「1. 準備」/ 4「2. 確認」/ 5「3. 公開」/ 6 まとめ → 消したあと 4「2. 公開」/ 5 まとめ
             const source = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n2. 確認\n3. 公開\n## まとめ\n';
-            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 2. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n3. 公開\n## まとめ\n';
+            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 2. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n2. 公開\n## まとめ\n';
             expectEdges(source, [[5, 6, 'depends']]);
             expectEdges(expected, [[4, 5, 'depends']]);
             const outcome = expectRewritten(source, deleteNodes(source, [[4, '2. 確認']]), expected, [2, '手順'], false);
@@ -1130,7 +1130,7 @@ describe('editSource の合流と参照の追随 (GUI 編集の段 6)', () => {
 
         it('守りで書き直す参照がフロー形式のブロックにあれば、字下げの形に書き直してから書き直す (細部 21。D-056)', () => {
             const source = '---\nmarkdag:\n    relations:\n        depends: [2. 確認 --> 公開]\n---\n# R\n## 手順\n1. 準備\n2. 確認\n## 公開\n';
-            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n2. 確認\n## 公開\n';
+            const expected = '---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n3. 確認\n## 公開\n';
             expectEdges(expected, [[5, 6, 'depends']]);
             const result = expectRewritten(source, addSibling(source, [3, '1. 準備'], '新しいノード'), expected, [4, '2. 新しいノード'], true);
             expect(noteCodes(result)).toEqual(['refs-rewritten']);

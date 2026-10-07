@@ -1,0 +1,19 @@
+kind: 正常
+os: mac
+checks: >-
+    選択中の Shift+Tab は親を選び、その名前の入力を開く (原文は変えない)。名前の入力中は名前を決めてから親の名前の入力へ移る。
+    ルートには親がないので、入力中は決めずに入力を開いたまま、選択中は何もしない (フォーカスも図のまま)
+states: [keys:P1.e11, keys:Q4.e11, keys:Q9.e11, keys:P9.e11]
+steps:
+    - click: { node: 調べる }
+    - key: Shift+Tab
+      expect: { source: input.md, input: name, input_value: 準備, focus: 'name-input:node', selection: nodes:準備 }
+    - type: 下ごしらえ
+    - key: Shift+Tab
+      expect: { source: after-rename.md, input: name, input_value: 計画, selection: nodes:計画, notice: { kind: info, text: 名前を「下ごしらえ」にしました } }
+    - key: Shift+Tab
+      expect: { source: after-rename.md, input: name, input_value: 計画, focus: 'name-input:node', selection: nodes:計画 }
+    - key: Escape
+      expect: { source: after-rename.md, input: none, selection: nodes:計画 }
+    - key: Shift+Tab
+      expect: { source: after-rename.md, input: none, focus: diagram, selection: nodes:計画 }

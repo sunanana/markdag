@@ -1,0 +1,5 @@
+kind: 境界
+checks: >-
+    上の兄弟 (調べる) が詳細 (> メモ) を持つとき、決めるの上に足すと、足す行は調べるの詳細のあと、決めるの前に書く (詳細の引用ブロックを割らない)
+op: { kind: addSiblingBefore, node: 決める, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }

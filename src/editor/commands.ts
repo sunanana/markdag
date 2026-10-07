@@ -5,10 +5,12 @@
 // ただし選び直すノード (グループにまとめたときはまとめたノード) が 2 つ以上なら、どの操作でも図を動かさない (パンも開閉もしない。holdsView)。
 // 引いた線とグループを選ぶときは、描き直した文書にその線とグループがあるかを確かめる。
 // 名前の入力を 1 つずつ (ノードとグループ) 持ち、どちらか 1 つだけを開く: 開く (既存のノードかグループと、足したばかりのノードかまとめたばかりのグループ)、
-// 決める (入力中の Enter / Tab、外へ移ったとき、閲覧へ切り替えるとき)、やめる (Esc。足したばかり、まとめたばかりなら元に戻すと同じく前に戻す)。
-// 入力中のキーで名前を決められなかったら、入力を開いたままにする (ノードは続けて足さない)。
+// 決める (入力中の Enter、修飾キーつきの Enter、Tab、Shift+Tab、外へ移ったとき、閲覧へ切り替えるとき)、
+// やめる (Esc。足したばかり、まとめたばかりなら元に戻すと同じく前に戻す)。入力中のキーは、決めたあとに兄弟 (下か上) か子を足すか、
+// 親か書いた順の上下の兄弟の名前の入力へ移る。入力中のキーで名前を決められなかったら、入力を開いたままにする (ノードは続けて足さず、移らない)。
+// 移る先がなければ、決めずに入力を開いたままにする。
 // 詳細の入力を 1 つ持ち、選んだノードの右 (入らなければ下、下にも入らなければ上) に重ねる: 開く (詳細を書けるノードだけ)、
-// 保存する (⌘Enter / Ctrl+Enter と保存のボタン、外へ移ったとき、閲覧へ切り替えるとき)、やめる (Esc とやめるのボタン)。
+// 保存する (保存のキーの Enter (mac は ⌘Enter、win は Ctrl+Enter) と保存のボタン、外へ移ったとき、閲覧へ切り替えるとき)、やめる (Esc とやめるのボタン)。
 // 保存のボタンとキーで保存できなかったら、入力を開いたままにする。名前の入力と詳細の入力は同時に 1 つだけ開き、ほかの命令の前に決める。
 // グループの名前の入力は、図の上なら枠があれば枠のラベルの上 (枠が 2 つ以上なら、持ち主が覚えている押した枠。なければ最初の枠。
 // 2 つ以上のノードをまとめたばかりなら、図を動かさずに見えている枠)、なければメンバーの全体の上に重ね (置き分けは図の側の重ねる口)、
@@ -32,7 +34,9 @@ import {
     type OverlayPlacement,
     type Rect,
 } from '../core';
-import { drawnParts, keepDrawn, nodesSelection, sameSelection, selectedNodes, type DrawnParts, type EditorSelection } from './selection';
+import type { KeyPlatform } from './keys';
+import { outlineTarget, type OutlineStep } from './navigation';
+import { drawnParts, keepDrawn, nodesSelection, sameSelection, selectedNodes, targetOf, type DrawnParts, type EditorSelection } from './selection';
 import type { ApplyStatus, EditAttempt, EditedOutcome, EditorSource } from './source';
 import { attachedTags, hasTag, mergeTags, registeredTags, rememberTag, tagChoiceOf, tagState, tagText, type TagChoice } from './tags';
 import { DetailsEditor, type DetailsEditorAction } from './ui/details-editor';
@@ -47,20 +51,22 @@ export const NEW_NODE_LABEL = '新しいノード';
 // 新しい合流先の仮の名前 (合流したあとすぐ、全部を選んだ名前の入力を開く)
 export const JOIN_NODE_LABEL = '合流点';
 
-// 選んだノードに足すもの。ルートの兄弟は子として足す
-type AddKind = 'child' | 'sibling';
+// 選んだノードに足すもの。sibling は兄弟を下 (あと) に、sibling-before は上 (前) に足す。ルートの兄弟は子として足す
+type AddKind = 'child' | 'sibling' | 'sibling-before';
 
-// 名前を決めるきっかけ。key は入力中の Enter / Tab (決められなければ入力を開いたまま)。
+// 名前を決めるきっかけ。key は入力中のキー (Enter、修飾キーつきの Enter、Tab、Shift+Tab。決められなければ入力を開いたまま)。
 // leave はフォーカスが入力の外へ移ったか、入力の外を押したとき。switch は閲覧へ切り替えるとき (どちらも決められなくても閉じる)
 type CommitCause = 'key' | 'leave' | 'switch';
 
-// 詳細を保存するきっかけ。save は ⌘Enter / Ctrl+Enter と保存のボタン (保存できなければ入力を開いたまま)。
+// 詳細を保存するきっかけ。save は保存のキーの Enter と保存のボタン (保存できなければ入力を開いたまま)。
 // leave と switch は名前と同じ (保存できなくても閉じる)
 type DetailsCommitCause = 'save' | 'leave' | 'switch';
 
 interface CommandHost {
     readonly view: MarkdagView;
     readonly source: EditorSource;
+    // 名前の入力と詳細の入力の Enter の修飾キーの割り当ての区分 (GUI 編集を開くときに 1 回見分けたもの)
+    readonly keyPlatform: KeyPlatform;
     // GUI 編集か (閲覧では選び直さず、名前の入力も開かない)
     editing(): boolean;
     selection(): EditorSelection;
@@ -176,9 +182,15 @@ const overlapsArea = (rect: Rect, width: number, height: number): boolean => rec
 
 const sameRect = (a: Rect, b: Rect): boolean => a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
-// 子か兄弟を足す操作。ルートの兄弟は子として足す (ルートには兄弟がいない)
+// 名前の入力の操作のうち、移る操作の移る先 (移る操作でなければ null)
+function outlineStepOf(action: Exclude<NameInputAction, 'stay'>): OutlineStep | null {
+    return action === 'parent' || action === 'previous' || action === 'next' ? action : null;
+}
+
+// 子か兄弟 (下か上) を足す操作。ルートの兄弟は子として足す (ルートには兄弟がいない)
 export function addNodeOp(kind: AddKind, node: NodeTarget, root: boolean): EditOp {
     if (kind === 'child' || root) return { kind: 'addChild', parent: node, label: NEW_NODE_LABEL };
+    if (kind === 'sibling-before') return { kind: 'addSiblingBefore', node, label: NEW_NODE_LABEL };
     return { kind: 'addSibling', node, label: NEW_NODE_LABEL };
 }
 
@@ -309,7 +321,7 @@ export function editedNotice(op: EditOp, edited: EditedOutcome, extra: readonly 
     const groupLabel = context.groupLabel ?? '';
     let head: string;
     if (op.kind === 'addChild') head = '子を足しました';
-    else if (op.kind === 'addSibling') head = '兄弟を足しました';
+    else if (op.kind === 'addSibling' || op.kind === 'addSiblingBefore') head = '兄弟を足しました';
     else if (op.kind === 'renameNode') {
         // 名前を空にする変更は書き換えの側が断る。書いた名前の refText が空に読まれたときは名前を出さない
         const name = selectedNodes(edited.select)[0]?.refText ?? op.label.trim();
@@ -358,21 +370,28 @@ export class EditCommands {
 
     constructor(private readonly host: CommandHost) {
         const create = (kind: NameInputFor): NameInput =>
-            new NameInput(kind, {
-                onAction: (action) => this.act(action),
+            new NameInput(
+                kind,
+                {
+                    onAction: (action) => this.act(action),
+                    onLeave: () => {
+                        if (!this.applying) this.commit('leave');
+                    },
+                    holdsEscape: () => this.host.popoverPinned(),
+                },
+                this.host.keyPlatform,
+            );
+        this.inputs = { node: create('node'), group: create('group') };
+        this.detailsEditor = new DetailsEditor(
+            {
+                onAction: (action) => this.actDetails(action),
                 onLeave: () => {
-                    if (!this.applying) this.commit('leave');
+                    if (!this.applying) this.commitDetails('leave');
                 },
                 holdsEscape: () => this.host.popoverPinned(),
-            });
-        this.inputs = { node: create('node'), group: create('group') };
-        this.detailsEditor = new DetailsEditor({
-            onAction: (action) => this.actDetails(action),
-            onLeave: () => {
-                if (!this.applying) this.commitDetails('leave');
             },
-            holdsEscape: () => this.host.popoverPinned(),
-        });
+            this.host.keyPlatform,
+        );
         this.tagPanel = new TagPanel({
             onSubmit: (key, value, editing) => this.submitTag(key, value, editing),
             onRemove: (tag) => this.removeTag(tag),
@@ -424,11 +443,25 @@ export class EditCommands {
         this.openName(node, false);
     }
 
-    // 子か兄弟を足し、足したノードの名前の入力を開く
+    // 子か兄弟 (下か上) を足し、足したノードの名前の入力を開く
     add(kind: AddKind, node: NodeTarget): void {
         if (!this.leaveInputs()) return;
         if (!this.isDrawn(node)) return;
         this.addTo(kind, node);
+    }
+
+    // node から step の先 (親か、書いた順で 1 つ上か下の兄弟) を選び、その名前の入力を開く。移る先がなければ何もしない。
+    // 親へ移るときは、名前を持たないリストの入れ物 (ルートでないもの) を飛ばして、その上のノードへ移る (行を持たないルートは名前が title なので移る)。
+    // 名前を変えられないノードでは、選んで見える所へ動かし、開かずに理由を知らせる (名前の入力と同じ)
+    renameToward(step: OutlineStep, node: NodeTarget): void {
+        if (!this.leaveInputs()) return;
+        const target = this.stepTarget(step, node.id);
+        if (target === null || !this.host.editing()) return;
+        this.host.select(nodesSelection([target]));
+        // 選び直しの知らせ (onSelectionChange) の中でアプリが片付けたら、見せるのも名前の入力もやめる
+        if (!this.host.editing()) return;
+        this.host.view.ensureVisible(target.id);
+        this.openName(target, false);
     }
 
     // ノードを配下ごと 1 回の書き換えで消す (配下に含まれるノードは上のノードと一緒に消える)。
@@ -711,7 +744,7 @@ export class EditCommands {
         return this.commitDetails('leave');
     }
 
-    // 詳細の入力の ⌘Enter / Ctrl+Enter と保存のボタンは保存し、Esc とやめるのボタンは保存せずに閉じる (選択はそのまま)。
+    // 詳細の入力の保存のキーの Enter と保存のボタンは保存し、Esc とやめるのボタンは保存せずに閉じる (選択はそのまま)。
     // どちらも閉じたらフォーカスを図の要素へ戻す
     private actDetails(action: Exclude<DetailsEditorAction, 'stay'>): void {
         if (this.details === null) return;
@@ -722,7 +755,8 @@ export class EditCommands {
         }
     }
 
-    // ノードの名前の入力中の Enter / Tab / Shift+Tab は名前を決めてから足し、グループの名前の入力中の Enter は名前を決める。
+    // ノードの名前の入力中のキーは、名前を決めてから足す (兄弟を下か上、子) か、親か書いた順の上下の兄弟の名前の入力へ移る。
+    // 移る先がなければ、決めずに入力を開いたままにする。決めるだけのキー (Enter) とグループの名前の入力中の Enter は名前を決める。
     // Esc はやめる (足したばかりのノードとまとめたばかりのグループは、元に戻すと同じく前の原文と選択に戻す)
     private act(action: Exclude<NameInputAction, 'stay'>): void {
         const naming = this.naming;
@@ -733,10 +767,14 @@ export class EditCommands {
             if (naming.fresh) this.host.source.undo();
             return;
         }
+        const step = outlineStepOf(action);
+        if (naming.kind === 'node' && step !== null && this.stepTarget(step, naming.target.id) === null) return;
         const committed = this.commit('key');
         if (naming.kind === 'group' || action === 'commit') return;
         if (!committed.done || committed.node === null || !this.host.editing()) return;
-        this.addTo(action, committed.node);
+        // 名前を変えると refText が変わるので、移る先は描き直した文書で引き直す (id は変わらない)
+        if (step !== null) this.renameToward(step, committed.node);
+        else if (action === 'child' || action === 'sibling' || action === 'sibling-before') this.addTo(action, committed.node);
     }
 
     private commit(cause: CommitCause): Committed {
@@ -1012,5 +1050,23 @@ export class EditCommands {
 
     private isRoot(id: number): boolean {
         return this.host.view.getDocument()?.parsed.nodes.find((node) => node.id === id)?.parent === null;
+    }
+
+    // 描いている図で、id のノードから step の先のノード (書いた順の親か兄弟)。親は、名前を持たないリストの入れ物を飛ばしたその上。なければ null
+    private stepTarget(step: OutlineStep, id: number): NodeTarget | null {
+        const nodes = this.host.view.getDocument()?.parsed.nodes ?? [];
+        const nodeOf = (target: number | null): OutlineNode | undefined => (target === null ? undefined : nodes.find((item) => item.id === target));
+        let node = nodeOf(outlineTarget(step, id, nodes));
+        while (step === 'parent' && node !== undefined && node.parent !== null && this.isListContainer(node)) node = nodeOf(node.parent);
+        return node ? targetOf(node) : null;
+    }
+
+    // リストの入れ物 (容器。原文に名前の行を持たないノード) か
+    private isListContainer(node: OutlineNode): boolean {
+        try {
+            return inspectNode(this.host.source.source, targetOf(node))?.kind === 'list';
+        } catch {
+            return false;
+        }
     }
 }

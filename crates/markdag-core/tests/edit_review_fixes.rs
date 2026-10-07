@@ -224,11 +224,12 @@ fn edit_review_a01_delete_the_first_item_when_the_container_stays() {
             (1, "手順"),
         ),
         ("- a\n    - a1\n- b\n- c\n", (2, "a"), "- b\n- c\n", (1, "")),
-        // 見出しの下の種類の違うリスト (容器が 2 つ)。選ぶのは消した項目の親の容器
+        // 見出しの下の種類の違うリスト (容器が 2 つ)。選ぶのは消した項目の親の容器。番号付きのリストは、消す前の始まりの番号 (1) から
+        // 振り直す (例の承認の U7-first)
         (
             "# R\n- p\n- q\n\n1. a\n2. b\n3. c\n",
             (6, "1. a"),
-            "# R\n- p\n- q\n\n2. b\n3. c\n",
+            "# R\n- p\n- q\n\n1. b\n2. c\n",
             (5, ""),
         ),
         (
@@ -280,11 +281,12 @@ fn edit_review_a01_move_the_first_item_when_the_container_stays() {
             (4, "a"),
             3,
         ),
+        // 番号付きのリストは、移す前の始まりの番号 (1) から振り直す (例の承認の U7-first)
         (
             "# R\n- p\n- q\n\n1. a\n2. b\n3. c\n",
             (6, "1. a"),
             (7, "2. b"),
-            "# R\n- p\n- q\n\n2. b\n    - a\n3. c\n",
+            "# R\n- p\n- q\n\n1. b\n    - a\n2. c\n",
             (7, "a"),
             6,
         ),

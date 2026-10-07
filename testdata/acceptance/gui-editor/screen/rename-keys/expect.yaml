@@ -1,19 +1,26 @@
 kind: 正常
+os: mac
 checks: >-
-    Enter で選んだノードの名前の入力を開く (帯、+、線を引く点は隠す)。入力中の Enter で名前を決めて兄弟を足し、その名前の入力へ移る (仮の名前を全部選ぶ)。
-    足したばかりの名前の入力を Esc でやめると、足す前の原文と選択に戻る。⌘Z / Ctrl+Z で名前の変更も戻る
+    Enter で選んだノードの名前の入力を開く (帯、+、線を引く点は隠す)。入力中の ⌘Enter (足すキー) で名前を決めて兄弟を足し、その名前の入力へ移る (仮の名前を全部選ぶ)。
+    足したばかりの名前の入力を Esc でやめると、足す前の原文と選択に戻る。⌘Z / Ctrl+Z で名前の変更も戻る。
+    入力中の Enter は名前を決めるだけで、兄弟は足さない (0.12.0 は Enter で決めて兄弟を足した。editor-keys で書き直した)
 behaviors: [B-001, B-027, B-013, B-025, B-029, B-031, B-008, B-004, B-011, B-017, B-020, B-085]
-states: [D1.d2, D3.d2, D2.d5, C2.c14, D3.v1, D3.v2, D3.v3, D2.v1, D2.v2, D2.v3]
-decisions: [G-026 (入力中は帯を隠す), F-17 (入力中は線を引く点も隠す)]
+states: [D1.d2, D3.d2, D2.d5, C2.c14, D3.v1, D3.v2, D3.v3, D2.v1, D2.v2, D2.v3, keys:I1.e1, keys:I1.e3, keys:I2.e15]
+decisions: [G-026 (入力中は帯を隠す), F-17 (入力中は線を引く点も隠す), editor-keys の決まったキー (入力中の Enter は決めるだけ。兄弟を足すのは足すキーの Enter と Shift+Enter)]
 steps:
     - click: { node: API }
       expect: { selection: nodes:API, bar: node }
     - key: Enter
-      expect: { input: name, input_value: API, focus: 'name-input:node', bar: none, handles: [], hint: { contains: 決めて兄弟を足す } }
+      expect: { input: name, input_value: API, focus: 'name-input:node', bar: none, handles: [], hint: { contains: [決める, 決めて兄弟を下に足す] } }
     - type: API 設計
-    - key: Enter
+    - key: Meta+Enter
       expect: { source: after-enter.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード, bar: none }
     - key: Escape
       expect: { source: after-rename.md, input: none, selection: nodes:API 設計, bar: node }
     - key: ControlOrMeta+z
       expect: { source: input.md, selection: nodes:API }
+    - key: Enter
+      expect: { input: name, input_value: API, focus: 'name-input:node', bar: none, handles: [] }
+    - type: API 設計
+    - key: Enter
+      expect: { source: after-rename.md, input: none, selection: nodes:API 設計, bar: node, focus: diagram }

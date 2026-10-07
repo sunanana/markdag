@@ -90,7 +90,8 @@ const ROOT_HEADING: Can = [true, false, false, true, true, true, true];
 const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true];
 const CONTAINER: Can = [false, true, false, false, true, false, false];
 const BLOCK: Can = [false, true, true, false, false, false, false];
-const LINELESS_ROOT: Can = [false, false, false, false, true, true, false];
+// 行を持たないルートの名前は frontmatter の title なので、名前を変えられる (例の承認のルートのタイトル)
+const LINELESS_ROOT: Can = [true, false, false, false, true, true, false];
 
 function inspected(id: number, kind: core.InspectNodeResult['kind'], label: string, details: string | null, task: boolean, can: Can): core.InspectNodeResult {
     const [canRename, canDelete, canMove, canHaveDetails, canAddChild, canAddSibling, canMark] = can;
@@ -369,10 +370,14 @@ describe('editSource と inspectNode (GUI 編集の段 2: 書き換えの土台�
             expect(rename(source, 2, 'a', '')).toEqual(refused('empty-name'));
         });
 
-        it('行を持たないルートと容器は no-source-line、表とコードと画像は block-node', () => {
-            expect(rename(LINELESS, 1, 'T', 'x')).toEqual(refused('no-source-line'));
-            expect(rename(LIST_ROOT_TITLED, 1, '手順', 'x')).toEqual(refused('no-source-line'));
-            expect(rename(LIST_ROOT, 1, '', 'x')).toEqual(refused('no-source-line'));
+        it('行を持たないルートは title を書き換え (例の承認のルートのタイトル)、容器は no-source-line、表とコードと画像は block-node', () => {
+            for (const [source, refText] of [
+                [LINELESS, 'T'],
+                [LIST_ROOT_TITLED, '手順'],
+                [LIST_ROOT, ''],
+            ] as const) {
+                expect(rename(source, 1, refText, 'x').status, source).toBe('edited');
+            }
             for (const id of [2, 5]) expect(rename(NESTED_LISTS, id, '', 'x'), `容器 ${id}`).toEqual(refused('no-source-line'));
             for (const id of [2, 3, 4]) expect(rename(BLOCKS, id, '', 'x'), `表とコードと画像 ${id}`).toEqual(refused('block-node'));
         });
@@ -436,8 +441,8 @@ describe('editSource と inspectNode (GUI 編集の段 2: 書き換えの土台�
         });
 
         it('行を持たないルートと、リストだけの文書のルート (容器)', () => {
-            expect(core.inspectNode(LINELESS, { id: 1, refText: 'T' })).toEqual(inspected(1, 'root', '', null, false, LINELESS_ROOT));
-            // ルートなので消せず動かせない。兄弟 (canAddSibling) はここでは見ない
+            expect(core.inspectNode(LINELESS, { id: 1, refText: 'T' })).toEqual(inspected(1, 'root', 'T', null, false, LINELESS_ROOT));
+            // ルートなので消せず動かせない。名前 (title) は変えられ、名前の入力の初めの値は今の title。兄弟 (canAddSibling) はここでは見ない
             for (const [source, refText] of [
                 [LIST_ROOT_TITLED, '手順'],
                 [LIST_ROOT, ''],
@@ -445,10 +450,10 @@ describe('editSource と inspectNode (GUI 編集の段 2: 書き換えの土台�
                 expect(core.inspectNode(source, { id: 1, refText }), source).toMatchObject({
                     id: 1,
                     kind: 'list',
-                    label: '',
+                    label: refText,
                     details: null,
                     task: false,
-                    canRename: false,
+                    canRename: true,
                     canDelete: false,
                     canMove: false,
                     canHaveDetails: false,
@@ -622,12 +627,12 @@ describe('editSource の addChild と addSibling (GUI 編集の段 3: 子と兄�
     });
 
     describe('兄弟 (B-023)', () => {
-        it('自分のブロックのあとに同じ形: 見出しの段、字下げと印、番号付きは自分の番号 + 1 (後ろは振り直さない)、タスクは [ ]', () => {
+        it('自分のブロックのあとに同じ形: 見出しの段、字下げと印、番号付きは自分の番号 + 1 (後ろの兄弟は振り直す)、タスクは [ ]', () => {
             expectAdded(addSibling('# R\n## A\n### a1\n\n## B\n', 2, 'A'), '# R\n## A\n### a1\n\n## 新しいノード\n\n## B\n', [4, NEW], 1);
             const nested = '# R\n- x\n    > 詳細\n    - x1\n- y\n';
             expectAdded(addSibling(nested, 2, 'x'), '# R\n- x\n    > 詳細\n    - x1\n- 新しいノード\n- y\n', [4, NEW], 1);
             expectAdded(addSibling(nested, 3, 'x1'), '# R\n- x\n    > 詳細\n    - x1\n    - 新しいノード\n- y\n', [4, NEW], 2);
-            expectAdded(addSibling('# R\n1. a\n2. b\n3. c\n', 2, '1. a'), '# R\n1. a\n2. 新しいノード\n2. b\n3. c\n', [3, '2. 新しいノード'], 1);
+            expectAdded(addSibling('# R\n1. a\n2. b\n3. c\n', 2, '1. a'), '# R\n1. a\n2. 新しいノード\n3. b\n4. c\n', [3, '2. 新しいノード'], 1);
             expectAdded(addSibling('# R\n1) a\n2) b\n', 3, '2. b'), '# R\n1) a\n2) b\n3) 新しいノード\n', [4, '3. 新しいノード'], 1);
             expectAdded(addSibling('# R\n- [/] a\n- b\n', 2, 'a'), '# R\n- [/] a\n- [ ] 新しいノード\n- b\n', [3, NEW], 1);
             expectAdded(addSibling('# R\n1. [-] a\n', 2, '1. [-] a'), '# R\n1. [-] a\n2. [ ] 新しいノード\n', [3, '2. 新しいノード'], 1);
@@ -840,11 +845,11 @@ describe('editSource の deleteNodes と moveNode (GUI 編集の段 4: ノード
     });
 
     describe('削除 (B-038、B-040、B-041)', () => {
-        it('リストの項目は詳細と入れ子ごと消し、選ぶのは親。番号は書き直さず、文書の終わり方も変えない', () => {
+        it('リストの項目は詳細と入れ子ごと消し、選ぶのは親。番号付きは残った兄弟の番号を振り直し、文書の終わり方は変えない', () => {
             expectRewritten(deleteNodes('# R\n- a\n    > 詳細\n    - a1\n        - a2\n- b\n', [2, 'a']), '# R\n- b\n', [1, 'R']);
             expectRewritten(deleteNodes(`${MD}# R\n- a\n- b\n`, [3, 'b']), `${MD}# R\n- a\n`, [1, 'R']);
             const numbered = deleteNodes('# R\n1. a\n2. b\n3. c\n', [3, '2. b']);
-            expectRewritten(numbered, '# R\n1. a\n3. c\n', [1, 'R']);
+            expectRewritten(numbered, '# R\n1. a\n2. c\n', [1, 'R']);
             expect(nodeOf(edited(numbered).source, 3).refText).toBe('2. c');
             expectRewritten(deleteNodes('# R\n- a\n- b', [3, 'b']), '# R\n- a', [1, 'R']);
         });
@@ -952,10 +957,10 @@ describe('editSource の deleteNodes と moveNode (GUI 編集の段 4: ノード
             expect(nodeOf(deeper, 5).parent).toBe(4);
         });
 
-        it('番号付き: 番号付きのリストへは最後の番号 + 1 (区切りを保つ)、番号付きの項目は移す先の形になり、残った番号は書き直さない', () => {
+        it('番号付き: 番号付きのリストへは最後の番号 + 1 (区切りを保つ)、番号付きの項目は移す先の形になり、残った番号は振り直す', () => {
             expectMoved(moveNode('# R\n## A\n1. a\n2. b\n## B\n- y\n', [6, 'y'], [2, 'A']), '# R\n## A\n1. a\n2. b\n3. y\n## B\n', [5, '3. y'], 2);
             expectMoved(moveNode('# R\n## A\n1) a\n2) b\n## B\n- y\n', [6, 'y'], [2, 'A']), '# R\n## A\n1) a\n2) b\n3) y\n## B\n', [5, '3. y'], 2);
-            const fromNumbered = '# R\n## A\n- x\n- b\n## B\n1. a\n3. c\n';
+            const fromNumbered = '# R\n## A\n- x\n- b\n## B\n1. a\n2. c\n';
             expectMoved(moveNode('# R\n## A\n- x\n## B\n1. a\n2. b\n3. c\n', [6, '2. b'], [2, 'A']), fromNumbered, [4, 'b'], 2);
             expect(nodeOf(fromNumbered, 7).refText).toBe('2. c');
             expectMoved(moveNode('# R\n1. a\n2. b\n', [3, '2. b'], [2, '1. a']), '# R\n1. a\n    - b\n', [3, 'b'], 2);

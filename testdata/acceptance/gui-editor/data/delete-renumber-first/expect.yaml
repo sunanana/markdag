@@ -1,0 +1,9 @@
+kind: 境界 (決定 U7-first b)
+decided: [U7]
+checks: >-
+    連番のリストの先頭 (1. 停止) を消すと、消す前の始まりの番号 (1.) から振り直す (1. 更新、2. 再開)
+note: >-
+    決定 U7-first (2026-10-06、b: 連番のリストで先頭を消すか外へ移したときは、消す前の始まりの番号から振り直す)。この例を書いたときは、残った最初の項目の番号 (2.) から数えていた
+decisions: [やらない 3 (削除と移動でも番号を振り直す)]
+op: { kind: deleteNodes, nodes: [1. 停止] }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [作業] }, rename: null, notes: [] }

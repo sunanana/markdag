@@ -1975,7 +1975,7 @@ fn edit_frontmatter_guard_numbered_list_sibling() {
     // 番号付きのリストの先頭に兄弟を足すと後ろの項目の名前 (頭の番号) が変わるので、名前で指す参照を新しい番号に書き直す
     // 1 R / 2 手順 / 3「1. 準備」/ 4「2. 確認」/ 5 公開 → 足したあと 4「2. 新しいノード」/ 5「3. 確認」/ 6 公開
     let source = "---\nmarkdag:\n    relations:\n        depends:\n            - 2. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 確認\n## 公開\n";
-    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n2. 確認\n## 公開\n";
+    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n3. 確認\n## 公開\n";
     assert_edges(source, &[(4, 5, "depends")]);
     assert_edges(expected, &[(5, 6, "depends")]);
     let result = add_sibling(source, (3, "1. 準備"), "新しいノード");
@@ -1986,7 +1986,7 @@ fn edit_frontmatter_guard_numbered_list_sibling() {
     // 同じ名前の項目がある文書: 書き直さないと「2. 確認」が足した項目を指し、線が別のノードへ付け替わる
     // 1 R / 2 手順 / 3「1. 確認」/ 4「2. 確認」/ 5 公開 → 足したあと 4「2. 確認」(足した項目) / 5「3. 確認」/ 6 公開
     let source = "---\nmarkdag:\n    relations:\n        depends:\n            - 2. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n## 公開\n";
-    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n2. 確認\n## 公開\n";
+    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 確認\n2. 確認\n3. 確認\n## 公開\n";
     assert_edges(source, &[(4, 5, "depends")]);
     assert_edges(expected, &[(5, 6, "depends")]);
     assert_no_edge(expected, 4, 6);
@@ -2000,7 +2000,7 @@ fn edit_frontmatter_guard_numbered_list_delete() {
     // 番号付きのリストの途中の項目を消すと後ろの項目の名前が変わるので、消したノードを指していない参照を書き直す
     // 1 R / 2 手順 / 3「1. 準備」/ 4「2. 確認」/ 5「3. 公開」/ 6 まとめ → 消したあと 4「2. 公開」/ 5 まとめ
     let source = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n2. 確認\n3. 公開\n## まとめ\n";
-    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 2. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n3. 公開\n## まとめ\n";
+    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 2. 公開 --> まとめ\n---\n# R\n## 手順\n1. 準備\n2. 公開\n## まとめ\n";
     assert_edges(source, &[(5, 6, "depends")]);
     assert_edges(expected, &[(4, 5, "depends")]);
     let result = delete_nodes(source, &[(4, "2. 確認")]);
@@ -2037,7 +2037,7 @@ fn edit_frontmatter_guard_add_child_with_a_name_already_used() {
 fn edit_frontmatter_guard_rewrites_flow_style() {
     // 守りで書き直す参照がフロー形式のブロックにあれば、そのブロックを字下げの形に書き直してから書き直す (細部 21。D-053)
     let source = "---\nmarkdag:\n    relations:\n        depends: [2. 確認 --> 公開]\n---\n# R\n## 手順\n1. 準備\n2. 確認\n## 公開\n";
-    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n2. 確認\n## 公開\n";
+    let expected = "---\nmarkdag:\n    relations:\n        depends:\n            - 3. 確認 --> 公開\n---\n# R\n## 手順\n1. 準備\n2. 新しいノード\n3. 確認\n## 公開\n";
     assert_edges(expected, &[(5, 6, "depends")]);
     let result = add_sibling(source, (3, "1. 準備"), "新しいノード");
     assert_rewritten(source, &result, expected, (4, "2. 新しいノード"), true);

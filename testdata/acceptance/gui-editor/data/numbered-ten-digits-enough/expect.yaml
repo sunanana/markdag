@@ -1,0 +1,9 @@
+kind: 境界 (決定 U7-digits b)
+decided: [U7]
+checks: >-
+    9 つの項目のリストの 9. 九 の上に足すと、九は 10. に振り直る。9. 九 の子 (- 細目) がすでに字下げ 4 (10. の本文の位置に届いている) なら、字下げは変えない
+note: >-
+    決定 U7-digits (2026-10-06、b: 桁が増えて子の字下げが足りなくなるときだけ、子が子のままになるだけ書き直す。足りているときと、桁が減るときは変えない)
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す), U7-digits (例の承認で決めた)]
+op: { kind: addSiblingBefore, node: 9. 九, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [9. 新しいノード] }, rename: { kind: node, node: 9. 新しいノード }, notes: [] }

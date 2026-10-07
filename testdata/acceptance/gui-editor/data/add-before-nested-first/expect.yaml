@@ -1,0 +1,8 @@
+kind: 境界 (決定 S-05 a)
+decided: [S-05]
+checks: >-
+    入れ子のリストの最初の項目 (部品) の上に足すと、同じ字下げ (4) の項目を親の項目 (フロント) のすぐ下に書く
+note: >-
+    決定 S-05 (2026-10-06、a: 入れ子の最初の項目の上にも足せる。親の項目のすぐ下に書く)
+op: { kind: addSiblingBefore, node: 部品, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }

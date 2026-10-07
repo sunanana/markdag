@@ -1,0 +1,25 @@
+kind: 境界 (決定 S-01 a、S-02 a)
+os: mac
+decided: [S-01, S-02]
+checks: >-
+    凡例の色の四角でカラーピッカーを開いている間 (フォーカスは図) に Shift+Enter を押すと、選んだノードの下に兄弟を足して名前の入力を開き、描き直しでピッカーが閉じる (決定 S-01 a)。
+    ピッカーを開いている間の Space は、選んだタスクの印を進め、ピッカーは閉じる。道具箱の詳細表示の選択肢を開いている間の Space も印を進めるが、選択肢は開いたまま (決定 S-02 a)
+note: >-
+    決定 S-01、S-02 (2026-10-06、a: 今のまま)
+states: [keys:I9.e2, keys:I9.e12, keys:I11.e12]
+steps:
+    - click: { node: 点検 }
+    - click: { legend_chip: g1 }
+      expect: { input: picker, focus: diagram, selection: nodes:点検 }
+    - key: Shift+Enter
+      expect: { source: after-add.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:点検 }
+    - click: { legend_chip: g1 }
+      expect: { input: picker, focus: diagram, selection: nodes:点検 }
+    - key: ' '
+      expect: { source: after-toggle.md, input: none, selection: nodes:点検 }
+    - hover: { tool: details }
+      expect: { input: flyout }
+    - key: ' '
+      expect: { source: input.md, input: flyout, selection: nodes:点検 }

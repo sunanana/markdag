@@ -58,6 +58,8 @@ pub(super) struct OutlineTree {
     /// 名前 (refText) を持てるか。名前は 1 行目の文字で、1 行目が空の項目と、見出しの直下の表とコードのノード
     /// (ラベルの行を持てない) は持たない (A-219)
     pub(super) named: bool,
+    /// `ol > li` の、内容の前に付けた番号 (開始の番号 + それまでの項目の数)。ほかは None。書き換えの層が原文の番号を図にそろえるのに読む
+    pub(super) list_number: Option<u64>,
 }
 
 /// 項目の内容の断片。詳細の切り分け (解析の層の splitDetails) が、書き出した HTML の文字を探さずに引用ブロックの要素を扱うためのもの
@@ -621,6 +623,7 @@ impl<'a> Builder<'_, 'a, '_> {
                 fold: 0,
                 parts: Vec::new(),
                 named: true,
+                list_number: None,
             };
         };
         let children = node
@@ -652,6 +655,7 @@ impl<'a> Builder<'_, 'a, '_> {
             fold,
             parts: node.parts.clone(),
             named: node.named,
+            list_number: node.list_index.and_then(|index| u64::try_from(index).ok()),
         }
     }
 }

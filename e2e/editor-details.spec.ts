@@ -165,6 +165,11 @@ async function mount(page: Page, markdown: string, spec: MountSpec = {}): Promis
     await settle(page);
 }
 
+// navigator.platform を見せかける。GUI 編集は開くときに navigator.platform で mac と win を見分けて Enter の修飾キー (詳細の保存のキー) を決めるので、描く前に呼ぶ
+async function setPlatform(page: Page, platform: 'MacIntel' | 'Win32'): Promise<void> {
+    await page.evaluate((name) => Object.defineProperty(Navigator.prototype, 'platform', { get: () => name, configurable: true }), platform);
+}
+
 // 図を片付けて、同じページで描き直す (原文、選択、履歴、通知、詳細の見せ方の選択を初めの状態に戻す)。onChange と onSelectionChange の記録も空にする
 async function remount(page: Page, markdown: string, spec: MountSpec = {}): Promise<void> {
     await page.evaluate(() => {
@@ -787,15 +792,21 @@ test.describe('詳細のダブルクリック (段 20。B-049、B-050、10.2 の
 });
 
 test.describe('保存して閉じる (段 20。B-119、B-121〜B-123、B-003、B-004、3.4 の setDetails、3.5)', () => {
-    test('@editor ⌘Enter と Ctrl+Enter で、入れた詳細を引用ブロックとして書いて閉じる (置き換え。複数行は行ごとに > を付け、空行は > だけ)。テキストエリアの Enter は改行で保存しない。onChange 1 回、ノードは選んだまま、フォーカスは図の要素、結果の通知 (info)。元に戻すで戻る (B-119、B-121、B-003、B-004)', async ({ page }) => {
+    test('@editor 保存のキー (mac は ⌘Enter、win は Ctrl+Enter) で、入れた詳細を引用ブロックとして書いて閉じる (置き換え。複数行は行ごとに > を付け、空行は > だけ)。テキストエリアの Enter は改行で保存しない。保存にならない方の修飾キーの Enter (mac の Ctrl+Enter、win の Windows キー+Enter) は何もしない (保存も改行もしない)。onChange 1 回、ノードは選んだまま、フォーカスは図の要素、結果の通知 (info)。元に戻すで戻る (B-119、B-121、B-003、B-004、editor-keys の S-20)', async ({ page }) => {
         test.setTimeout(60_000);
         const errors = watchErrors(page);
         await open(page);
         const replaced = docWith(EDIT, BODY_A_REPLACED);
         expect(editedSource(await tryEdit(page, DOC, setDetailsOp(TASK_A, NEW_A)))).toBe(replaced);
 
+        // OS の区分 (navigator.platform) ごとの、保存のキーと保存にならない方の修飾キーの Enter
+        const platforms = [
+            { platform: 'MacIntel', key: 'Meta+Enter', other: 'Control+Enter' },
+            { platform: 'Win32', key: 'Control+Enter', other: 'Meta+Enter' },
+        ] as const;
         let first = true;
-        for (const key of ['Meta+Enter', 'Control+Enter']) {
+        for (const { platform, key, other } of platforms) {
+            await setPlatform(page, platform);
             if (first) await mount(page, DOC);
             else await remount(page, DOC);
             first = false;
@@ -806,6 +817,12 @@ test.describe('保存して閉じる (段 20。B-119、B-121〜B-123、B-003、B
             // 打つ途中の Enter (改行) では保存しない
             await expectSourceStill(page, DOC, [], `${key} の前`);
             expect((await detailsEditorOf(page)).count, `${key} の前`).toBe(1);
+
+            // 保存にならない方の修飾キーの Enter は何もしない (保存せず、改行も打たず、詳細の入力は開いたまま)
+            await page.keyboard.press(other);
+            await expectSourceStill(page, DOC, [], `${platform} の ${other}`);
+            const kept = await detailsEditorOf(page);
+            expect({ count: kept.count, value: kept.value, focused: kept.focused }, `${platform} の ${other}`).toEqual({ count: 1, value: NEW_A, focused: true });
 
             await page.keyboard.press(key);
             await expectSource(page, replaced, [replaced], key);

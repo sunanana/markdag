@@ -1,0 +1,6 @@
+kind: 正常
+checks: >-
+    番号付きの項目 (2. 更新) をリストの外 (後で の下) へ移すと、もとのリストに残った兄弟の番号を振り直す (2. 再開)。移した項目は移す先の子の形 (- の項目) で書き、名前は番号を含まない (更新)
+decisions: [やらない 3 (削除と移動でも番号を振り直す)]
+op: { kind: moveNode, node: 2. 更新, parent: 後で }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [更新] }, rename: null, notes: [] }

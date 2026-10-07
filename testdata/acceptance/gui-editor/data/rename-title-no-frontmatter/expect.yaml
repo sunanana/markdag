@@ -1,0 +1,7 @@
+kind: 境界
+checks: >-
+    frontmatter のない文書 (リストだけ) のルートの名前を変えると、文書の先頭に frontmatter を作って title: 手順 だけを書き (markdag のキーは足さない。足すと本文の印の読み方が変わるため)、作ったことを知らせる (frontmatter-added)。
+    本文は変えない。新しい名前のルートを選ぶ
+decisions: [ルートのタイトル (例の承認で決めた。決めた名前を title に書き、なければ足す)]
+op: { kind: renameNode, node: { id: 1 }, label: 手順 }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [手順] }, rename: null, notes: [{ code: frontmatter-added, count: 1 }] }

@@ -1,0 +1,9 @@
+kind: 境界 (決定 U7-start a)
+decided: [U7]
+checks: >-
+    3. から始まるリストの 3. 停止 の下に足すと、始まりの番号を保ったまま振り直す (4. 新しいノード、5. 更新、6. 再開)
+note: >-
+    決定 U7-start (2026-10-06、a: 1 以外から始まるリストは始まりの番号 (3.) を保って振り直す)
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す)]
+op: { kind: addSibling, node: 3. 停止, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [4. 新しいノード] }, rename: { kind: node, node: 4. 新しいノード }, notes: [] }

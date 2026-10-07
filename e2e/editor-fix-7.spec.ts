@@ -614,6 +614,12 @@ const OPENERS: Record<Opener, { label: string; selector: string }> = {
     tagSelect: { label: 'タグのパネル (帯のタグ選択)', selector: '#a .mdag-editor-tag-panel[data-panel="select"]' },
 };
 
+// 兄弟を足すキー (名前の入力中は名前を決めて兄弟を下に足す)。Enter の修飾キーは GUI 編集が開くときに navigator.platform で mac と win に分ける (mac は ⌘、win は Ctrl)
+async function addSiblingKey(page: Page): Promise<string> {
+    const mac = await page.evaluate(() => /Mac|iPhone|iPad|iPod/.test(navigator.platform));
+    return mac ? 'Meta+Enter' : 'Control+Enter';
+}
+
 // 図の要素にフォーカスを置いてからキーを押す
 async function pressKey(page: Page, key: string): Promise<void> {
     await page.evaluate(() => document.getElementById('a')?.focus({ preventScroll: true }));
@@ -735,7 +741,7 @@ test.describe('入力とパネルを開いている間は線を引く点も隠�
         expect(errors).toEqual([]);
     });
 
-    test('@editor 子の + で足したノードの名前の入力の間も線を引く点は見えない。入力中の Enter で名前を決めて兄弟を足し、次の名前の入力へ移る間も見えない。外を押して閉じると、選んでいる足したノードの右下に戻る (倍率 1)', async ({ page }) => {
+    test('@editor 子の + で足したノードの名前の入力の間も線を引く点は見えない。入力中の兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) で名前を決めて兄弟を足し、次の名前の入力へ移る間も見えない。外を押して閉じると、選んでいる足したノードの右下に戻る。Enter で開き直した入力の間も見えず、入力中の Enter で名前を決めるだけで閉じると戻る (倍率 1)', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mount(page, DOC);
@@ -754,10 +760,11 @@ test.describe('入力とパネルを開いている間は線を引く点も隠�
         if (first?.kind !== 'nodes' || first.nodes.length !== 1 || !first.nodes[0]) throw new Error(`足した子を選んでいない: ${JSON.stringify(first)}`);
         const child = first.nodes[0];
         await page.keyboard.type('Task C');
-        await page.keyboard.press('Enter');
+        const addKey = await addSiblingKey(page);
+        await page.keyboard.press(addKey);
         const named = await edited(page, added, { kind: 'renameNode', node: child, label: 'Task C' });
         const chained = await edited(page, named, { kind: 'addSibling', node: { id: child.id, refText: 'Task C' }, label: NEW });
-        await expect.poll(() => getSource(page), 'Enter で名前を決めて兄弟を足す').toBe(chained);
+        await expect.poll(() => getSource(page), `${addKey} で名前を決めて兄弟を足す`).toBe(chained);
         await expectLinkHiddenWhile(page, before.center, nameOpen, '足した兄弟の名前の入力');
 
         const second = await getSelection(page);
@@ -766,6 +773,19 @@ test.describe('入力とパネルを開いている間は線を引く点も隠�
         await pressOutside(page);
         await expect.poll(() => getSource(page), '外を押して閉じる (名前は変えない)').toBe(chained);
         await expectLinkBack(page, sibling, nameOpen, null, '外を押して足した兄弟の名前の入力を閉じた');
+
+        // 入力中の Enter は名前を決めるだけ: 兄弟を足さずに閉じ、選んでいる足した兄弟の右下に線を引く点が戻る
+        const siblingBefore = await linkRead(page, sibling);
+        if (!siblingBefore) throw new Error('足した兄弟: 線を引く点が出ていない');
+        await pressKey(page, 'Enter');
+        await expectLinkHiddenWhile(page, siblingBefore.center, nameOpen, 'Enter で開き直した兄弟の名前の入力');
+        await page.keyboard.press('ControlOrMeta+KeyA');
+        await page.keyboard.type('Task D');
+        await page.keyboard.press('Enter');
+        const renamed = await edited(page, chained, { kind: 'renameNode', node: { id: sibling, refText: NEW }, label: 'Task D' });
+        await expect.poll(() => getSource(page), 'Enter で名前を決めるだけ').toBe(renamed);
+        await expectLinkBack(page, sibling, nameOpen, null, 'Enter で名前を決めて兄弟の名前の入力を閉じた');
+        expect(await getSource(page), 'Enter で名前を決めるだけ (兄弟は足さない)').toBe(renamed);
         expect(errors).toEqual([]);
     });
 });

@@ -1,0 +1,23 @@
+kind: 境界 (決定 S-18 b)
+os: mac
+decided: [S-18]
+checks: >-
+    2 つのタスクを選んで帯の「既存のノードへ合流」を押し、合流先を選ぶ途中で Space を押して離しても、印を進めない (合流先を選ぶ途中のまま)。
+    Space を押したまま何もないところからドラッグすると図を動かし、離しても印は進めず、合流先を選ぶ途中のまま
+note: >-
+    決定 S-18 (2026-10-06、b: 合流先を選ぶ途中は、Space の押して離すで印を進めない。Space+ドラッグの図の移動だけ)。この例を書いたときは、印が進み、合流先を選ぶ途中も終わった
+states: [keys:K9.e12, keys:K9.e13]
+decisions: [S-18 (例の承認で決めた)]
+steps:
+    - click: { node: 点検 }
+    - click: { node: 報告 }
+      mod: Shift
+    - click: { bar: join-existing }
+      expect: { tool: join-target, selection: 'nodes:点検,報告' }
+    - key: ' '
+      expect: { tool: join-target, source: input.md, selection: 'nodes:点検,報告' }
+    - keydown: ' '
+    - pan: { dx: -60, dy: 30 }
+      expect: { moved: true, tool: join-target, source: input.md }
+    - keyup: ' '
+      expect: { tool: join-target, source: input.md, selection: 'nodes:点検,報告' }

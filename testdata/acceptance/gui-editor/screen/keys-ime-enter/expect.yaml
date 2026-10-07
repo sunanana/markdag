@@ -1,0 +1,27 @@
+kind: 境界
+os: mac
+requires: [ime]
+checks: >-
+    変換中のキー (日本語の入力が送る keyCode 229) はどれも操作にしない。選択中の変換中の Enter は名前の入力を開かない。
+    名前の入力で変換している間の Enter では決めない。変換を確定したあとの Shift+Enter は名前を決めて下に兄弟を足し、
+    足したノードの入力でも変換中の Enter では決めず、確定したあとの Enter で名前を決めるだけ (兄弟は足さない)。
+    変換は chromium の CDP で起こすので、変換を起こせない運び手では飛ばす (requires の ime)
+states: [keys:K2.e14, keys:I1.e14, keys:I2.e14, keys:I1.e2, keys:I2.e1]
+steps:
+    - click: { node: 決める }
+    - compose_key: Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Enter
+      expect: { input: name, input_value: 決める }
+    - compose: けってい
+    - compose_key: Enter
+      expect: { source: input.md, input: name, input_value: けってい, focus: 'name-input:node' }
+    - compose: { commit: 決定 }
+    - key: Shift+Enter
+      expect: { source: after-add.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - compose: こう
+    - compose_key: Enter
+      expect: { source: after-add.md, input: name, input_value: こう }
+    - compose: { commit: 甲 }
+    - key: Enter
+      expect: { source: after-commit.md, input: none, focus: diagram, selection: nodes:甲 }

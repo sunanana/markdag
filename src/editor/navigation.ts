@@ -1,6 +1,7 @@
 // 矢印キーで選ぶノードを決める (DOM を使わない)。木の形 (親) と、画面に見えているノードの矩形だけで決める。
 // ← は親、→ は見えている子のうち画面でいちばん上のもの、↑ ↓ は同じ親の見えている子を画面の上下の順に並べた前と後 (端では反対の端へ回る)。
 // 何も選んでいないときは、カーソルにいちばん近い見えているノード (カーソルがウィンドウの外ならルート) を選ぶ。
+// 名前の入力へ移る先 (Shift+Tab と、移るキーの Enter) は、木の形と文書の順 (書いた順) だけで決める: 親と、同じ親の子の前と後 (端では回らない)。
 // 閉じた枝を開くこと、見える所まで図を動かすこと、複数の選択のどのノードから動くかは呼ぶ側が受け持つ (枝を開いたあとは、動き終えたあとの矩形を渡す)
 import type { OutlineNode, Rect } from '../core';
 
@@ -12,6 +13,8 @@ export interface Point {
     x: number;
     y: number;
 }
+// 書いた順で移る先。parent は親、previous と next は同じ親の子の 1 つ前と 1 つ後
+export type OutlineStep = 'parent' | 'previous' | 'next';
 
 // parent の子のうち rects にあるもの (見えているもの) を、画面の上から並べる (上の辺、同じ高さなら左の辺で比べる)
 function childrenOnScreen(parent: number | null, nodes: readonly NavigationNode[], rects: ReadonlyMap<number, Rect>): number[] {
@@ -40,6 +43,16 @@ export function arrowTarget(key: ArrowKey, from: number, nodes: readonly Navigat
     if (index < 0 || siblings.length < 2) return null;
     const step = key === 'ArrowDown' ? 1 : -1;
     return siblings[(index + step + siblings.length) % siblings.length] ?? null;
+}
+
+// ノード from から step の先 (書いた順の親か兄弟)。見えているかによらない。移る先がなければ (ルートの親、最初の兄弟の前、最後の兄弟の後) null
+export function outlineTarget(step: OutlineStep, from: number, nodes: readonly NavigationNode[]): number | null {
+    const node = nodes.find((item) => item.id === from);
+    if (!node) return null;
+    if (step === 'parent') return node.parent;
+    const siblings = nodes.flatMap((item) => (item.parent === node.parent ? [item.id] : []));
+    const index = siblings.indexOf(from);
+    return siblings[index + (step === 'next' ? 1 : -1)] ?? null;
 }
 
 // 何も選んでいないときに矢印キーで選ぶノード。pointer はカーソルの位置 (rects と同じ座標) で、ウィンドウの外なら null。

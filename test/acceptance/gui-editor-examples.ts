@@ -28,6 +28,9 @@ export interface GuiSpec {
     note?: string;
     // screen: 例を通すのに運び手に要る力 (GUI_REQUIREMENTS)。力のない運び手 (ほかのブラウザ、確認ページの合成の出来事) では飛ばす
     requires?: string[];
+    // screen: 例の OS の区分 (GUI_OS。書かなければ mac)。Enter の修飾キーの割り当てが mac と win で違うため。
+    // 運び手はページを開く前に navigator をその OS に見せかける。見せかけられない運び手 (確認ページ) は、書いた区分とページの区分が違えば飛ばす
+    os?: string;
     behaviors?: string[];
     states?: string[];
     decisions?: string[];
@@ -68,7 +71,7 @@ export interface FrontmatterExpect {
     screen?: { mode?: string; segment?: string | null; segment_place?: string | null; toolbox?: boolean };
 }
 
-export const SPEC_KEYS = ['kind', 'checks', 'note', 'requires', 'behaviors', 'states', 'decisions', 'undecided', 'decided', 'look', 'mount', 'op', 'steps', 'expect'] as const;
+export const SPEC_KEYS = ['kind', 'checks', 'note', 'requires', 'os', 'behaviors', 'states', 'decisions', 'undecided', 'decided', 'look', 'mount', 'op', 'steps', 'expect'] as const;
 export const DATA_EXPECT_KEYS = ['status', 'source', 'select', 'rename', 'notes', 'reason'] as const;
 export const FRONTMATTER_EXPECT_KEYS = ['diagnostics', 'editor', 'screen'] as const;
 export const GUI_ACTIONS = [
@@ -93,11 +96,19 @@ export const GUI_ACTIONS = [
     'api',
     'wait',
     'blur_window',
+    'focus',
 ] as const;
 export const GUI_APIS = ['undo', 'redo', 'fit', 'destroy'] as const;
 // 運び手に要る力。ime は変換 (日本語の入力の変換中の文字と、変換中のキー) を起こせること。chromium の CDP の運び手だけが持つ
 export const GUI_REQUIREMENTS = ['ime'] as const;
 export type GuiRequirement = (typeof GUI_REQUIREMENTS)[number];
+// 例の OS の区分。mac は macOS と iOS (navigator.platform が Mac、iPhone、iPad)、win はそれ以外。GUI 編集の見分けと同じ
+export const GUI_OS = ['mac', 'win'] as const;
+export type GuiOs = (typeof GUI_OS)[number];
+// 運び手が見せかける navigator.platform の値
+export const GUI_OS_PLATFORM: Record<GuiOs, string> = { mac: 'MacIntel', win: 'Win32' };
+// 例の OS の区分 (書いていなければ mac)
+export const osOf = (example: GuiExample): GuiOs => (example.spec.os === 'win' ? 'win' : 'mac');
 // 力が要る操作
 const ACTION_REQUIREMENTS: Partial<Record<(typeof GUI_ACTIONS)[number], GuiRequirement>> = { compose: 'ime', compose_key: 'ime' };
 const STEP_KEYS = [...GUI_ACTIONS, 'mod', 'button', 'expect', 'note'] as const;
@@ -155,6 +166,8 @@ export const SCREEN_OBSERVED_KEYS = [
     'legend_new',
     'tag_rows',
     'tag_fields',
+    'folded',
+    'key_prevented',
     'moved',
     'zoomed',
 ] as const;
@@ -253,6 +266,7 @@ export function specProblems(example: GuiExample): string[] {
     const requires = requirementsOf(example);
     const unknownRequires = requires.filter((item) => !(GUI_REQUIREMENTS as readonly string[]).includes(item));
     if (unknownRequires.length > 0) problems.push(`${example.id}.requires: テストが知らない力: ${unknownRequires.join(', ')}`);
+    if (spec.os !== undefined && !(GUI_OS as readonly string[]).includes(String(spec.os))) problems.push(`${example.id}.os: テストが知らない OS の区分: ${String(spec.os)}`);
     if (example.surface === 'data') problems.push(...unknownKeys(spec.expect, DATA_EXPECT_KEYS, `${example.id}.expect`));
     if (example.surface === 'frontmatter') problems.push(...unknownKeys(spec.expect, FRONTMATTER_EXPECT_KEYS, `${example.id}.expect`));
     if (example.surface === 'screen') {
@@ -483,6 +497,10 @@ export interface ScreenSession {
     // 修飾キーの ControlOrMeta を Meta にするか (ページの navigator.platform が Mac)
     readonly mac: boolean;
     pointOf(target: Target): Promise<Point>;
+    // 押さずにフォーカスを置く (例の focus の段。Tab でボタンへ移るかはブラウザの設定によるので、その準備に使う)
+    focusOn(target: Target): Promise<void>;
+    // 段の始まりを知らせる (key_prevented の欄が見るキーを、その段で押したものだけにする)
+    beginStep(): Promise<void>;
     marqueeOf(refs: unknown[]): Promise<{ start: Point; end: Point }>;
     blankSpot(): Promise<Point | null>;
     // 原文を外から差し替え、図に届くのを待つ
@@ -633,6 +651,8 @@ async function runStep(session: ScreenSession, example: GuiExample, step: GuiSte
         await session.sleep(Number(step.wait));
     } else if (action === 'blur_window') {
         await session.blurWindow();
+    } else if (action === 'focus') {
+        await session.focusOn(step.focus as Target);
     }
     await session.settle();
     return {};
@@ -648,12 +668,17 @@ export async function runScreenSteps(example: GuiExample, session: ScreenSession
     if (missing.length > 0) {
         return { trace, rows, error: null, failedStep: null, skipped: `運び手 (${session.driver.name}) に要る力がない: ${missing.join(', ')} (変換は chromium の CDP で起こす)` };
     }
+    // OS の区分を書いた例は、ページの区分と同じときだけ通す (navigator を見せかけられない確認ページで、別の OS の割り当てを押さないため)
+    if (example.spec.os !== undefined && (osOf(example) === 'mac') !== session.mac) {
+        return { trace, rows, error: null, failedStep: null, skipped: `例の OS の区分 (${osOf(example)}) とページの区分 (${session.mac ? 'mac' : 'win'}) が違う (e2e は navigator を見せかけて通す)` };
+    }
     try {
         if (example.parseError) throw new Error(example.parseError);
         await session.settle(200);
         for (const [index, step] of steps.entries()) {
             const label = stepLabel(index, step);
             current = label;
+            await session.beginStep();
             const before = await session.transform();
             const extra = await runStep(session, example, step);
             trace.push(label);

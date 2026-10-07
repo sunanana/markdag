@@ -1,0 +1,23 @@
+kind: 境界 (決定 S-20 b)
+os: mac
+decided: [S-20]
+checks: >-
+    mac の詳細の入力 (D で開く) の保存は ⌘Enter だけ (詳細の入力の保存も OS で分ける)。Ctrl+Enter (名前の入力では「下の兄弟へ移る」キー)、⌘Ctrl+Enter、⌥Enter は何もしない
+    (保存も改行もせず、入力は開いたまま、値も変えない)。⌘Enter で保存して閉じる
+note: >-
+    決定 S-20 (2026-10-06、b: 詳細の入力の保存も OS で分ける。mac は ⌘Enter だけ、win は Ctrl+Enter だけ。保存にならない方の修飾キーの Enter は何もしない)。0.12.0 とこの例を書いたときは Ctrl+Enter と ⌘Ctrl+Enter も保存した
+states: [keys:I6.e3, keys:I6.e5, keys:I6.e7, keys:I6.e8]
+decisions: [S-20 (例の承認で決めた)]
+steps:
+    - click: { node: 決める }
+    - key: d
+      expect: { input: details, focus: details }
+    - type: 詳しく
+    - key: Alt+Enter
+      expect: { source: input.md, input: details, input_value: 詳しく }
+    - key: Control+Enter
+      expect: { source: input.md, input: details, input_value: 詳しく, focus: details }
+    - key: Meta+Control+Enter
+      expect: { source: input.md, input: details, input_value: 詳しく, focus: details }
+    - key: Meta+Enter
+      expect: { source: after-details.md, input: none, selection: nodes:決める, notice: { kind: info, text: 「決める」の詳細を書きました } }

@@ -1,0 +1,9 @@
+kind: 境界 (決定 U7-paren a)
+decided: [U7]
+checks: >-
+    区切りが ) のリスト (1) 停止、2) 更新、3) 再開) に足すと、区切りを ) のまま振り直す (2) 新しいノード、3) 更新、4) 再開)。図の名前は「2. 新しいノード」の形 (区切りは . になる)
+note: >-
+    決定 U7-paren (2026-10-06、a: 区切りが ) のリストも . と同じ挙動。原文の区切りは保ち、図の名前は「1. 停止」の形)
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す)]
+op: { kind: addSibling, node: 1. 停止, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [2. 新しいノード] }, rename: { kind: node, node: 2. 新しいノード }, notes: [] }

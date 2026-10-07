@@ -4,8 +4,10 @@ const PORT = 5199;
 
 export default defineConfig({
     testDir: '.',
+    // testDir を書くと .gitignore は既定で効かない。効かせないと、spec を探すときに target/ (cargo の出力、約 100 万ファイル) まで歩き、1 回ごとに 5〜15 秒かかる
+    respectGitIgnore: true,
     // 単体テスト (*.test.ts) は Vitest の担当なので、Playwright は *.spec.ts だけを拾う
-    testMatch: ['spike/**/*.spec.ts', 'e2e/**/*.spec.ts'],
+    testMatch: ['e2e/**/*.spec.ts'],
     outputDir: 'test-results',
     fullyParallel: true,
     // 既定 (論理 CPU の半分) より多くする。chromium の全部で 5 本は 83〜112 秒、8 本は 66 秒で、失敗は増えなかった (2026-09-30)

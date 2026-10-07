@@ -1,12 +1,15 @@
 // 入力とパネルの中のキーを操作に読み替える部品と、カラーピッカーの 16 進の読み方 (どれも DOM を使わない) を確かめる。
-// 名前の入力 (ノード) は Enter で決めて兄弟、Tab で決めて子、Shift+Tab で決めて兄弟、Esc でやめる。
-// グループの名前の入力は Enter で決め、Esc でやめ、Tab は何もしない。詳細の入力は Enter が改行、⌘Enter / Ctrl+Enter で保存、Esc でやめる。
+// 名前の入力 (ノード) は Enter で決め、足すキーの Enter (mac は ⌘Enter、win は Ctrl+Enter) と Shift+Enter で決めて兄弟を下に足し、
+// 移るキーの Enter (mac は Ctrl+Enter、win は Alt+Enter) で決めて下の兄弟へ移り、Tab で決めて子、Shift+Tab で決めて親へ移り、Esc でやめる。
+// グループの名前の入力は Enter で決め、Esc でやめ、Tab は何もしない。詳細の入力は Enter が改行、保存のキーの Enter (mac は ⌘Enter、
+// win は Ctrl+Enter) で保存、Esc でやめる。
 // タグのパネルは Enter で付け、Esc で閉じ、Tab はブラウザの既定。どの入力でも、変換中 (isComposing か keyCode 229) のキーは操作にしない。
 // カラーピッカーの色は、よく使う 12 色と 16 進の入力。選べる色は、グループの色の書き換えがそのまま書ける
 import { describe, expect, it } from 'vitest';
 import * as core from '../src/core';
 import { COLOR_SWATCHES, parseHexColor } from '../src/editor/ui/color-picker';
 import { detailsEditorAction } from '../src/editor/ui/details-editor';
+import type { KeyPlatform } from '../src/editor/keys';
 import { nameInputAction } from '../src/editor/ui/name-input';
 import { tagPanelAction } from '../src/editor/ui/tag-panel';
 
@@ -34,64 +37,84 @@ function composing(name: string): Key[] {
 // 何もしない (操作にしない、か、キーの既定の動きだけを止める)
 const IGNORED = [null, 'stay'];
 
+// Enter の修飾キーの割り当ての区分。修飾キーのない Enter、Tab、Esc、文字は、どの区分でも同じ
+const PLATFORMS: readonly KeyPlatform[] = ['mac', 'win'];
+
 describe('名前の入力 (ノード) のキー (軸 D の名前の入力。B-027、B-029〜B-032)', () => {
-    it('Enter は決めて兄弟、Tab は決めて子、Shift+Tab は決めて兄弟、Esc はやめる', () => {
-        expect(nameInputAction(key('Enter'))).toBe('sibling');
-        expect(nameInputAction(key('Tab'))).toBe('child');
-        expect(nameInputAction(key('Tab', { shiftKey: true }))).toBe('sibling');
-        expect(nameInputAction(key('Escape'))).toBe('cancel');
-        expect(nameInputAction(key('Enter'), 'node')).toBe('sibling');
+    it('Enter は決める、Tab は決めて子、Shift+Tab は決めて親へ、Esc はやめる (mac と win で同じ)', () => {
+        for (const platform of PLATFORMS) {
+            expect(nameInputAction(key('Enter'), 'node', platform), platform).toBe('commit');
+            expect(nameInputAction(key('Tab'), 'node', platform), platform).toBe('child');
+            expect(nameInputAction(key('Tab', { shiftKey: true }), 'node', platform), platform).toBe('parent');
+            expect(nameInputAction(key('Escape'), 'node', platform), platform).toBe('cancel');
+        }
     });
 
-    it('⌘Enter と Ctrl+Enter は何もしない', () => {
-        expect(IGNORED).toContain(nameInputAction(key('Enter', { metaKey: true })));
-        expect(IGNORED).toContain(nameInputAction(key('Enter', { ctrlKey: true })));
+    it('⌘Enter と Ctrl+Enter: mac は ⌘ で決めて兄弟を下に、Ctrl で決めて下の兄弟へ。win は Ctrl で決めて兄弟を下に、Windows キーは何もしない', () => {
+        expect(nameInputAction(key('Enter', { metaKey: true }), 'node', 'mac')).toBe('sibling');
+        expect(nameInputAction(key('Enter', { ctrlKey: true }), 'node', 'mac')).toBe('next');
+        expect(nameInputAction(key('Enter', { ctrlKey: true }), 'node', 'win')).toBe('sibling');
+        expect(IGNORED).toContain(nameInputAction(key('Enter', { metaKey: true }), 'node', 'win'));
     });
 
     it('文字、空白、矢印は入力欄に任せる', () => {
-        for (const name of ['a', ' ', 'ArrowDown']) expect(nameInputAction(key(name))).toBeNull();
+        for (const platform of PLATFORMS) for (const name of ['a', ' ', 'ArrowDown']) expect(nameInputAction(key(name), 'node', platform)).toBeNull();
     });
 
     it('変換中の Enter、Tab、Esc は操作にしない (B-15)', () => {
-        for (const name of ['Enter', 'Tab', 'Escape']) for (const input of composing(name)) expect(nameInputAction(input), JSON.stringify(input)).toBeNull();
+        for (const platform of PLATFORMS) {
+            for (const name of ['Enter', 'Tab', 'Escape']) for (const input of composing(name)) expect(nameInputAction(input, 'node', platform), JSON.stringify(input)).toBeNull();
+        }
     });
 });
 
 describe('グループの名前の入力のキー (軸 D のグループの名前の入力。B-161)', () => {
     it('Enter は決め、Esc はやめ、Tab と Shift+Tab は何もしない', () => {
-        expect(nameInputAction(key('Enter'), 'group')).toBe('commit');
-        expect(nameInputAction(key('Escape'), 'group')).toBe('cancel');
-        expect(IGNORED).toContain(nameInputAction(key('Tab'), 'group'));
-        expect(IGNORED).toContain(nameInputAction(key('Tab', { shiftKey: true }), 'group'));
-        expect(IGNORED).toContain(nameInputAction(key('Enter', { metaKey: true }), 'group'));
+        for (const platform of PLATFORMS) {
+            expect(nameInputAction(key('Enter'), 'group', platform), platform).toBe('commit');
+            expect(nameInputAction(key('Escape'), 'group', platform), platform).toBe('cancel');
+            expect(IGNORED).toContain(nameInputAction(key('Tab'), 'group', platform));
+            expect(IGNORED).toContain(nameInputAction(key('Tab', { shiftKey: true }), 'group', platform));
+            expect(IGNORED).toContain(nameInputAction(key('Enter', { metaKey: true }), 'group', platform));
+        }
     });
 
     it('変換中のキーは操作にしない', () => {
-        for (const name of ['Enter', 'Tab', 'Escape']) for (const input of composing(name)) expect(nameInputAction(input, 'group'), JSON.stringify(input)).toBeNull();
+        for (const platform of PLATFORMS) {
+            for (const name of ['Enter', 'Tab', 'Escape']) for (const input of composing(name)) expect(nameInputAction(input, 'group', platform), JSON.stringify(input)).toBeNull();
+        }
     });
 });
 
 describe('詳細の入力のキー (軸 D の詳細の入力。B-119、B-120)', () => {
-    it('⌘Enter と Ctrl+Enter は保存、Esc は保存せずにやめる', () => {
-        expect(detailsEditorAction(key('Enter', { metaKey: true }))).toBe('save');
-        expect(detailsEditorAction(key('Enter', { ctrlKey: true }))).toBe('save');
-        expect(detailsEditorAction(key('Escape'))).toBe('cancel');
+    it('保存のキーは OS で分ける: mac は ⌘Enter で保存し Ctrl+Enter は何もしない、win は Ctrl+Enter で保存し Windows キー+Enter は何もしない。Esc は保存せずにやめる', () => {
+        expect(detailsEditorAction(key('Enter', { metaKey: true }), 'mac')).toBe('save');
+        expect(IGNORED).toContain(detailsEditorAction(key('Enter', { ctrlKey: true }), 'mac'));
+        expect(detailsEditorAction(key('Enter', { ctrlKey: true }), 'win')).toBe('save');
+        expect(IGNORED).toContain(detailsEditorAction(key('Enter', { metaKey: true }), 'win'));
+        for (const platform of PLATFORMS) expect(detailsEditorAction(key('Escape'), platform), platform).toBe('cancel');
     });
 
     it('Enter と Shift+Enter は改行 (テキストエリアに任せる)', () => {
-        expect(detailsEditorAction(key('Enter'))).toBeNull();
-        expect(detailsEditorAction(key('Enter', { shiftKey: true }))).toBeNull();
+        for (const platform of PLATFORMS) {
+            expect(detailsEditorAction(key('Enter'), platform), platform).toBeNull();
+            expect(detailsEditorAction(key('Enter', { shiftKey: true }), platform), platform).toBeNull();
+        }
     });
 
     it('Tab と Shift+Tab は何もしない。文字と矢印はテキストエリアに任せる', () => {
-        expect(IGNORED).toContain(detailsEditorAction(key('Tab')));
-        expect(IGNORED).toContain(detailsEditorAction(key('Tab', { shiftKey: true })));
-        for (const name of ['a', ' ', 'ArrowDown']) expect(detailsEditorAction(key(name))).toBeNull();
+        for (const platform of PLATFORMS) {
+            expect(IGNORED).toContain(detailsEditorAction(key('Tab'), platform));
+            expect(IGNORED).toContain(detailsEditorAction(key('Tab', { shiftKey: true }), platform));
+            for (const name of ['a', ' ', 'ArrowDown']) expect(detailsEditorAction(key(name), platform)).toBeNull();
+        }
     });
 
     it('変換中の ⌘Enter、Enter、Esc は操作にしない', () => {
-        for (const input of [...composing('Enter'), ...composing('Escape'), key('Enter', { metaKey: true, isComposing: true }), key('Enter', { ctrlKey: true, keyCode: 229 })]) {
-            expect(detailsEditorAction(input), JSON.stringify(input)).toBeNull();
+        for (const platform of PLATFORMS) {
+            for (const input of [...composing('Enter'), ...composing('Escape'), key('Enter', { metaKey: true, isComposing: true }), key('Enter', { ctrlKey: true, keyCode: 229 })]) {
+                expect(detailsEditorAction(input, platform), JSON.stringify(input)).toBeNull();
+            }
         }
     });
 });

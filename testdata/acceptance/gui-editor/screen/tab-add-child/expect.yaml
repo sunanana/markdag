@@ -1,20 +1,27 @@
 kind: 正常
+os: mac
 checks: >-
-    Tab で選んだノードに子を足し、名前の入力へ移る。入力中の Shift+Tab は名前を決めて兄弟を、Tab は決めて子を足す。
-    足したばかりの入力の Esc はその足す前に戻る。何もないところを押すと入力のないまま選択を解く
+    Tab で選んだノードに子を足し、名前の入力へ移る。入力中の Shift+Enter は名前を決めて兄弟を、Tab は決めて子を足す。
+    足したばかりの入力の Esc はその足す前に戻る。選択中の Shift+Tab は親を選んでその名前の入力を開く。何もないところを押すと入力のないまま選択を解く
+    (0.12.0 は入力中の Shift+Tab で決めて兄弟を足した。editor-keys で、兄弟を足すのは Shift+Enter、Shift+Tab は親へ、に書き直した)
 behaviors: [B-026, B-030, B-031, B-021, B-025]
-states: [D1.d4, D2.d4, D2.d5, C2.c9]
+states: [D1.d4, D2.d4, D2.d5, C2.c9, keys:K2.e10, keys:I2.e2, keys:I2.e10, keys:K2.e11]
+decisions: [editor-keys の決まったキー (入力中の兄弟を足すキーは Shift+Enter と足すキーの Enter。Shift+Tab は親へ)]
 steps:
     - click: { node: フロント }
     - key: Tab
       expect: { source: after-tab.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
     - type: 部品
-    - key: Shift+Tab
-      expect: { source: after-shift-tab.md, input: name, input_value: 新しいノード }
+    - key: Shift+Enter
+      expect: { source: after-shift-enter.md, input: name, input_value: 新しいノード }
     - type: ボタン
     - key: Tab
       expect: { source: after-tab2.md, input: name, selection: nodes:新しいノード }
     - key: Escape
       expect: { source: after-escape.md, input: none, selection: nodes:ボタン }
+    - key: Shift+Tab
+      expect: { source: after-escape.md, input: name, input_value: フロント, selection: nodes:フロント }
+    - key: Escape
+      expect: { source: after-escape.md, input: none, selection: nodes:フロント }
     - click: { blank: true }
       expect: { input: none, selection: none, source: after-escape.md }

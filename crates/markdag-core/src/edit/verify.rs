@@ -1,12 +1,14 @@
 // 原文なし。
 // 書き換えたあとの確かめと選び直し。書き換えたあとのノードから書いたノード (足したノードか、動かしたノードと配下) を除き、
 // 書き換える前のノードから消したノードと配下 (動かしたノードと配下) を除いて、残りを文書の順で対応させ、操作が触らないノードの数、
-// 文書の順、親、名前 (refText)、要素の種類、1 行目の行 (行の差し替えで写したもの。容器は残った最初の子の行) が変わらないことを確かめる。
+// 文書の順、親、名前 (refText)、要素の種類、1 行目の行 (行の差し替えで写したもの。容器は、書き換える前と後のどちらも、
+// 消したノードと書いたノードを除いた最初の子の行) が変わらないことを確かめる。
 // 足したノードは、ねらいの親の子で、印のない行に読まれることを見る。動かしたノードは、ねらいの親の子で、名前と印が動かす前のままで、
 // 書いた形 (見出しの段か項目) に読まれることを見る (配下は比べない)。CommonMark の読み方で行の意味が変わる書き換え
 // (段落を割り込めない項目、下線の見出しになる行、触らない項目を取り込むか手放す容器など) をここで止める。
 // 確かめを通れば、書き換える前のノードから書き換えたあとのノードへの対応を返す (選び直しと、参照の追随が使う)。
 // 選ぶノードは、書き換えたあとの原文を解析し直した id と refText で返す (id は書き換えでずれるため)。
+use std::ops::RangeInclusive;
 use std::sync::LazyLock;
 
 use regex::Regex;
@@ -214,7 +216,7 @@ pub(super) fn keeps_structure(
         correspondence.same_parent(old.parent, new.parent)
             && before.tag_of(old) == after.tag_of(new)
             && kept_start_line(before, old, &skipped).and_then(|line| map_line(splices, line))
-                == start_line(new)
+                == new_start_line(after, new, written.as_ref())
             && if expectation.renamed == Some(old.id) {
                 same_marks(old, new)
             } else {
@@ -262,6 +264,25 @@ fn kept_start_line(before: &ParsedSource<'_>, node: &OutlineNode, skipped: &[boo
     before
         .descendants(node)
         .find(|child| child.parent == Some(node.id) && !removed(child))
+        .map_or_else(|| start_line(node), start_line)
+}
+
+// 書き換えたあとに残るノードの 1 行目。容器の 1 行目は最初の項目の行なので、書いたノード (足したノードか、動かしたノードと配下) を
+// 除いた最初の子の 1 行目 (容器の最初の項目の上に兄弟を足すと、容器は足した項目の行から始まる)。書いた子のほかに子がなければ自分の 1 行目
+fn new_start_line(
+    after: &ParsedSource<'_>,
+    node: &OutlineNode,
+    written: Option<&RangeInclusive<u32>>,
+) -> Option<u32> {
+    if after.kind_of(node) != NodeKind::List {
+        return start_line(node);
+    }
+    after
+        .descendants(node)
+        .find(|child| {
+            child.parent == Some(node.id)
+                && written.is_none_or(|written| !written.contains(&child.id))
+        })
         .map_or_else(|| start_line(node), start_line)
 }
 

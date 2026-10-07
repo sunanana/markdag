@@ -1,0 +1,18 @@
+kind: 境界
+os: mac
+checks: >-
+    タイトル (frontmatter の title) のない、リストだけの文書のルートは名前が空。項目 (実行) で Shift+Tab を押すと、ルートの名前の入力が開く (値は空)。
+    名前 (段取り) を打って Enter で決めると、frontmatter に title: 段取り を足し、ルートの名前が「段取り」になる。
+    入力の高さ (名前が空でも 1 行ぶん) は見た目なので照らさない (e2e/editor-keys-approval.spec.ts が確かめる)
+note: 書き直した例の承認で足したこと (2026-10-06、空のタイトルの名前の入力。直し 3)。名前が空のルートの選択は、例の書き方では nodes:(id 1)
+states: [keys:P14.e11]
+decisions: [ルートのタイトル (例の承認で決めた。決めた名前を title に書き、なければ足す), 空のタイトルの名前の入力 (書き直した例の承認で決めた)]
+steps:
+    - click: { node: 実行 }
+      expect: { selection: nodes:実行 }
+    - key: Shift+Tab
+      expect: { source: input.md, input: name, input_value: '', focus: 'name-input:node', selection: 'nodes:(id 1)', notice: null }
+    - type: 段取り
+      expect: { input: name, input_value: 段取り, source: input.md }
+    - key: Enter
+      expect: { source: after-title.md, input: none, focus: diagram, selection: nodes:段取り, notice: { kind: info, text: 名前を「段取り」にしました } }

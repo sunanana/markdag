@@ -1,11 +1,13 @@
 kind: 境界
+os: mac
 checks: >-
     名前を「設計 #a」に変えると、末尾の #a がタグに化けないよう markdag が原文に \ を足す (- 設計 \#a)。
     名前の入力を開き直すと、入力欄にはその \ を出さず、図の名前と同じ「設計 #a」を出す。
-    その値のまま Enter で決めても名前の行は変わらない (二重に逃がさない。Enter なので兄弟は足し、Esc で足す前に戻る)
+    その値のまま Enter で決めても名前の行は変わらない (二重に逃がさない)。開き直した値のまま ⌘Enter で決めて兄弟を足しても名前の行は変わらず、Esc で足す前に戻る
+    (0.12.0 は Enter で決めて兄弟を足した。editor-keys で、Enter は決めるだけ、兄弟を足すのは ⌘Enter に書き直した)
 behaviors: [B-027, B-029, B-031, B-034]
-states: [D1.d2, D3.d2, D2.d5]
-decisions: ['整える 名前の入力の \ (名前の入力を開き直したとき、markdag が足した \ を入力欄に出さない)']
+states: [D1.d2, D3.d2, D2.d5, keys:I1.e1, keys:I1.e3, keys:I2.e15]
+decisions: ['整える 名前の入力の \ (名前の入力を開き直したとき、markdag が足した \ を入力欄に出さない)', editor-keys の決まったキー (入力中の Enter は決めるだけ)]
 steps:
     - click: { node: フロント }
       expect: { selection: nodes:フロント, bar: node }
@@ -13,12 +15,14 @@ steps:
       expect: { input: name, input_value: フロント, focus: 'name-input:node' }
     - type: '設計 #a'
     - key: Enter
-      expect: { source: after-enter.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
-    - key: Escape
       expect: { source: after-rename.md, input: none, selection: 'nodes:設計 #a', bar: node }
     - key: Enter
       expect: { input: name, input_value: '設計 #a', focus: 'name-input:node', source: after-rename.md }
     - key: Enter
+      expect: { source: after-rename.md, input: none, selection: 'nodes:設計 #a', bar: node }
+    - key: Enter
+      expect: { input: name, input_value: '設計 #a', focus: 'name-input:node', source: after-rename.md }
+    - key: Meta+Enter
       expect: { source: after-enter.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
     - key: Escape
       expect: { source: after-rename.md, input: none, selection: 'nodes:設計 #a', bar: node }

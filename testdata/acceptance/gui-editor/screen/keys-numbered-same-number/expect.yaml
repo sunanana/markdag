@@ -1,0 +1,23 @@
+kind: 境界
+os: mac
+checks: >-
+    全部の項目を同じ番号で書いたリスト (1. 1. 1.。番号を表示に任せる書き方) は、上に足す、下に足す、消す、末尾に子を足すのどのあとも、全部の項目を同じ番号 (1.) で書く。
+    「1. 2. 1.」のように番号が混ざらない。図のノードの名前はどちらでも最初の番号から数えた番号 (2. 新しいノード など)
+decisions: [U7 の一部 (「1. 1. 1.」のリストはどの操作のあとも同じ番号のまま)]
+steps:
+    - click: { node: 2. 更新 }
+    - key: Shift+Meta+Enter
+      expect: { source: after-above.md, input: name, selection: nodes:2. 新しいノード }
+    - key: Enter
+      expect: { source: after-above.md, input: none, selection: nodes:2. 新しいノード }
+    - key: Meta+Enter
+      expect: { source: after-below.md, input: name, selection: nodes:3. 新しいノード }
+    - key: Enter
+      expect: { source: after-below.md, input: none }
+    - key: Delete
+      expect: { source: after-above.md, selection: nodes:作業 }
+    - click: { node: 作業 }
+    - key: Tab
+      expect: { source: after-child.md, input: name, selection: nodes:5. 新しいノード, notice: { kind: info, text: 子を足しました } }
+    - key: Enter
+      expect: { source: after-child.md, input: none, selection: nodes:5. 新しいノード }

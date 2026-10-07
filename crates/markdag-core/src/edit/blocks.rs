@@ -1,5 +1,6 @@
 // 原文なし。
-// 書き換えの層が原文を読む単位。原文を解析し直してノードの種類 (見出し、項目、容器、表とコードと画像、行を持たないルート) を見分け、
+// 書き換えの層が原文を読む単位。原文を解析し直してノードの種類 (見出し、項目、容器、表とコードと画像、行を持たないルート) と、
+// 番号付きの項目の数えた番号 (図の名前の頭の番号) を引き、
 // ノードの 1 行目を行頭 (字下げ、リストの印か見出しの #、タスクの記号)、本文、本文のあと (空白、ATX の見出しの閉じの記号、
 // 末尾の印)、行末の \r に分ける。ノードが占める行 (ブロック) の範囲と、最後の子、配下を引き、詳細 (項目の直下の引用と、見出しのすぐ下の
 // 引用。どちらも怠惰な続きの行を含む) の行と原文と、読むだけの問い合わせ (inspect_node) の答えもここで組む。
@@ -10,9 +11,12 @@ use regex::Regex;
 
 use super::headings::atx_heading;
 use super::lines::{is_blank, split_carriage};
-use super::names::input_label;
+use super::names::{input_label, normalize_label};
 use crate::model::model::{ModelOptions, build_model};
-use crate::parse::{BlockTag, is_mark_line, parse_with_block_tags, trailing_marks};
+use crate::model::util::JsValue;
+use crate::parse::{
+    BlockTag, ParseWithBlockTagsResult, is_mark_line, parse_with_block_tags, trailing_marks,
+};
 use crate::types::{
     GraphModel, InspectNodeResult, NodeKind, NodeTarget, OutlineNode, ParsedDocument,
 };
@@ -41,11 +45,12 @@ static QUOTE_LINES: LazyLock<Regex> = LazyLock::new(|| {
 /// 文書の先頭の BOM。1 行目のノードでは行頭の一部として扱う
 pub(super) const BOM: char = '\u{FEFF}';
 
-/// 解析し直した原文。行 (split('\n')) と解析の結果と、ノードごとの要素の種類 (nodes と同じ順)
+/// 解析し直した原文。行 (split('\n')) と解析の結果と、ノードごとの要素の種類と番号付きの項目の数えた番号 (nodes と同じ順)
 pub(super) struct ParsedSource<'s> {
     pub(super) lines: Vec<&'s str>,
     pub(super) parsed: ParsedDocument,
     tags: Vec<Option<BlockTag>>,
+    list_numbers: Vec<Option<u64>>,
 }
 
 /// ノードの 1 行目を分けたもの。lead、body、rest、carriage をつなげると行に戻る
@@ -74,11 +79,16 @@ pub(super) struct FirstLine<'s> {
 
 impl<'s> ParsedSource<'s> {
     pub(super) fn read(source: &'s str) -> Self {
-        let (parsed, tags) = parse_with_block_tags(source);
+        let ParseWithBlockTagsResult {
+            parsed,
+            tags,
+            list_numbers,
+        } = parse_with_block_tags(source);
         ParsedSource {
             lines: source.split('\n').collect(),
             parsed,
             tags,
+            list_numbers,
         }
     }
 
@@ -100,6 +110,12 @@ impl<'s> ParsedSource<'s> {
     pub(super) fn tag_of(&self, node: &OutlineNode) -> Option<BlockTag> {
         let index = (node.id as usize).checked_sub(1)?;
         self.tags.get(index).copied().flatten()
+    }
+
+    /// 番号付きのリストの項目の、解析が数えた番号 (開始の番号 + それまでの項目の数。図の名前の頭の番号)。ほかのノードは None
+    pub(super) fn list_number(&self, node: &OutlineNode) -> Option<u64> {
+        let index = (node.id as usize).checked_sub(1)?;
+        self.list_numbers.get(index).copied().flatten()
     }
 
     pub(super) fn kind_of(&self, node: &OutlineNode) -> NodeKind {
@@ -423,16 +439,22 @@ pub(super) fn inspect(source: &str, target: &NodeTarget) -> Option<InspectNodeRe
     let can_add_child = can_add_child && !read.ends_with_block(node);
     // ルートは消せず動かせない。ルートの兄弟は子として足すので、兄弟は子と同じ (ルートでもある容器を含む)
     let root = node.parent.is_none();
+    // 行を持たないルート (ルートでもある容器を含む) の名前は frontmatter の title なので、名前を変えられ、初めの値は原文の title の文字
+    let titled = is_titled_root(&read, node);
     Some(InspectNodeResult {
         id: node.id,
         kind,
-        label: first
-            .as_ref()
-            .map(|first| input_label(first, kind == NodeKind::Heading))
-            .unwrap_or_default(),
+        label: if titled {
+            title_label(&read, node)
+        } else {
+            first
+                .as_ref()
+                .map(|first| input_label(first, kind == NodeKind::Heading))
+                .unwrap_or_default()
+        },
         details: read.details_of(node),
         task: node.task.is_some(),
-        can_rename,
+        can_rename: can_rename || titled,
         can_delete: can_delete && !root,
         can_move: can_move && !root,
         can_have_details,
@@ -443,6 +465,24 @@ pub(super) fn inspect(source: &str, target: &NodeTarget) -> Option<InspectNodeRe
         can_mark: first.as_ref().is_some_and(|first| first.can_mark)
             || atx_heading(&read, node).is_some(),
     })
+}
+
+/// 名前が frontmatter の title のルートか: 本文に行を持たないルート (見出しのない文書のルートと、リストだけの文書のルートの容器)。
+/// 名前の変更は title を書き換える
+pub(super) fn is_titled_root(read: &ParsedSource<'_>, node: &OutlineNode) -> bool {
+    node.parent.is_none() && matches!(read.kind_of(node), NodeKind::Root | NodeKind::List)
+}
+
+/// 行を持たないルートの名前の入力の初めの値: 原文の title の文字 (YAML として読んだ値を 1 行にしたもの)。項目の名前の入力が
+/// 1 行目の本文から始まるのと同じく、図の名前に読む前の書式の記法と文字参照を含む。title が文字でなければ図の名前
+pub(super) fn title_label(read: &ParsedSource<'_>, node: &OutlineNode) -> String {
+    match &read.parsed.frontmatter {
+        JsValue::Object(map) => match map.get("title") {
+            Some(JsValue::String(title)) => normalize_label(title),
+            _ => node.ref_text.clone(),
+        },
+        _ => node.ref_text.clone(),
+    }
 }
 
 /// 解析し直した原文のモデル (グループの定義と所属、タグのキーの定義を読む)

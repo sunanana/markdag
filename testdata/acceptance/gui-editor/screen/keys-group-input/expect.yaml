@@ -1,0 +1,28 @@
+kind: 正常
+os: mac
+checks: >-
+    グループの名前の入力では、Shift+Enter、⌘Enter、Shift+⌘Enter、Ctrl+Enter、Shift+Ctrl+Enter、Tab、Shift+Tab は何もしない (入力を開いたまま、値もフォーカスも変えない)。
+    Enter で名前 (label) を決め、グループは選んだまま
+states: [keys:I4.e1, keys:I4.e2, keys:I4.e3, keys:I4.e4, keys:I4.e5, keys:I4.e6, keys:I4.e10, keys:I4.e11]
+steps:
+    - click: { frame: g1 }
+      expect: { selection: group:g1, bar: group }
+    - key: Enter
+      expect: { input: group-name, input_value: 設計, focus: 'name-input:group' }
+    - type: 組2
+    - key: Shift+Enter
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Meta+Enter
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Shift+Meta+Enter
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Control+Enter
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Shift+Control+Enter
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Tab
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Shift+Tab
+      expect: { source: input.md, input: group-name, input_value: 組2, focus: 'name-input:group' }
+    - key: Enter
+      expect: { source: after-rename.md, input: none, selection: group:g1, notice: { kind: info, text: グループの名前を「組2」にしました } }

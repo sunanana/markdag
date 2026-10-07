@@ -1,0 +1,5 @@
+kind: 正常
+checks: >-
+    完了のタスク (- [x] 点検) の上に足すと、同じ印 (-) で未着手の記号 ([ ]) を付けた項目を書く (選んだタスクの状態は写さない)
+op: { kind: addSiblingBefore, node: 点検, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }

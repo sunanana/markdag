@@ -1,0 +1,40 @@
+kind: 正常
+os: mac
+checks: >-
+    タスクを 2 つ選んで Space を押すと、2 つとも印を進め (原文の書き換えは 1 回)、1 回の ⌘Z で 2 つとも戻る。
+    タスクとタスクでないノードを一緒に選ぶと、タスクだけを進める (タスクでないノードは飛ばし、通知も出さない)。
+    タスクを 2 つ選んで Space を押したまま図をドラッグすると図を動かし、離してもどちらの印も進めない。続けて ⌘Z を押しても原文は変わらない (取り消しの履歴を積まない)
+note: >-
+    段 9〜14 (2 つのタスクを選んで Space+ドラッグ、続けて ⌘Z) は、変異の確かめ (records/mutation.md の M15。Space+ドラッグで印を進めない所を
+    keys-space-one の 1 件だけが見ていた) の穴を埋める例の案で、依頼者の承認 (2026-10-07) のあとに足した
+states: [keys:T2.t1, keys:T2.t2, keys:T3.t1, keys:T3.t2, keys:K5.e12, keys:K5.e13]
+decisions: [U3 (Space でまとめて進めたら 1 回の ⌘Z でまとめて戻る)]
+steps:
+    - click: { node: 点検 }
+    - click: { node: 報告 }
+      mod: Shift
+      expect: { selection: 'nodes:点検,報告' }
+    - key: ' '
+      expect: { source: after-both.md, selection: 'nodes:点検,報告', notice: null }
+    - key: Meta+z
+      expect: { source: input.md, selection: 'nodes:点検,報告' }
+    - click: { node: 片付け }
+      mod: Shift
+    - click: { node: 報告 }
+      mod: Shift
+      expect: { selection: 'nodes:点検,片付け' }
+    - key: ' '
+      expect: { source: after-task-only.md, selection: 'nodes:点検,片付け', notice: null }
+    - key: Meta+z
+      expect: { source: input.md }
+    - click: { node: 点検 }
+    - click: { node: 報告 }
+      mod: Shift
+      expect: { selection: 'nodes:点検,報告' }
+    - keydown: ' '
+    - pan: { dx: -60, dy: 30 }
+      expect: { moved: true, selection: 'nodes:点検,報告', source: input.md }
+    - keyup: ' '
+      expect: { source: input.md, selection: 'nodes:点検,報告' }
+    - key: Meta+z
+      expect: { source: input.md, selection: 'nodes:点検,報告' }

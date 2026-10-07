@@ -13,6 +13,7 @@ use super::blocks::ParsedSource;
 use super::body::{child_edit, sibling_edit};
 use super::frontmatter::Marking;
 use super::refs::{Follow, Guard, NewRelation, rewrite_references};
+use super::shape::Side;
 use super::verify::target_of;
 use super::{STALE_NODE, STRUCTURE_CHANGED, refused};
 use crate::layout::project::VisibleEdgeKind;
@@ -125,7 +126,8 @@ pub(super) fn join_into(
 }
 
 /// sources から新しいノード (名前は label) へ合流する。新しいノードは、文書でいちばん後ろの始点を含む最上位の枝のすぐあとに、
-/// 最上位の兄弟として足す (枝がリストの入れ物なら、そのリストの最後の項目のあと)。新しいノードを選び、名前の入力を開く
+/// 最上位の兄弟として足す (枝がリストの入れ物なら、そのリストの最後の項目のあと。枝が番号付きの項目なら、足したあとの兄弟の番号を振り直す)。
+/// 新しいノードを選び、名前の入力を開く
 pub(super) fn join_into_new(source: &str, sources: &[NodeTarget], label: &str) -> EditSourceResult {
     let before = ParsedSource::read(source);
     let Some(nodes) = found(&before, sources) else {
@@ -159,7 +161,7 @@ pub(super) fn join_into_new(source: &str, sources: &[NodeTarget], label: &str) -
     let edit = if marked.kind_of(branch) == NodeKind::List {
         child_edit(&marking.text, &marked, branch, label)
     } else {
-        sibling_edit(&marking.text, &marked, branch, label)
+        sibling_edit(&marking.text, &marked, branch, label, Side::After)
     };
     let edit = match edit {
         Ok(edit) => edit,

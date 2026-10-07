@@ -1,4 +1,6 @@
 // GUI 編集の道具 (DOM を使わない)。今の道具と、Space を押しているかと、合流先を選ぶ途中かを持ち、何もないところのドラッグでパンするボタンを決める。
+// Space を押してから、ポインタもほかのキーも押さずに離したか (選んだタスクの印を進める押し方) も持つ。Shift を押したまま押した Space、
+// 押したままの繰り返しで初めて受けた Space、合流先を選ぶ途中の Space は、この押し方にしない (図を動かすだけ)。
 // 手のひらは主ボタンと中ボタン、選択と合流先を選ぶ途中は中ボタンだけ、Space を押している間は両方でパンする。
 // 選択の道具で Space を押していない間だけ、何もないところの主ボタンのドラッグを矩形選択に、ノードの主ボタンのドラッグを付け替えに、
 // 点のドラッグを線を引くか合流させるドラッグにする。
@@ -17,6 +19,8 @@ export class Tools {
     private current: EditorTool = DEFAULT_TOOL;
     // Space を押している間 (キーを離すか、ウィンドウのフォーカスが外れるまで)
     private spaceHeld = false;
+    // Space を押してから、ポインタもほかのキーも押していないか。道具の見た目は変えないので onChange は呼ばない
+    private spaceTap = false;
     private joiningTarget = false;
 
     // 道具か Space の押下か合流先を選ぶ途中かが変わったときに呼ぶ
@@ -52,12 +56,27 @@ export class Tools {
         this.set(tool, this.spaceHeld, false);
     }
 
-    holdSpace(): void {
+    // Space を押した。押していなかったときだけ、押して離す押し方の途中にする (押し続けたときの 2 回目の押下では始め直さない)。
+    // Shift を押したまま押した Space は、押して離す押し方にしない (Space を先に押してから Shift を押したときと同じ。押す順によらない)。
+    // 押したままの繰り返し (repeat) で初めて受けた Space も、押して離す押し方にしない (最初の押下を図の外で押している)
+    holdSpace(input?: { shiftKey: boolean; repeat?: boolean }): void {
+        if (!this.spaceHeld) this.spaceTap = !(input?.shiftKey ?? false) && !(input?.repeat ?? false);
         this.set(this.current, true, this.joiningTarget);
     }
 
-    releaseSpace(): void {
+    // Space を押している間にポインタかほかのキー (Shift などの修飾キーも) を押した (離してもタスクの印を進めない)。
+    // ポインタを押さずに動かしただけでは呼ばない
+    interruptSpace(): void {
+        this.spaceTap = false;
+    }
+
+    // Space を離した (ウィンドウのフォーカスが外れたときも呼ぶ)。押してから、ポインタもほかのキーも押さずに離したら true。
+    // 合流先を選ぶ途中は、Space は図を動かすだけなので false
+    releaseSpace(): boolean {
+        const tapped = this.spaceHeld && this.spaceTap && !this.joiningTarget;
+        this.spaceTap = false;
         this.set(this.current, false, this.joiningTarget);
+        return tapped;
     }
 
     // 合流先を選ぶ途中にする
@@ -70,8 +89,9 @@ export class Tools {
         this.set(this.current, this.spaceHeld, false);
     }
 
-    // 最初の道具に戻し、Space の押下と合流先を選ぶ途中も解く
+    // 最初の道具に戻し、Space の押下 (押して離す押し方の途中も) と合流先を選ぶ途中も解く
     reset(): void {
+        this.spaceTap = false;
         this.set(DEFAULT_TOOL, false, false);
     }
 

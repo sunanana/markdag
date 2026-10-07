@@ -99,7 +99,8 @@ describe('レビューの指摘 A-01 / B-02: 容器と 1 行目を分け合う�
             ['- a\n- b\n- c\n', [2, 'a'], '- b\n- c\n', [1, '']],
             ['---\ntitle: 手順\nmarkdag:\n---\n- a\n- b\n- c\n', [2, 'a'], '---\ntitle: 手順\nmarkdag:\n---\n- b\n- c\n', [1, '手順']],
             ['- a\n    - a1\n- b\n- c\n', [2, 'a'], '- b\n- c\n', [1, '']],
-            ['# R\n- p\n- q\n\n1. a\n2. b\n3. c\n', [6, '1. a'], '# R\n- p\n- q\n\n2. b\n3. c\n', [5, '']],
+            // 番号付きのリストは、消す前の始まりの番号 (1) から振り直す (例の承認の U7-first)
+            ['# R\n- p\n- q\n\n1. a\n2. b\n3. c\n', [6, '1. a'], '# R\n- p\n- q\n\n1. b\n2. c\n', [5, '']],
             ['# R\n\n- a\n- b\n- c\n\n1. p\n2. q\n', [3, 'a'], '# R\n\n- b\n- c\n\n1. p\n2. q\n', [2, '']],
         ];
         for (const [source, node, expected, chosen] of cases) expectRewritten(deleteNodes(source, node), expected, chosen);
@@ -111,7 +112,8 @@ describe('レビューの指摘 A-01 / B-02: 容器と 1 行目を分け合う�
             ['---\ntitle: 手順\nmarkdag:\n---\n- a\n- b\n- c\n', [2, 'a'], [4, 'c'], '---\ntitle: 手順\nmarkdag:\n---\n- b\n- c\n    - a\n', [4, 'a'], 3],
             ['- a\n    - a1\n- b\n- c\n', [2, 'a'], [4, 'b'], '- b\n    - a\n        - a1\n- c\n', [3, 'a'], 2],
             ['# R\n\n- a\n- b\n- c\n\n1. p\n2. q\n', [3, 'a'], [4, 'b'], '# R\n\n- b\n    - a\n- c\n\n1. p\n2. q\n', [4, 'a'], 3],
-            ['# R\n- p\n- q\n\n1. a\n2. b\n3. c\n', [6, '1. a'], [7, '2. b'], '# R\n- p\n- q\n\n2. b\n    - a\n3. c\n', [7, 'a'], 6],
+            // 番号付きのリストは、移す前の始まりの番号 (1) から振り直す (例の承認の U7-first)
+            ['# R\n- p\n- q\n\n1. a\n2. b\n3. c\n', [6, '1. a'], [7, '2. b'], '# R\n- p\n- q\n\n1. b\n    - a\n2. c\n', [7, 'a'], 6],
         ];
         for (const [source, node, parent, expected, moved, newParent] of cases) {
             expectRewritten(moveNode(source, node, parent), expected, moved);

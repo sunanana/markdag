@@ -1,0 +1,22 @@
+kind: 正常
+os: mac
+checks: >-
+    ノードを 2 つ以上選んでいるとき、Enter と、Shift や修飾キー (⌘、Ctrl) を足した Enter は何もしない (ノードが 1 つのときだけ受ける。原文も選択も変えず、名前の入力も開かない)
+states: [keys:K5.e1, keys:K5.e2, keys:K5.e3, keys:K5.e4, keys:K5.e5, keys:K5.e6]
+steps:
+    - click: { node: 調べる }
+    - click: { node: 決める }
+      mod: Shift
+      expect: { selection: 'nodes:調べる,決める', bar: nodes }
+    - key: Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }
+    - key: Shift+Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }
+    - key: Meta+Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }
+    - key: Shift+Meta+Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }
+    - key: Control+Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }
+    - key: Shift+Control+Enter
+      expect: { source: input.md, input: none, selection: 'nodes:調べる,決める' }

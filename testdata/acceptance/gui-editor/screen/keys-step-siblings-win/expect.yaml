@@ -1,0 +1,29 @@
+kind: 正常
+os: win
+checks: >-
+    win の割り当て (navigator を Windows に見せかけて開く)。Alt+Enter は 1 つ下の兄弟を、Shift+Alt+Enter は 1 つ上の兄弟を選び、その名前の入力を開く。
+    名前の入力中は名前を決めてから移る。最初の兄弟で上へ移ろうとすると何もせず、入力を開いたままにする。
+    決められない名前 (空) では移らず、入力を開いたまま理由を知らせる。選択中の最後の兄弟で下へ移ろうとしても何もしない
+note: 確認ページは本物の navigator で開くので、Mac で開くとこの例は飛ばす (例の OS の区分とページの区分が違う)。e2e は navigator を Windows に見せかけて通す
+states: [keys:K2.e5, keys:Q2.e6, keys:I1.e6, keys:Q1.e6, keys:P2.e5, keys:C1.c5, keys:C2.c6]
+decisions: [U1 (Enter の修飾キーは mac と win で別々の割り当て)]
+steps:
+    - click: { node: 決める }
+    - key: Alt+Enter
+      expect: { source: input.md, input: name, input_value: 書く, focus: 'name-input:node', selection: nodes:書く }
+    - type: 書き直す
+    - key: Shift+Alt+Enter
+      expect: { source: after-rename.md, input: name, input_value: 決める, selection: nodes:決める, notice: { kind: info, text: 名前を「書き直す」にしました } }
+    - key: Shift+Alt+Enter
+      expect: { source: after-rename.md, input: name, input_value: 調べる, selection: nodes:調べる }
+    - key: Shift+Alt+Enter
+      expect: { source: after-rename.md, input: name, input_value: 調べる, focus: 'name-input:node', selection: nodes:調べる }
+    - key: Backspace
+      expect: { input: name, input_value: '' }
+    - key: Alt+Enter
+      expect: { source: after-rename.md, input: name, input_value: '', selection: nodes:調べる, notice: { kind: error, text: 名前を空にできません } }
+    - key: Escape
+      expect: { source: after-rename.md, input: none, selection: nodes:調べる }
+    - click: { node: 書き直す }
+    - key: Alt+Enter
+      expect: { source: after-rename.md, input: none, selection: nodes:書き直す }

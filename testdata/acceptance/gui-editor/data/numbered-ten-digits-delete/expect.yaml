@@ -1,0 +1,9 @@
+kind: 境界 (決定 U7-digits b)
+decided: [U7]
+checks: >-
+    10 の項目のリストから 2. 二 を消すと、10. 十 は 9. に振り直る。10. 十 の子 (字下げ 4 の - 細目) の字下げは変えない (桁が減るときは字下げを変えない)
+note: >-
+    決定 U7-digits (2026-10-06、b: 桁が増えて子の字下げが足りなくなるときだけ書き直す。足りているときと、桁が減るときは字下げを変えない)。この例を書いたときは、4 から 3 に書き直していた
+decisions: [やらない 3 (削除と移動でも番号を振り直す)]
+op: { kind: deleteNodes, nodes: [2. 二] }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [作業] }, rename: null, notes: [] }

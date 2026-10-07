@@ -1,0 +1,37 @@
+kind: 境界 (決定 S-07 a、S-14 a、S-15 b、S-16 a)
+os: mac
+decided: [S-07, S-14, S-15, S-16]
+checks: >-
+    Space の押して離すの細部。Space を押したまま、ポインタを押さずに図の外 (図の外の入力欄の上) へ動かして離しても、印を進める (決定 S-07 a)。
+    押したままポインタを図の上で動かしただけなら、離すと印を進める。押している間に Shift を押して離すと、離しても進めない (決定 S-14 a)。
+    Shift を先に押してから Space を押して離しても進めない (押す順によらず、Shift を押している間の Space は進めない。決定 S-15 b)。
+    押している間に外から原文が変わり (選んだノードは同じ)、そのあと離すと、変わったあとの原文で進める (決定 S-16 a)
+note: >-
+    決定 S-07、S-14、S-16 (2026-10-06、a: 今のまま)。決定 S-15 (2026-10-06、b: Shift を押している間の Space は、押す順によらず印を進めない)。この例を書いたときは、Shift が先なら進めた
+states: [keys:S2.s4, keys:S2.s7, keys:S2.s9, keys:S1.s16, keys:S2.s11]
+steps:
+    - click: { node: 点検 }
+    - keydown: ' '
+    - move: { outside: true }
+    - keyup: ' '
+      expect: { source: after-toggle.md, selection: nodes:点検 }
+    - move: { node: 点検 }
+    - keydown: ' '
+    - move: { by: [30, 0] }
+    - keyup: ' '
+      expect: { source: input.md, selection: nodes:点検 }
+    - keydown: ' '
+    - keydown: Shift
+    - keyup: Shift
+    - keyup: ' '
+      expect: { source: input.md, selection: nodes:点検 }
+    - keydown: Shift
+    - keydown: ' '
+    - keyup: ' '
+      expect: { source: input.md, selection: nodes:点検 }
+    - keyup: Shift
+    - keydown: ' '
+    - set_source: renamed.md
+      expect: { source: renamed.md, selection: nodes:点検 }
+    - keyup: ' '
+      expect: { source: after-renamed-toggle.md, selection: nodes:点検 }

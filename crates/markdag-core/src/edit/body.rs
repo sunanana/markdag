@@ -1,19 +1,28 @@
 // 原文なし。
 // 本文を書き換える操作。名前の変更 (renameNode) は 1 行目の本文だけを差し替え、行頭、末尾の印、行末の \r を残す (どのノードも名前を空にはできない)。
+// 行を持たないルートの名前は frontmatter の title なので、title を書き換える (なければ足し、frontmatter がなければ作る)。
 // 子と兄弟の追加 (addChild、addSibling) は、並ぶノードの形で 1 行を親か自分のブロックの最後の空でない行のあとに足し、
-// 行の読み方を保つ空行をはさむ。削除 (deleteNodes) はノードのブロックを配下ごと消して重なった空行を詰める。
+// 兄弟を上に足す操作 (addSiblingBefore) は自分と同じ形 (番号付きは同じ番号) で自分の 1 行目の前に足し、行の読み方を保つ空行をはさむ。
+// 削除 (deleteNodes) はノードのブロックを配下ごと消して重なった空行を詰める。
 // 付け替え (moveNode) はブロックを切り出し、移す先の最後の子の形で書き直して足す。どれも書き換えたあとの原文を解析し直し、
-// ねらいと違う形に読まれれば断る。本文を書き換えたあと、frontmatter の参照の追随 (名前の変更、削除) と守り (読み方が変わって
+// ねらいと違う形に読まれれば断る。子と兄弟の追加 (兄弟は上と下)、削除、付け替え (もとの親と移す先) では、兄弟が増えたか減った親の
+// 直下の番号付きの項目の原文の番号を、書き換える前の始まりの番号から数え直す (振り直し。足すときと移す先は足したあとに、
+// 消すときと切り出すときは外す前に当てる)。末尾に足すときも、原文の番号がずれたリストは全体を図の番号にそろえる。
+// 本文を書き換えたあと、frontmatter の参照の追随 (名前の変更、削除) と守り (読み方が変わって
 // 指せなくなった参照の書き直し) を当てる (書き方は参照の書き直しの側が決める)。
-use super::blocks::ParsedSource;
+use super::blocks::{BOM, ParsedSource, is_titled_root, start_line, title_label};
+use super::frontmatter::{markdag_notes, with_title, yaml_value};
 use super::lines::{LinePlan, carriage_of, cut_lines};
 use super::names::{added_line, input_label, name_line, normalize_label};
 use super::refs::{Follow, Guard, rewrite_references};
+use super::renumber::{Renumbering, aligned, renumber_lines, renumbered_lists};
 use super::shape::{
-    Indentation, LineShape, Spacing, blank_lines_around, moved_lines, nested_shape, next_shape,
+    Indentation, LineShape, Side, Spacing, blank_lines_around, moved_lines, nested_shape,
+    next_shape, sibling_shape,
 };
 use super::verify::{Correspondence, Expectation, Placed, PlacedNode, keeps_structure, target_of};
 use super::{STALE_NODE, STRUCTURE_CHANGED, refused, unchanged};
+use crate::model::util::JsValue;
 use crate::parse::BlockTag;
 use crate::types::{
     EditReasonCode, EditRename, EditSelection, EditSourceResult, NodeKind, NodeTarget, OutlineNode,
@@ -91,7 +100,77 @@ const EMPTY_NAME: &str = "名前を空にできません";
 
 pub(super) fn rename_node(source: &str, target: &NodeTarget, label: &str) -> EditSourceResult {
     let before = ParsedSource::read(source);
+    if let Some(node) = before.find(target)
+        && is_titled_root(&before, node)
+    {
+        return rename_title(source, &before, node, label);
+    }
     finish(&before, rename_edit(&before, target, label))
+}
+
+// 行を持たないルートの名前の変更: frontmatter の title を書き換える (なければ足し、frontmatter がなければ作る)。
+// 名前の決め方はほかのノードと同じ (名前の入力の初めの値 (原文の title の文字) のまま決めたら変えない、空の名前は断る)。
+// ルートを名前で指す参照は名前の変更と同じく追随する。
+// frontmatter を作ったときと、先頭の BOM を外したときは、そのことを知らせに足す
+fn rename_title(
+    source: &str,
+    before: &ParsedSource<'_>,
+    node: &OutlineNode,
+    label: &str,
+) -> EditSourceResult {
+    let name = normalize_label(label);
+    if name == title_label(before, node) {
+        return unchanged(EditReasonCode::SameName, SAME_NAME);
+    }
+    if name.is_empty() {
+        return refused(EditReasonCode::EmptyName, EMPTY_NAME);
+    }
+    let (plan, added) = match with_title(source, &before.lines, &yaml_value(&name)) {
+        Ok(written) => written,
+        Err(reason) => return EditSourceResult::Refused { reason },
+    };
+    let expectation = Expectation {
+        renamed: Some(node.id),
+        ..Expectation::default()
+    };
+    let (text, correspondence) = match verified(before, &plan, &expectation) {
+        Ok(verified) => verified,
+        Err(result) => return result,
+    };
+    // 書いた title が、決めた名前の文字列として読まれること (YAML の書き方の誤りを書き換えにしない)。図の名前は title を
+    // 見出しや項目の 1 行目と同じ読み方 (空白を詰め、タグを外し、文字参照を戻す) で読んだものなので、決めた名前とは比べない
+    let written = matches!(
+        &ParsedSource::read(&text).parsed.frontmatter,
+        JsValue::Object(map) if map.get("title") == Some(&JsValue::String(name.clone()))
+    );
+    let Some(selected) = correspondence.new_id(node.id).filter(|_| written) else {
+        return refused(EditReasonCode::StructureChanged, STRUCTURE_CHANGED);
+    };
+    let edit = BodyEdit {
+        plan,
+        text,
+        correspondence,
+        selected,
+        rename: false,
+        follow: Follow {
+            renamed: Some(node.id),
+            ..Follow::default()
+        },
+    };
+    match finish(before, Ok(edit)) {
+        EditSourceResult::Edited {
+            splices,
+            select,
+            rename,
+            notes,
+        } => EditSourceResult::Edited {
+            splices,
+            select,
+            rename,
+            notes: [markdag_notes(&added, 0), notes].concat(),
+        },
+        other => other,
+    }
 }
 
 fn rename_edit<'a>(
@@ -178,15 +257,19 @@ pub(super) fn add_child(source: &str, target: &NodeTarget, label: &str) -> EditS
     finish(&before, child_edit(source, &before, node, label))
 }
 
-/// source (before はその解析) の node の子を足す本文の書き換え。参照の追随と守りは当てない (呼び出し側が当てる)
+/// source (before はその解析) の node の子を足す本文の書き換え。番号付きのリストなら、足したあとの兄弟の番号を振り直す
+/// (原文の番号がずれたリストは、前の項目も図の番号に書き直す)。参照の追随と守りは当てない (呼び出し側が当てる)
 pub(super) fn child_edit<'a>(
     source: &str,
     before: &'a ParsedSource<'a>,
     node: &OutlineNode,
     label: &str,
 ) -> Result<BodyEdit<'a>, EditSourceResult> {
-    child_placement(before, node, &Indentation::of(before))
-        .and_then(|placement| insert(source, before, placement, label))
+    let placement = child_placement(before, node, &Indentation::of(before))?;
+    let parent = placement.parent;
+    let edit = insert(source, before, placement, label)?;
+    let lists = renumbered_after(before, parent, &edit.correspondence);
+    Ok(renumbered(edit, &lists))
 }
 
 /// 兄弟は自分のブロックのあとに自分と同じ形で足す。親のない (ルートの) 兄弟は子として足す
@@ -195,19 +278,70 @@ pub(super) fn add_sibling(source: &str, target: &NodeTarget, label: &str) -> Edi
     let Some(node) = before.find(target) else {
         return refused(EditReasonCode::StaleNode, STALE_NODE);
     };
-    finish(&before, sibling_edit(source, &before, node, label))
+    finish(
+        &before,
+        sibling_edit(source, &before, node, label, Side::After),
+    )
 }
 
-/// source (before はその解析) の node の兄弟を足す本文の書き換え。参照の追随と守りは当てない (呼び出し側が当てる)
+/// 兄弟を自分の 1 行目の前に自分と同じ形 (番号付きは同じ番号) で足す。親のない (ルートの) 兄弟は、下に足すときと同じく子として足す
+pub(super) fn add_sibling_before(
+    source: &str,
+    target: &NodeTarget,
+    label: &str,
+) -> EditSourceResult {
+    let before = ParsedSource::read(source);
+    let Some(node) = before.find(target) else {
+        return refused(EditReasonCode::StaleNode, STALE_NODE);
+    };
+    finish(
+        &before,
+        sibling_edit(source, &before, node, label, Side::Before),
+    )
+}
+
+/// source (before はその解析) の node の兄弟を side に足す本文の書き換え。番号付きのリストなら、足したあとの兄弟の番号を振り直す。
+/// 参照の追随と守りは当てない (呼び出し側が当てる)
 pub(super) fn sibling_edit<'a>(
     source: &str,
     before: &'a ParsedSource<'a>,
     node: &OutlineNode,
     label: &str,
+    side: Side,
 ) -> Result<BodyEdit<'a>, EditSourceResult> {
+    let placement = sibling_placement(before, node, side)?;
+    let parent = placement.parent;
+    let edit = insert(source, before, placement, label)?;
+    let lists = renumbered_after(before, parent, &edit.correspondence);
+    Ok(renumbered(edit, &lists))
+}
+
+// ノードを足した親 parent (read の id。None はルートに置き換わる) の直下の番号付きの項目を振り直すリストを、足したあとの id
+// (ids は read から足したあとへの対応) で指したもの。リストの書き方と始まりの番号は足す前の read で見る (全部同じ番号のリストは振り直さない)
+fn renumbered_after(
+    read: &ParsedSource<'_>,
+    parent: Option<u32>,
+    ids: &Correspondence,
+) -> Vec<Renumbering> {
+    renumbered_lists(read, parent)
+        .into_iter()
+        .filter_map(|list| {
+            Some(Renumbering {
+                parent: ids.new_id(list.parent)?,
+                ..list
+            })
+        })
+        .collect()
+}
+
+// 兄弟の形と位置: 自分と同じ形で、After は自分のブロックのあと、Before は自分の 1 行目の前。親のない (ルートの) 兄弟は子の形と位置
+fn sibling_placement(
+    before: &ParsedSource<'_>,
+    node: &OutlineNode,
+    side: Side,
+) -> Result<Placement, EditSourceResult> {
     if node.parent.is_none() {
-        let placement = child_placement(before, node, &Indentation::of(before))?;
-        return insert(source, before, placement, label);
+        return child_placement(before, node, &Indentation::of(before));
     }
     match before.kind_of(node) {
         NodeKind::Block => {
@@ -224,18 +358,21 @@ pub(super) fn sibling_edit<'a>(
         }
         NodeKind::Heading | NodeKind::Item | NodeKind::Root => {}
     }
-    let Some(shape) = next_shape(before, node) else {
+    let at = match side {
+        Side::After => Some(before.block_end(node)),
+        Side::Before => start_line(node),
+    };
+    let (Some(shape), Some(at)) = (sibling_shape(before, node, side), at) else {
         return Err(refused(
             EditReasonCode::NoSourceLine,
             "このノードは原文に自分の行を持たないので、兄弟を足せません",
         ));
     };
-    let placement = Placement {
+    Ok(Placement {
         shape,
-        at: before.block_end(node),
+        at,
         parent: node.parent,
-    };
-    insert(source, before, placement, label)
+    })
 }
 
 // 書く行の形、書く位置 (書き換える前の行の添字)、書いたノードの親 (書き換える前の id。None はルートに置き換わる)
@@ -348,7 +485,8 @@ fn insert<'a>(
 
 // 書く行 (行末の \r を含む) を行の列の at の位置に差し込み、前後に空行をはさむ。改行で終わらない文書の末尾では、
 // 書く最後の行の \r を外し、CRLF の文書なら前の最後の行に \r を足す (改行で終わらない形を保ち、単独の \r を作らない)。
-// 戻り値は書いた最初の行 (はさんだ空行のあと) の位置
+// 文書の先頭に書くときは、先頭の BOM を書く最初の行の頭へ移す (BOM は文書の先頭にだけ置ける。もとの 1 行目に残すと、
+// 文書の途中の BOM で始まる行になり、見出しや項目に読まれない)。戻り値は書いた最初の行 (はさんだ空行のあと) の位置
 fn insert_lines(
     plan: &mut LinePlan<'_>,
     at: usize,
@@ -377,8 +515,76 @@ fn insert_lines(
             plan.rewrite(at - 1, format!("{previous}{carriage}"));
         }
     }
+    if at == 0
+        && let Some(rest) = plan.line(0).and_then(|first| first.strip_prefix(BOM))
+    {
+        let rest = rest.to_string();
+        plan.rewrite(0, rest);
+        if let Some(first) = written.first_mut() {
+            first.insert(0, BOM);
+        }
+    }
     plan.insert(at, written);
     u32::try_from(at + usize::from(blank_before)).unwrap_or(u32::MAX)
+}
+
+// 足したあとの本文の書き換え edit に、lists (書き換えたあとの親の id) の番号の振り直しを重ねたもの。振り直した原文が、
+// 振り直す前と違う形に読まれるか、番号が図とそろわないとき (入れ子の字下げの珍しい形など) は、振り直さずに edit のまま返す。
+// 振り直さなかったことは知らせない (足すときも外すときも同じ。まれな形のために知らせを増やさない)
+fn renumbered<'a>(edit: BodyEdit<'a>, lists: &[Renumbering]) -> BodyEdit<'a> {
+    let Some((plan, text, ids)) = renumber_stages(&edit, lists) else {
+        return edit;
+    };
+    BodyEdit {
+        plan,
+        text,
+        correspondence: edit.correspondence.then(&ids),
+        selected: ids.new_id(edit.selected).unwrap_or(edit.selected),
+        rename: edit.rename,
+        follow: edit.follow,
+    }
+}
+
+// edit の原文に振り直しを当てた結果: 書き換える前の原文に当てる行の列、振り直したあとの原文、振り直す前から後への対応。
+// 書き直すものがないか、確かめが通らなければ None
+fn renumber_stages<'a>(
+    edit: &BodyEdit<'a>,
+    lists: &[Renumbering],
+) -> Option<(LinePlan<'a>, String, Correspondence)> {
+    let start = ParsedSource::read(&edit.text);
+    let (stages, text) = renumber_lines(&start, lists, &[])?;
+    let after = ParsedSource::read(&text);
+    let ids = keeps_structure(&start, &after, &stages.splices(), &Expectation::default())?;
+    aligned(&after, lists.iter().map(|list| list.parent))
+        .then(|| (edit.plan.then(&stages), text, ids))
+}
+
+// before から cut の行を外した行の列、外したあとの原文、外す前から後への対応。lists (before の id) の番号は、外すノード
+// (expectation.removed) を数えずに、外す前の原文で先に振り直しておく。振り直して外した原文がねらいどおりに読まれないか、
+// 番号が図とそろわないときは、振り直さずに外す (足すときの振り直しと同じく知らせない)。振り直さずに外した原文も
+// ねらいどおりに読まれなければ structure-changed で断る
+fn cut_renumbered<'a>(
+    before: &'a ParsedSource<'a>,
+    cut: &[bool],
+    lists: &[Renumbering],
+    expectation: &Expectation,
+) -> Result<(LinePlan<'a>, String, Correspondence), EditSourceResult> {
+    if let Some((renumbering, renumbered)) = renumber_lines(before, lists, &expectation.removed) {
+        let plan = renumbering.then(&cut_lines(&ParsedSource::read(&renumbered).lines, cut));
+        if let Ok((text, correspondence)) = verified(before, &plan, expectation)
+            && aligned(
+                &ParsedSource::read(&text),
+                lists
+                    .iter()
+                    .filter_map(|list| correspondence.new_id(list.parent)),
+            )
+        {
+            return Ok((plan, text, correspondence));
+        }
+    }
+    let plan = cut_lines(&before.lines, cut);
+    let (text, correspondence) = verified(before, &plan, expectation)?;
+    Ok((plan, text, correspondence))
 }
 
 /// ノードをブロックごと (配下ごと) 消す。配下に含まれるノードと重ねて渡したノードは除いて 1 回ずつ消し、
@@ -422,13 +628,15 @@ pub(super) fn delete_nodes(source: &str, targets: &[NodeTarget]) -> EditSourceRe
             "このノードは原文に行を持たないので、消せません",
         );
     };
-    let plan = cut_lines(&before.lines, &cut);
     let expectation = Expectation {
         removed: removed.iter().map(|node| node.id).collect(),
         ..Expectation::default()
     };
-    let (text, correspondence) = match verified(&before, &plan, &expectation) {
-        Ok(verified) => verified,
+    // 消したノードの親。番号付きのリストなら、残った兄弟の番号を振り直す (全部同じ番号のリストは振り直さない)。
+    // いくつかの項目をまとめて消したときは、消した項目がいたリストをそれぞれ 1 回で振り直す (外の親から順に)
+    let lists = renumbered_lists(&before, removed.iter().filter_map(|node| node.parent));
+    let (plan, text, correspondence) = match cut_renumbered(&before, &cut, &lists, &expectation) {
+        Ok(cut) => cut,
         Err(result) => return result,
     };
     let Some(selected) = removed
@@ -503,24 +711,25 @@ pub(super) fn move_node(
             "表、コード、画像のノードは見出しの下へだけ動かせます",
         );
     }
-    // 切り出す: 削除と同じ規則で行を外し、残りの形が変わらないことを確かめる
+    // 切り出す: 削除と同じ規則で行を外し、残りの形が変わらないことを確かめる。もとのリストが番号付きなら、残った兄弟の番号を
+    // 振り直す (全部同じ番号のリストは振り直さない。移す先の振り直しは足したあと)
     let Some(cut) = block_flags(&before, &[node]) else {
         return refused(
             EditReasonCode::NoSourceLine,
             "このノードは原文に行を持たないので、動かせません",
         );
     };
-    let cut_plan = cut_lines(&before.lines, &cut);
-    let cut_source = cut_plan.text();
-    let remaining = ParsedSource::read(&cut_source);
     let cut_expectation = Expectation {
         removed: vec![node.id],
         ..Expectation::default()
     };
-    let Some(cut_ids) = keeps_structure(&before, &remaining, &cut_plan.splices(), &cut_expectation)
-    else {
-        return refused(EditReasonCode::StructureChanged, STRUCTURE_CHANGED);
-    };
+    let lists = renumbered_lists(&before, node.parent);
+    let (cut_plan, cut_source, cut_ids) =
+        match cut_renumbered(&before, &cut, &lists, &cut_expectation) {
+            Ok(cut) => cut,
+            Err(result) => return result,
+        };
+    let remaining = ParsedSource::read(&cut_source);
     let Some(destination) = cut_ids.new_id(parent.id).and_then(|id| remaining.node(id)) else {
         return refused(EditReasonCode::StructureChanged, STRUCTURE_CHANGED);
     };
@@ -594,7 +803,8 @@ pub(super) fn move_node(
             }
         }
     }
-    // 原文に当てる行の列は、切り出しと足すのを重ねたもの
+    // 原文に当てる行の列は、切り出し (と振り直し) と足すのを重ねたもの。移す先が番号付きのリストなら、足したあとの兄弟の番号を
+    // 子を足すときと同じく振り直す
     let edit = BodyEdit {
         plan: cut_plan.then(&plan),
         text,
@@ -603,7 +813,8 @@ pub(super) fn move_node(
         rename: false,
         follow: Follow::default(),
     };
-    finish(&before, Ok(edit))
+    let lists = renumbered_after(&remaining, Some(placed_parent), &after_ids);
+    finish(&before, Ok(renumbered(edit, &lists)))
 }
 
 // 消すか切り出す行の印 (原文の行ごと)。nodes のブロックの行が真。行を持たないノードがあれば None

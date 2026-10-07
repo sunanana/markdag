@@ -1,0 +1,24 @@
+kind: 正常
+os: mac
+checks: >-
+    mac の使わない修飾キー (⌥) の Enter と、修飾キーを 2 つ以上押した Enter (⌘Ctrl、⌘Ctrl⌥、Ctrl⌥) は、選択中も名前の入力中も何もしない
+    (選択中は名前の入力を開かず、入力中は決めずに開いたまま、値も変えない)
+states: [keys:K2.e7, keys:K2.e8, keys:K2.e9, keys:I1.e7, keys:I1.e8, keys:C1.c5, keys:C1.c7, keys:C1.c13, keys:C2.c5, keys:C2.c7, keys:C2.c11]
+steps:
+    - click: { node: 決める }
+    - key: Alt+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Meta+Control+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Meta+Control+Alt+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Enter
+    - type: 決定
+    - key: Alt+Enter
+      expect: { source: input.md, input: name, input_value: 決定, focus: 'name-input:node', selection: nodes:決める }
+    - key: Meta+Control+Enter
+      expect: { source: input.md, input: name, input_value: 決定, selection: nodes:決める }
+    - key: Control+Alt+Enter
+      expect: { source: input.md, input: name, input_value: 決定, selection: nodes:決める }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:決める }

@@ -1,0 +1,6 @@
+kind: 境界
+checks: >-
+    全部の項目を同じ番号で書いたリスト (1. 1. 1.) に兄弟を足すと、足した項目も同じ番号 (1.) で書き、ほかの項目の番号も変えない (「1. 2. 1.」のように混ざらない)。名前は数えた番号 (3. 新しいノード)
+decisions: [U7 の一部 (「1. 1. 1.」のリストはどの操作のあとも同じ番号のまま)]
+op: { kind: addSibling, node: 2. 更新, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [3. 新しいノード] }, rename: { kind: node, node: 3. 新しいノード }, notes: [] }

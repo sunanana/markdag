@@ -250,6 +250,8 @@ function observeEditor(ctx: PageContext, editor: MarkdagEditor, before: Transfor
             ? [...tagPanel.querySelectorAll<HTMLElement>('.mdag-editor-tag-row')].map((row) => `${row.dataset.key ?? ''}${row.dataset.value === undefined ? '' : `:${row.dataset.value}`}=${row.dataset.state ?? ''}${row.hasAttribute('data-editing') ? '*' : ''}`)
             : [],
         tag_fields: tagPanel ? Object.fromEntries([...tagPanel.querySelectorAll<HTMLInputElement>('.mdag-editor-tag-field')].map((field) => [field.dataset.field ?? '', field.value])) : null,
+        // 閉じた枝のノード (図の開閉の状態)。閉じても隠れたノードの要素は残ることがあるので、nodes ではなく図の開閉の状態から読む
+        folded: [...editor.view.getFolded()].sort((a, b) => a - b).map(names.name),
         moved: before !== null && (Math.abs(before.k - transform.k) > 1e-3 || Math.abs(before.x - transform.x) > 0.5 || Math.abs(before.y - transform.y) > 0.5),
         zoomed: before !== null && Math.abs(before.k - transform.k) > 1e-3,
     });
@@ -272,7 +274,8 @@ export function screenSummary(ctx: Pick<PageContext, 'container' | 'editor'>): R
 // ---- 押す点 ----
 
 // 画面の中で押せる点。element の中 (exclude に当たる要素の上は除く) で、要素が表に出ている点を、真ん中に近い順に探す
-function spotIn(element: Element, exclude: string | null): Point | null {
+// avoid は押さない場所の矩形 (+ と線を引く点と、その広げた当たり判定)。AVOID_MARGIN だけ広げて避ける
+function spotIn(element: Element, exclude: string | null, avoid: readonly DOMRect[] = []): Point | null {
     const rect = element.getBoundingClientRect();
     const step = Math.max(1, Math.min(rect.width, rect.height) / 8);
     const points: Point[] = [];
@@ -283,6 +286,10 @@ function spotIn(element: Element, exclude: string | null): Point | null {
     const inView = (point: Point): boolean => point.x >= 2 && point.y >= 2 && point.x < innerWidth - 2 && point.y < innerHeight - 2;
     return (
         points.find((point) => {
+            const avoided = avoid.some(
+                (area) => point.x >= area.left - AVOID_MARGIN && point.x <= area.right + AVOID_MARGIN && point.y >= area.top - AVOID_MARGIN && point.y <= area.bottom + AVOID_MARGIN,
+            );
+            if (avoided) return false;
             const hit = inView(point) ? document.elementFromPoint(point.x, point.y) : null;
             return hit !== null && element.contains(hit) && !(exclude && hit.closest(exclude));
         }) ?? null
@@ -324,21 +331,52 @@ function edgeSpot(container: HTMLElement, key: string): Point | null {
     return null;
 }
 
+// ノードを押す点が避ける幅 (画面の px)。+ と線を引く点の当たり判定の縁の端数は、ブラウザによって押下の当たり判定に入ったり入らなかったりする
+// (firefox では elementFromPoint が返さない縁の点の押下を、+ の当たり判定が受けた)
+const AVOID_MARGIN = 3;
+
+// 出している + と線を引く点の矩形と、その広げた当たり判定の長方形 (ノードを押す点はここを避ける。ノードの上に重なることがあるため)
+function handleAreas(container: HTMLElement): DOMRect[] {
+    return (allVisible(container, '.mdag-editor-handle') as HTMLElement[]).flatMap((handle) => [
+        handle.getBoundingClientRect(),
+        ...[...handle.querySelectorAll('.mdag-editor-handle-hit > div')].map((area) => area.getBoundingClientRect()).filter((area) => area.width > 0 && area.height > 0),
+    ]);
+}
+
+// 例の書き方の相手 ({ note_mark: 名前 }、{ diagram: true }) に、押さずにフォーカスを置く (Tab でボタンへ移るかはブラウザの設定によるので、その準備の段に使う)
+function focusOn(ctx: PageContext, editor: MarkdagEditor, target: Target): void {
+    const { container } = ctx;
+    let element: HTMLElement | null = null;
+    if ('note_mark' in target) element = container.querySelector<HTMLElement>(`.mdag-node[data-id="${namesOf(editor).id(target.note_mark)}"] .mdag-note-mark`);
+    else if ('diagram' in target) element = container;
+    else throw new Error(`フォーカスを置けない相手です: ${describeTarget(target)} (note_mark、diagram)`);
+    if (!element) throw new Error(`フォーカスを置く相手がありません: ${describeTarget(target)}`);
+    element.focus({ preventScroll: true });
+    if (document.activeElement !== element) throw new Error(`フォーカスを置けませんでした: ${describeTarget(target)}`);
+}
+
 // 例の書き方の相手 ({ node: 名前 } など) を、画面の押せる点にする
 function pointOf(ctx: PageContext, editor: MarkdagEditor, target: Target): Point {
     const { container } = ctx;
     const names = namesOf(editor);
     const nodeSelector = (ref: unknown): string => `.mdag-node[data-id="${names.id(ref)}"]`;
-    const inside = (selector: string, exclude: string | null = null, index = 0): Point => {
+    const inside = (selector: string, exclude: string | null = null, index = 0, avoid: readonly DOMRect[] = []): Point => {
         const element = allVisible(container, selector)[index];
         if (!element) throw new Error(`押す相手が見えていません: ${describeTarget(target)} (${selector})`);
         revealInPage(element);
-        const point = spotIn(element, exclude);
+        const point = spotIn(element, exclude, avoid);
         if (!point) throw new Error(`押せる点がありません: ${describeTarget(target)}`);
         return point;
     };
-    if ('node' in target) return inside(`${nodeSelector(target.node)} .mdag-box`, '.mdag-tags, .mdag-task-label > svg');
-    if ('label' in target) return inside(`${nodeSelector(target.label)} .mdag-content`, '.mdag-tags, .mdag-details, .mdag-task-label > svg');
+    // ノードは、ほかのノードの + や線を引く点がかぶさる所を避けて押す (revealInPage で頁が動くので、避ける矩形はそのあとに測る)
+    if ('node' in target) {
+        revealInPage(allVisible(container, `${nodeSelector(target.node)} .mdag-box`)[0] ?? container);
+        return inside(`${nodeSelector(target.node)} .mdag-box`, '.mdag-tags, .mdag-task-label > svg', 0, handleAreas(container));
+    }
+    if ('label' in target) {
+        revealInPage(allVisible(container, `${nodeSelector(target.label)} .mdag-content`)[0] ?? container);
+        return inside(`${nodeSelector(target.label)} .mdag-content`, '.mdag-tags, .mdag-details, .mdag-task-label > svg', 0, handleAreas(container));
+    }
     if ('details' in target) return inside(`${nodeSelector(target.details)} .mdag-content .mdag-details`);
     if ('popover_details' in target) return inside('.mdag-popover .mdag-details');
     if ('tag' in target) {
@@ -419,6 +457,10 @@ function marqueeOf(container: HTMLElement, editor: MarkdagEditor, refs: unknown[
 // 例の段が図に求めること (押す点を探す、見えるものを読む、図の API を呼ぶ)。戻り値はページの外へ渡せる値だけ
 export interface ScreenProbe {
     pointOf(target: Target): Point;
+    // 押さずにフォーカスを置く ({ note_mark: 名前 }、{ diagram: true })
+    focusOn(target: Target): void;
+    // 段の始まり (key_prevented の欄が見るキーを、この段で押したものだけにする)
+    beginStep(): void;
     marqueeOf(refs: unknown[]): { start: Point; end: Point };
     // 図の真ん中に近い、何もないところ (なければ null)
     blankSpot(): Point | null;
@@ -432,14 +474,31 @@ export interface ScreenProbe {
     summary(): Record<string, unknown>;
 }
 
+// 修飾キーだけのキー (key_prevented の欄では数えない)
+const MODIFIER_KEYS: readonly string[] = ['Shift', 'Control', 'Alt', 'Meta'];
+
 export function createScreenProbe(ctx: PageContext): ScreenProbe {
     const editor = (): MarkdagEditor => {
         const current = ctx.editor();
         if (!current) throw new Error('図がありません');
         return current;
     };
+    // この段で最後に押したキー (修飾キーだけのものを除く)。window の取り込みの段で出来事を控え、既定の動きを止めたか (defaultPrevented) は
+    // 段のあとに読む (出来事を送り終えたあとに読むので、GUI 編集とページの受け口の順によらない)
+    let lastKey: KeyboardEvent | null = null;
+    window.addEventListener(
+        'keydown',
+        (event) => {
+            if (!MODIFIER_KEYS.includes(event.key)) lastKey = event;
+        },
+        true,
+    );
     return {
         pointOf: (target) => pointOf(ctx, editor(), target),
+        focusOn: (target) => focusOn(ctx, editor(), target),
+        beginStep: () => {
+            lastKey = null;
+        },
         marqueeOf: (refs) => marqueeOf(ctx.container, editor(), refs),
         blankSpot: () => blankSpot(ctx.container, null),
         setMode: (mode) => editor().setMode(mode),
@@ -463,7 +522,8 @@ export function createScreenProbe(ctx: PageContext): ScreenProbe {
                 return null;
             }
         },
-        observe: (before, extra) => observe(ctx, before, extra),
+        // key_prevented: この段で最後に押したキーの既定の動きを止めたか (true は GUI 編集が受けて止めた、false はブラウザに任せた、null はキーを押していない)
+        observe: (before, extra) => observe(ctx, before, { ...extra, key_prevented: lastKey === null ? null : lastKey.defaultPrevented }),
         summary: () => screenSummary(ctx),
     };
 }

@@ -23,6 +23,7 @@ export interface EdgeTarget {
 export type EditOp =
     | { kind: 'addChild'; parent: NodeTarget; label: string }
     | { kind: 'addSibling'; node: NodeTarget; label: string }
+    | { kind: 'addSiblingBefore'; node: NodeTarget; label: string }
     | { kind: 'renameNode'; node: NodeTarget; label: string }
     | { kind: 'deleteNodes'; nodes: NodeTarget[] }
     | { kind: 'moveNode'; node: NodeTarget; parent: NodeTarget }

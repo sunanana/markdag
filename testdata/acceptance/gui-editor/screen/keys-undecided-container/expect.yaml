@@ -1,0 +1,25 @@
+kind: 境界 (決定 S-13 とルートのタイトル)
+os: mac
+decided: [S-13]
+checks: >-
+    リストだけの文書 (ルートは原文に行を持たないリストの入れ物。名前は title の「リストだけ」) の項目で Shift+Tab を押すと、ルートを選んで名前の入力を開く (値は「リストだけ」)。
+    名前の入力中なら、名前を決めてからルートの名前の入力へ移る。ルートの名前を決めると title を書き換える (title: 手順)
+note: >-
+    決定 S-13 (2026-10-06): 行を持たないルートの名前は title で、変えられる (ルートのタイトル)。名前を持たないリストの入れ物 (ルートでないもの) は飛ばしてその上の見出しへ移る (keys-parent-skip-container)。
+    0.12.0 からこの例を書いたときまでは、入れ物を選んで「名前を変えられません」と知らせていた
+states: [keys:P14.e11, keys:Q14.e11]
+decisions: [ルートのタイトル (例の承認で決めた。決めた名前を title に書き、なければ足す)]
+steps:
+    - click: { node: 乙 }
+    - key: Shift+Tab
+      expect: { source: input.md, input: name, input_value: リストだけ, focus: 'name-input:node', selection: nodes:リストだけ, notice: null }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:リストだけ }
+    - click: { node: 乙 }
+    - key: Enter
+    - type: 乙2
+    - key: Shift+Tab
+      expect: { source: after-rename.md, input: name, input_value: リストだけ, selection: nodes:リストだけ, notice: { kind: info, text: 名前を「乙2」にしました } }
+    - type: 手順
+    - key: Enter
+      expect: { source: after-title.md, input: none, selection: nodes:手順, notice: { kind: info, text: 名前を「手順」にしました } }

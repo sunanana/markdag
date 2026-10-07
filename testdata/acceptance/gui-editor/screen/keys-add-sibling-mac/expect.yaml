@@ -1,0 +1,23 @@
+kind: 正常
+os: mac
+checks: >-
+    mac の割り当て。ノードを 1 つ選んで ⌘Enter か Shift+Enter を押すと、選んだノードのすぐ下に同じ形の兄弟 (- 新しいノード) を足し、その名前の入力を開く。
+    Shift+⌘Enter は選んだノードのすぐ上に足す。足したばかりの名前の入力を Esc でやめると、足す前の原文と選択に戻る。
+    図の下の案内は mac のキー (⌘Enter、Shift+⌘Enter、Ctrl+Enter) を出す (選択中と入力中)
+states: [keys:K2.e2, keys:K2.e3, keys:K2.e4, keys:C1.c1, keys:C1.c2, keys:I2.e15]
+decisions: [U1 (Enter の修飾キーは mac と win で別々の割り当て)]
+steps:
+    - click: { node: 決める }
+      expect: { selection: nodes:決める, bar: node, hint: { contains: ['Enter 名前', '⌘Enter/Shift+Enter 兄弟を下に足す', 'Shift+⌘Enter 兄弟を上に足す', 'Ctrl+Enter/Shift+Ctrl+Enter 下 / 上の兄弟の名前へ', 'Shift+Tab 親の名前へ', 'Space タスクを進める'] } }
+    - key: Meta+Enter
+      expect: { source: after-below.md, input: name, input_value: 新しいノード, focus: 'name-input:node', selection: nodes:新しいノード, notice: { kind: info, text: 兄弟を足しました }, hint: { contains: ['Enter 決める', '⌘Enter/Shift+Enter 決めて兄弟を下に足す', 'Shift+⌘Enter 決めて兄弟を上に足す', 'Ctrl+Enter/Shift+Ctrl+Enter 決めて下 / 上の兄弟へ', 'Shift+Tab 決めて親へ'] } }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Shift+Enter
+      expect: { source: after-below.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:決める }
+    - key: Shift+Meta+Enter
+      expect: { source: after-above.md, input: name, input_value: 新しいノード, focus: 'name-input:node', selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:決める }

@@ -165,7 +165,8 @@ const ROOT_HEADING: Can = [true, false, false, true, true, true, true];
 const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true];
 const CONTAINER: Can = [false, true, false, false, true, false, false];
 const BLOCK: Can = [false, true, true, false, false, false, false];
-const LINELESS_ROOT: Can = [false, false, false, false, true, true, false];
+// 行を持たないルートの名前は frontmatter の title なので、名前を変えられる (例の承認のルートのタイトル)
+const LINELESS_ROOT: Can = [true, false, false, false, true, true, false];
 
 fn inspected(
     id: u32,
@@ -270,18 +271,19 @@ fn edit_inspect_node_tells_containers_and_blocks() {
 fn edit_inspect_node_tells_roots_without_a_line_and_list_roots() {
     assert_eq!(
         inspect(LINELESS, 1, "T"),
-        Some(inspected(1, "root", "", None, false, LINELESS_ROOT))
+        Some(inspected(1, "root", "T", None, false, LINELESS_ROOT))
     );
-    // リストだけの文書のルートは容器。ルートなので消せず動かせない。兄弟 (canAddSibling) はここでは見ない
+    // リストだけの文書のルートは容器。ルートなので消せず動かせない。名前 (title) は変えられ、名前の入力の初めの値は今の title。
+    // 兄弟 (canAddSibling) はここでは見ない
     for (source, ref_text) in [(LIST_ROOT_TITLED, "手順"), (LIST_ROOT, "")] {
         let result = inspect(source, 1, ref_text).expect("ルートがある");
         let expected = inspected(
             1,
             "list",
-            "",
+            ref_text,
             None,
             false,
-            [false, false, false, false, true, false, false],
+            [true, false, false, false, true, false, false],
         );
         for key in [
             "id",
@@ -612,9 +614,15 @@ fn edit_rename_to_an_empty_name_after_a_paragraph_is_empty_name() {
 
 #[test]
 fn edit_rename_refuses_nodes_without_a_name_line() {
-    assert_refused(&rename(LINELESS, 1, "T", "x"), "no-source-line");
-    assert_refused(&rename(LIST_ROOT_TITLED, 1, "手順", "x"), "no-source-line");
-    assert_refused(&rename(LIST_ROOT, 1, "", "x"), "no-source-line");
+    // 行を持たないルート (LINELESS、LIST_ROOT_TITLED、LIST_ROOT) の名前は frontmatter の title なので、断らずに書き換える
+    // (例の承認のルートのタイトル。edit_keys_approval.rs が書き方を見る)
+    for (source, ref_text) in [(LINELESS, "T"), (LIST_ROOT_TITLED, "手順"), (LIST_ROOT, "")] {
+        assert_eq!(
+            rename(source, 1, ref_text, "x")["status"],
+            "edited",
+            "{source:?}"
+        );
+    }
     for id in [2, 5] {
         assert_refused(&rename(NESTED_LISTS, id, "", "x"), "no-source-line");
     }
@@ -1087,12 +1095,12 @@ fn edit_add_sibling_goes_after_the_block_in_the_same_shape() {
         (4, NEW),
         2,
     );
-    // 番号付き: 自分の番号 + 1。あとに続く兄弟の番号は振り直さない
+    // 番号付き: 自分の番号 + 1。あとに続く兄弟の番号は振り直す (原文の番号を図の番号にそろえる)
     let source = "# R\n1. a\n2. b\n3. c\n";
     assert_added(
         source,
         &add_sibling(source, 2, "1. a", NEW),
-        "# R\n1. a\n2. 新しいノード\n2. b\n3. c\n",
+        "# R\n1. a\n2. 新しいノード\n3. b\n4. c\n",
         (3, "2. 新しいノード"),
         1,
     );
@@ -1725,10 +1733,10 @@ fn edit_delete_removes_an_item_with_its_subtree() {
         &format!("{MD}# R\n- a\n"),
         (1, "R"),
     );
-    // 番号付き: 行を消すだけで後ろの番号は書き直さない (解析し直した refText は並びの位置の番号)
+    // 番号付き: 後ろの番号を振り直す (解析し直した refText は並びの位置の番号で、原文の番号もそれにそろう)
     let source = "# R\n1. a\n2. b\n3. c\n";
     let result = delete_nodes(source, &[(3, "2. b")]);
-    assert_rewritten(source, &result, "# R\n1. a\n3. c\n", (1, "R"));
+    assert_rewritten(source, &result, "# R\n1. a\n2. c\n", (1, "R"));
     assert_eq!(node_of(&applied(source, &result), 3).ref_text, "2. c");
     // 改行で終わらない文書は終わらないまま
     let source = "# R\n- a\n- b";
@@ -2065,10 +2073,10 @@ fn edit_move_numbered_items() {
         (5, "3. y"),
         2,
     );
-    // 番号付きの項目は移す先の形で書く (印の違うリストなら `- `)。残った項目の番号は書き直さない
+    // 番号付きの項目は移す先の形で書く (印の違うリストなら `- `)。残った項目の番号は振り直す
     let source = "# R\n## A\n- x\n## B\n1. a\n2. b\n3. c\n";
     let result = move_node(source, (6, "2. b"), (2, "A"));
-    let expected = "# R\n## A\n- x\n- b\n## B\n1. a\n3. c\n";
+    let expected = "# R\n## A\n- x\n- b\n## B\n1. a\n2. c\n";
     assert_moved(source, &result, expected, (4, "b"), 2);
     assert_eq!(node_of(expected, 7).ref_text, "2. c");
     // 子のない項目の下へは入れ子の `- `。字下げは 4 (内容の桁 3 より大きい)

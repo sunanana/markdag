@@ -1,0 +1,6 @@
+kind: 正常
+checks: >-
+    番号付きの項目を名前で指す markdag.relations の項目 (2. 更新 --> 公開、3. 再開 --> 公開) は、上に足して後ろの番号を振り直すと、新しい名前 (3. 更新、4. 再開) に書き直し、書き直した数 (2) を知らせる (refs-rewritten)
+decisions: [U2 (番号付きのリストに足したら後ろの番号を振り直す)]
+op: { kind: addSiblingBefore, node: 2. 更新, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [2. 新しいノード] }, rename: { kind: node, node: 2. 新しいノード }, notes: [{ code: refs-rewritten, count: 2 }] }

@@ -1,11 +1,13 @@
 // 詳細の入力 (複数行)。テキストエリアと保存、やめるのボタンを 1 つの入れ物に並べる。図に重ねる位置と、保存の書き換えは呼ぶ側が受け持つ。
-// 開いている間はテキストエリアがフォーカスを持ち、キーを操作として知らせる: ⌘Enter / Ctrl+Enter (保存)、Esc (やめる)。Enter はそのまま改行。
+// 開いている間はテキストエリアがフォーカスを持ち、キーを操作として知らせる: 保存のキーの Enter (OS の区分で分ける。mac は ⌘Enter、
+// win は Ctrl+Enter。名前の入力の足すキーと同じ)、Esc (やめる)。Enter と Shift+Enter はそのまま改行。ほかの修飾キーの Enter
+// (mac の Ctrl、⌥、win の Windows キー、Alt、修飾キー 2 つ以上) は何もしない (保存も改行もしない)。
 // Tab と Shift+Tab は何もしない (フォーカスも動かさない)。
 // 変換中 (IME) のキーは操作にしない: isComposing が true か keyCode が 229 のキー (変換を確定したキーが確定のあとに届く形を含む) はテキストエリアに任せる。
 // ボタンは押してもフォーカスを取らない (テキストエリアに残す)。
 // フォーカスが入れ物の外へ移ったことも知らせる。ただし閉じたあと、図が入れ物を隠したか外したとき、ウィンドウそのもののフォーカスが外れたときは知らせない
 // (どれも見る人がほかの所を選んだのではないため)
-import { isComposingKey } from '../keys';
+import { enterRole, isComposingKey, type KeyPlatform } from '../keys';
 
 // stay は何もしない操作 (キーの既定の動きだけを止める)
 export type DetailsEditorAction = 'save' | 'cancel' | 'stay';
@@ -27,19 +29,26 @@ interface DetailsEditorHandlers {
     holdsEscape(): boolean;
 }
 
-// テキストエリアのキーを詳細の入力の操作にする。操作にならないキー (文字、Enter の改行、矢印、変換中のキーなど) は null
-export function detailsEditorAction(input: DetailsEditorKey): DetailsEditorAction | null {
-    if (isComposingKey(input) || input.altKey) return null;
-    if (input.key === 'Enter') return input.metaKey || input.ctrlKey ? 'save' : null;
-    if (input.metaKey || input.ctrlKey) return null;
+// テキストエリアのキーを詳細の入力の操作にする。操作にならないキー (文字、Enter の改行、矢印、変換中のキーなど) は null。
+// platform は保存のキーの区分 (mac は ⌘、win は Ctrl)
+export function detailsEditorAction(input: DetailsEditorKey, platform: KeyPlatform): DetailsEditorAction | null {
+    if (isComposingKey(input)) return null;
+    if (input.key === 'Enter') {
+        const role = enterRole(input, platform);
+        return role === 'plain' ? null : role === 'add' ? 'save' : 'stay';
+    }
+    if (input.metaKey || input.ctrlKey || input.altKey) return null;
     if (input.key === 'Escape') return 'cancel';
     if (input.key === 'Tab') return 'stay';
     return null;
 }
 
-const BUTTONS: ReadonlyArray<{ action: Exclude<DetailsEditorAction, 'stay'>; label: string; title: string }> = [
-    { action: 'cancel', label: 'やめる', title: '書いたものを捨てて閉じる (Esc)' },
-    { action: 'save', label: '保存', title: '保存して閉じる (⌘Enter / Ctrl+Enter)' },
+// 保存のキーの名前 (ボタンの説明に出す)
+const SAVE_KEYS: Record<KeyPlatform, string> = { mac: '⌘Enter', win: 'Ctrl+Enter' };
+
+const BUTTONS: ReadonlyArray<{ action: Exclude<DetailsEditorAction, 'stay'>; label: string; title: (platform: KeyPlatform) => string }> = [
+    { action: 'cancel', label: 'やめる', title: () => '書いたものを捨てて閉じる (Esc)' },
+    { action: 'save', label: '保存', title: (platform) => `保存して閉じる (${SAVE_KEYS[platform]})` },
 ];
 
 export class DetailsEditor {
@@ -47,7 +56,8 @@ export class DetailsEditor {
     private readonly field: HTMLTextAreaElement;
     private opened = false;
 
-    constructor(handlers: DetailsEditorHandlers) {
+    // platform は保存のキーの割り当ての区分
+    constructor(handlers: DetailsEditorHandlers, platform: KeyPlatform) {
         const element = document.createElement('div');
         element.className = 'mdag-editor-details-editor';
         element.setAttribute('role', 'group');
@@ -60,7 +70,7 @@ export class DetailsEditor {
         field.setAttribute('aria-label', '詳細');
         field.addEventListener('keydown', (event) => {
             if (!this.opened) return;
-            const action = detailsEditorAction(event);
+            const action = detailsEditorAction(event, platform);
             if (action === null) return;
             event.preventDefault();
             if (action === 'cancel' && handlers.holdsEscape()) event.stopPropagation();
@@ -74,7 +84,7 @@ export class DetailsEditor {
             button.type = 'button';
             button.className = 'mdag-editor-details-button';
             button.dataset.action = entry.action;
-            button.title = entry.title;
+            button.title = entry.title(platform);
             button.textContent = entry.label;
             // 押してもテキストエリアのフォーカスを外さない (外へ移ったことにしない)
             button.addEventListener('mousedown', (event) => event.preventDefault());

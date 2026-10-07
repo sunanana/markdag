@@ -81,7 +81,8 @@ interface LinkDrag extends Press {
 
 type Drag = MarqueeDrag | MoveDrag | LinkDrag;
 
-function isApplePlatform(): boolean {
+// macOS と iOS か (navigator.platform で見る)。Ctrl+クリックの扱いと、Enter の修飾キーの割り当て (GUI 編集を開くときに 1 回) の両方がこれで見分ける
+export function isApplePlatform(): boolean {
     return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 

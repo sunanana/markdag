@@ -322,6 +322,8 @@
     background: var(--markdag-bg); color: var(--markdag-text); font: inherit;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--markdag-accent) 18%, transparent);
 }
+/* ノードの名前の入力は、名前が空のノード (タイトルのない文書のルートなど。字の矩形が潰れている) でも 1 行ぶんの高さを取る */
+.mdag-editor-name-input[data-for="node"] { min-height: 1.25em; }
 /* グループの名前の入力。字は枠のラベルと同じにする (枠のラベルの上では図の倍率で拡大し、枠がないときはメンバーの上に画面の大きさで置く) */
 .mdag-editor-name-input[data-for="group"] { font: 11px sans-serif; }
 /* 選んだノードのまわりの点とつまみ。押してほかのノードへドラッグする点と、押すとノードを足す +。

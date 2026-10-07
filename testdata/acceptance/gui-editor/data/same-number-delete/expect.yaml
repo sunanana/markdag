@@ -1,0 +1,6 @@
+kind: 境界
+checks: >-
+    全部の項目を同じ番号で書いたリスト (1. 1. 1.) から項目を消すと、残った項目は同じ番号 (1.) のまま (振り直さない)
+decisions: [U7 の一部 (「1. 1. 1.」のリストはどの操作のあとも同じ番号のまま)]
+op: { kind: deleteNodes, nodes: [2. 更新] }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [作業] }, rename: null, notes: [] }

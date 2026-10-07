@@ -1,0 +1,7 @@
+kind: 正常
+checks: >-
+    見出しのない文書のルート (原文に行を持たない。名前は frontmatter の title「作業」) の名前を変えると、title の値だけを書き換える (title: 段取り)。
+    本文は変えない。書き換えたあと、新しい名前のルートを選ぶ (名前の入力を開く相手はない)
+decisions: [ルートのタイトル (例の承認で決めた。決めた名前を title に書き、なければ足す)]
+op: { kind: renameNode, node: 作業, label: 段取り }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [段取り] }, rename: null, notes: [] }

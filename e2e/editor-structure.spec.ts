@@ -93,7 +93,7 @@ const A1 = 3;
 // transformSource が「- a」の前に「- 自動」を足す文書。原文は R 1、a 2、b 3。図は R 1、自動 2、a 3、b 4
 const TRANSFORM_BODY = ['# R', '', '- a', '- b', ''];
 
-// 名前を変えられないノード。行を持たないルート (title だけ)、リストだけの文書のルートの容器、表
+// 名前の行を持たないノード。行を持たないルート (title だけ) とリストだけの文書のルートの容器は、名前が title で名前を変えられる。表は名前を変えられない
 const DOC_LINELESS = ['---', 'title: T', 'markdag:', '    editor:', '        mode: edit', '---', '- a', '', '1. b', ''].join('\n');
 const DOC_LIST_ROOT = ['---', 'title: 手順', 'markdag:', '    editor:', '        mode: edit', '---', '- 設計', '- 実装', ''].join('\n');
 const DOC_TABLE = docWith(EDIT, ['# R', '', '## T', '', '| x | y |', '| - | - |', '| 1 | 2 |', '', '## U', '', '- u', '']);
@@ -487,6 +487,12 @@ async function replaceName(page: Page, text: string): Promise<void> {
     else await page.keyboard.type(text);
 }
 
+// 兄弟を足すキー (名前の入力中は名前を決めて兄弟を下に足す)。Enter の修飾キーは GUI 編集が開くときに navigator.platform で mac と win に分ける (mac は ⌘、win は Ctrl)
+async function addSiblingKey(page: Page): Promise<string> {
+    const mac = await page.evaluate(() => /Mac|iPhone|iPad|iPod/.test(navigator.platform));
+    return mac ? 'Meta+Enter' : 'Control+Enter';
+}
+
 // 原文が source になり、onChange の記録が changes になるまで待つ
 async function expectSource(page: Page, source: string, changes: string[], message?: string): Promise<void> {
     await expect.poll(() => getSource(page), message).toBe(source);
@@ -704,7 +710,7 @@ test.describe('名前の入力を開く (B-013、B-027、B-048、10.1 の 1)', (
         await expectSourceStill(page, DOC, []);
     });
 
-    test('@editor F2 と、名前の入力の外の Shift+Tab では入力が開かず、原文も変わらない。何もないところのダブルクリックは何もしない (ノードを足さず、表示位置も変えない) (10.1 の 1、10.2 の B-030、request.md 3.1)', async ({ page }) => {
+    test('@editor F2 では入力が開かず、原文も変わらない。名前の入力の外の Shift+Tab は兄弟を足さず (原文も変わらない)、親を選んでその名前の入力を開く。何もないところのダブルクリックは何もしない (ノードを足さず、表示位置も変えない) (10.1 の 1、10.2 の B-030、request.md 3.1、editor-keys の決まったキー)', async ({ page }) => {
         await open(page);
         await mount(page, DOC);
         await pressNode(page, TASK_B);
@@ -712,9 +718,14 @@ test.describe('名前の入力を開く (B-013、B-027、B-048、10.1 の 1)', (
         await page.keyboard.press('F2');
         await expectNoNameInput(page, 'F2');
         await page.keyboard.press('Shift+Tab');
-        await expectNoNameInput(page, 'Shift+Tab');
+        await expectNameInputOn(page, DESIGN, { value: 'Design' }, 'Shift+Tab');
+        await expectSelection(page, [target(DESIGN, 'Design')], 'Shift+Tab');
         await expectSourceStill(page, DOC, []);
         expect(await nodeCount(page)).toBe(6);
+        // 親の名前の入力 (足したばかりでない) は Esc で名前を変えずに閉じる
+        await page.keyboard.press('Escape');
+        await expectNameInputClosed(page, 'Shift+Tab で開いた入力の Esc');
+        await expectSourceStill(page, DOC, [], 'Shift+Tab で開いた入力の Esc');
 
         const before = await transformOf(page);
         const blank = await spot(page, { on: 'blank', root: 'a' });
@@ -755,7 +766,7 @@ test.describe('子と兄弟を足す (B-014、B-015、B-025、B-026、3.5)', () 
         await expectNameInputOn(page, 5, { value: NEW, allSelected: true });
     });
 
-    test('@editor ルートで Tab を押すと子 (最後の子の見出しの形) を足す。ルートの名前の入力の Enter は名前を決めて子を足し、その名前の入力へ移る (B-026、B-029)', async ({ page }) => {
+    test('@editor ルートで Tab を押すと子 (最後の子の見出しの形) を足す。ルートの名前の入力の兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) は名前を決めて子を足し、その名前の入力へ移る。ルートの名前の入力の Enter は名前を決めるだけで子を足さない (B-026、B-029、editor-keys の決まったキー)', async ({ page }) => {
         await open(page);
         await mount(page, DOC);
         await pressNode(page, ROOT);
@@ -766,34 +777,49 @@ test.describe('子と兄弟を足す (B-014、B-015、B-025、B-026、3.5)', () 
         await expectNameInputOn(page, 7, { value: NEW, allSelected: true });
 
         await remount(page, DOC);
+        const addKey = await addSiblingKey(page);
         await pressNode(page, ROOT);
         await page.keyboard.press('Enter');
         await expectNameInputOn(page, ROOT, { value: 'Root' });
         await replaceName(page, 'Top');
-        await page.keyboard.press('Enter');
+        await page.keyboard.press(addKey);
         const top = docWith(EDIT, BODY_TOP);
         const topChild = docWith(EDIT, BODY_TOP_CHILD);
-        await expectSource(page, topChild, [top, topChild]);
-        await expectSelection(page, [target(7, NEW)]);
-        await expectNameInputOn(page, 7, { value: NEW, allSelected: true });
+        await expectSource(page, topChild, [top, topChild], addKey);
+        await expectSelection(page, [target(7, NEW)], addKey);
+        await expectNameInputOn(page, 7, { value: NEW, allSelected: true }, addKey);
+
+        // 入力中の Enter は名前を決めるだけ: 子を足さず、入力を閉じて名前を変えたルートを選んだまま
+        await remount(page, DOC);
+        await pressNode(page, ROOT);
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, ROOT, { value: 'Root' }, 'Enter');
+        await replaceName(page, 'Top');
+        await page.keyboard.press('Enter');
+        await expectSource(page, top, [top], 'Enter');
+        await expectNameInputClosed(page, 'Enter');
+        await expectSelection(page, [target(ROOT, 'Top')], 'Enter');
+        await expectSourceStill(page, top, [top], 'Enter');
+        expect(await nodeCount(page), 'Enter').toBe(6);
     });
 });
 
 test.describe('名前の入力の中のキー (B-029〜B-031、10.2 の B-030)', () => {
-    test('@editor 入力中の Enter は名前を決めて兄弟を足し、Tab は子を、Shift+Tab は兄弟を足して、その名前の入力へ移る。名前を変えずに Enter でも兄弟を足す。最後に Esc で足す前に戻る', async ({ page }) => {
+    test('@editor 入力中の兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) は名前を決めて兄弟を足し、Tab は子を足して、その名前の入力へ移る。Shift+Tab は名前を決めて親の名前の入力へ移る。名前を変えずに兄弟を足すキーでも兄弟を足す。足したばかりの入力の Esc で足す前に戻る。入力中の Enter は名前を決めるだけ (editor-keys の決まったキー)', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mount(page, DOC);
-        // C1: Task B を Task B2 に決める。C2: Task B2 の兄弟 (5)。C3: Sub に決める。C4: Sub の子 (6)。C5: Deep に決める。
-        // C6: Deep の兄弟 (7)。C7: 名前を変えずに 7 の兄弟 (8)
+        const addKey = await addSiblingKey(page);
+        // C1: Task B を Task B2 に決める。C2: Task B2 の兄弟 (5)。C3: Sub に決める。C4: Sub の子 (6)。C5: Deep に決める (Shift+Tab で親の Sub (5) の入力へ)。
+        // C6: 名前を変えずに Sub の兄弟 (7。Sub のブロックのあと)。C7: Esc で C5 に戻したあと、Task A を Task A2 に Enter で決める
         const chain = [
             designBody(['- Task A', '- Task B2']),
             designBody(['- Task A', '- Task B2', `- ${NEW}`]),
             designBody(['- Task A', '- Task B2', '- Sub']),
             designBody(['- Task A', '- Task B2', '- Sub', `    - ${NEW}`]),
             designBody(['- Task A', '- Task B2', '- Sub', '    - Deep']),
-            designBody(['- Task A', '- Task B2', '- Sub', '    - Deep', `    - ${NEW}`]),
-            designBody(['- Task A', '- Task B2', '- Sub', '    - Deep', `    - ${NEW}`, `    - ${NEW}`]),
+            designBody(['- Task A', '- Task B2', '- Sub', '    - Deep', `- ${NEW}`]),
+            designBody(['- Task A2', '- Task B2', '- Sub', '    - Deep']),
         ].map((body) => docWith(EDIT, body));
         const [c1, c2, c3, c4, c5, c6, c7] = chain;
         if (!c1 || !c2 || !c3 || !c4 || !c5 || !c6 || !c7) throw new Error('本文が足りない');
@@ -802,10 +828,10 @@ test.describe('名前の入力の中のキー (B-029〜B-031、10.2 の B-030)',
         await page.keyboard.press('Enter');
         await expectNameInputOn(page, TASK_B, { value: 'Task B' });
         await replaceName(page, 'Task B2');
-        await page.keyboard.press('Enter');
-        await expectSource(page, c2, [c1, c2], 'Enter');
-        await expectSelection(page, [target(5, NEW)], 'Enter');
-        await expectNameInputOn(page, 5, { value: NEW, allSelected: true }, 'Enter');
+        await page.keyboard.press(addKey);
+        await expectSource(page, c2, [c1, c2], addKey);
+        await expectSelection(page, [target(5, NEW)], addKey);
+        await expectNameInputOn(page, 5, { value: NEW, allSelected: true }, addKey);
 
         await page.keyboard.type('Sub');
         await page.keyboard.press('Tab');
@@ -813,28 +839,42 @@ test.describe('名前の入力の中のキー (B-029〜B-031、10.2 の B-030)',
         await expectSelection(page, [target(6, NEW)], 'Tab');
         await expectNameInputOn(page, 6, { value: NEW, allSelected: true }, 'Tab');
 
+        // Shift+Tab は兄弟を足さず、名前を決めて親の名前の入力へ移る
         await page.keyboard.type('Deep');
         await page.keyboard.press('Shift+Tab');
-        await expectSource(page, c6, [c1, c2, c3, c4, c5, c6], 'Shift+Tab');
-        await expectSelection(page, [target(7, NEW)], 'Shift+Tab');
-        await expectNameInputOn(page, 7, { value: NEW, allSelected: true }, 'Shift+Tab');
+        await expectSource(page, c5, [c1, c2, c3, c4, c5], 'Shift+Tab');
+        await expectSelection(page, [target(5, 'Sub')], 'Shift+Tab');
+        await expectNameInputOn(page, 5, { value: 'Sub' }, 'Shift+Tab');
+        expect(await nodeCount(page), 'Shift+Tab').toBe(8);
 
         // 名前を変えずに決めても兄弟を足す (名前は同じなので書き換えない)
-        await page.keyboard.press('Enter');
-        await expectSource(page, c7, [c1, c2, c3, c4, c5, c6, c7], '名前を変えずに Enter');
-        await expectSelection(page, [target(8, NEW)], '名前を変えずに Enter');
-        await expectNameInputOn(page, 8, { value: NEW, allSelected: true }, '名前を変えずに Enter');
+        await page.keyboard.press(addKey);
+        await expectSource(page, c6, [c1, c2, c3, c4, c5, c6], `名前を変えずに ${addKey}`);
+        await expectSelection(page, [target(7, NEW)], `名前を変えずに ${addKey}`);
+        await expectNameInputOn(page, 7, { value: NEW, allSelected: true }, `名前を変えずに ${addKey}`);
 
         // 足したばかりのノードの Esc は、その兄弟を足す前に戻す
         await page.keyboard.press('Escape');
-        await expectSource(page, c6, [c1, c2, c3, c4, c5, c6, c7, c6], 'Esc');
+        await expectSource(page, c5, [c1, c2, c3, c4, c5, c6, c5], 'Esc');
         await expectNameInputClosed(page, 'Esc');
+
+        // 入力中の Enter は名前を決めるだけ: 兄弟を足さず、入力を閉じて名前を変えたノードを選んだまま
+        await pressNode(page, TASK_A);
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, TASK_A, { value: 'Task A' }, 'Enter');
+        await replaceName(page, 'Task A2');
+        await page.keyboard.press('Enter');
+        await expectSource(page, c7, [c1, c2, c3, c4, c5, c6, c5, c7], 'Enter');
+        await expectNameInputClosed(page, 'Enter');
+        await expectSelection(page, [target(TASK_A, 'Task A2')], 'Enter');
+        await expectSourceStill(page, c7, [c1, c2, c3, c4, c5, c6, c5, c7], 'Enter');
+        expect(await nodeCount(page), 'Enter').toBe(8);
         expect(errors).toEqual([]);
     });
 });
 
 test.describe('変換中のキー (B-15、5.2 の軸 D)', () => {
-    test('@editor 変換中 (isComposing か keyCode 229) の Enter、Esc、Tab は名前の入力の操作にならない: 決めず、足す前に戻さず、子を足さない。変換を確定したあとの Enter で決める', async ({ page, browserName }) => {
+    test('@editor 変換中 (isComposing か keyCode 229) の Enter、Esc、Tab は名前の入力の操作にならない: 決めず、足す前に戻さず、子を足さない。変換を確定したあとの Enter で決める (決めるだけで兄弟は足さない。editor-keys の決まったキー)', async ({ page, browserName }) => {
         test.skip(browserName !== 'chromium', '変換は Chromium の CDP (Input.imeSetComposition) で起こす');
         await open(page);
         await mount(page, DOC);
@@ -871,16 +911,19 @@ test.describe('変換中のキー (B-15、5.2 の軸 D)', () => {
             await client.detach();
         }
 
+        // 確定のあとの Enter は名前を決めるだけ (兄弟は足さず、入力を閉じて決めたノードを選んだまま)
         await page.keyboard.press('Enter');
         const named = docWith(EDIT, designBody(['- Task A', '    - 設計', '- Task B']));
-        const sibling = docWith(EDIT, designBody(['- Task A', '    - 設計', `    - ${NEW}`, '- Task B']));
-        await expectSource(page, sibling, [added, named, sibling]);
-        await expectNameInputOn(page, 5, { value: NEW, allSelected: true });
+        await expectSource(page, named, [added, named]);
+        await expectNameInputClosed(page);
+        await expectSelection(page, [target(4, '設計')]);
+        await expectSourceStill(page, named, [added, named]);
+        expect(await nodeCount(page)).toBe(7);
     });
 });
 
 test.describe('閉じた枝の中に足す (B-14、5.3、10.1 の 6)', () => {
-    test('@editor initialExpandLevel で閉じる枝の中のノードを選んで Tab を押すと、足したノードが見えて名前の入力が開く。入力中の Enter で足した兄弟も見えて入力が開く', async ({ page }) => {
+    test('@editor initialExpandLevel で閉じる枝の中のノードを選んで Tab を押すと、足したノードが見えて名前の入力が開く。入力中の兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) で足した兄弟も見えて入力が開く。入力中の Enter は名前を決めるだけで、決めたノードは見えたまま', async ({ page }) => {
         await open(page);
         const doc = docWith(EDIT, FOLD_BODY, FOLD);
         await mount(page, doc);
@@ -899,13 +942,23 @@ test.describe('閉じた枝の中に足す (B-14、5.3、10.1 の 6)', () => {
         await expectNameInputOn(page, 4, { value: NEW, allSelected: true });
 
         await page.keyboard.type('x');
-        await page.keyboard.press('Enter');
+        await page.keyboard.press(await addSiblingKey(page));
         const named = docWith(EDIT, ['# R', '', '- a', '    - a1', '        - x', '- b', ''], FOLD);
         const sibling = docWith(EDIT, ['# R', '', '- a', '    - a1', '        - x', `        - ${NEW}`, '- b', ''], FOLD);
         await expectSource(page, sibling, [added, named, sibling]);
         await expectSelection(page, [target(5, NEW)]);
         await expect.poll(() => insideArea(page, 5)).toBe(true);
         await expectNameInputOn(page, 5, { value: NEW, allSelected: true });
+
+        // 入力中の Enter は名前を決めるだけ: 兄弟を足さず、入力を閉じて決めたノードを選んだまま見せる
+        await page.keyboard.type('y');
+        await page.keyboard.press('Enter');
+        const renamed = docWith(EDIT, ['# R', '', '- a', '    - a1', '        - x', '        - y', '- b', ''], FOLD);
+        await expectSource(page, renamed, [added, named, sibling, renamed], 'Enter');
+        await expectNameInputClosed(page, 'Enter');
+        await expectSelection(page, [target(5, 'y')], 'Enter');
+        await expect.poll(() => insideArea(page, 5), 'Enter').toBe(true);
+        await expectSourceStill(page, renamed, [added, named, sibling, renamed], 'Enter');
     });
 });
 
@@ -1005,14 +1058,15 @@ test.describe('フォーカスが外へ移ったとき (B-033、5.2 の軸 D)', 
     });
 });
 
-test.describe('名前を変えられないノード (B-036、3.2、3.8)', () => {
-    test('@editor 行を持たないルート、リストだけの文書のルート (容器)、表では、Enter でもラベルのダブルクリックでも名前の入力が開かず、理由の通知が出る。原文は変わらない', async ({ page }) => {
+test.describe('名前を変えられないノード (B-036、3.2、3.8) と、見出しのない文書のルートのタイトル (editor-keys のルートのタイトル)', () => {
+    test('@editor 表では、Enter でもラベルのダブルクリックでも名前の入力が開かず、理由の通知が出る。行を持たないルートとリストだけの文書のルート (容器) は名前を変えられ、Enter でもラベルのダブルクリックでも title の値で名前の入力が開く (通知は出ない)。どれも原文は変わらない', async ({ page }) => {
         test.setTimeout(60_000);
         await open(page);
+        // value は開く名前の入力の値 (title)。null は名前を変えられないノード
         const cases = [
-            { name: '行を持たないルート', doc: DOC_LINELESS, id: 1, kind: 'root' },
-            { name: 'リストだけの文書のルート', doc: DOC_LIST_ROOT, id: 1, kind: 'list' },
-            { name: '表', doc: DOC_TABLE, id: 3, kind: 'block' },
+            { name: '行を持たないルート', doc: DOC_LINELESS, id: 1, kind: 'root', value: 'T' },
+            { name: 'リストだけの文書のルート', doc: DOC_LIST_ROOT, id: 1, kind: 'list', value: '手順' },
+            { name: '表', doc: DOC_TABLE, id: 3, kind: 'block', value: null },
         ];
         let first = true;
         for (const item of cases) {
@@ -1028,8 +1082,8 @@ test.describe('名前を変えられないノード (B-036、3.2、3.8)', () => 
                     if (!editor || !node) throw new Error(`ノード ${id} がない`);
                     return target.editorHarness.core.inspectNode(editor.getSource(), { id: node.id, refText: node.refText });
                 }, item.id);
-                // 空振りの防ぎ: ねらった種類のノードで、名前を変えられない
-                expect({ kind: facts?.kind, canRename: facts?.canRename }, message).toEqual({ kind: item.kind, canRename: false });
+                // 空振りの防ぎ: ねらった種類のノードで、名前を変えられるか (ルートのタイトルは変えられ、表は変えられない)
+                expect({ kind: facts?.kind, canRename: facts?.canRename }, message).toEqual({ kind: item.kind, canRename: item.value !== null });
 
                 await expect(snackbars(page), message).toHaveCount(0);
                 if (action === 'Enter') {
@@ -1039,8 +1093,17 @@ test.describe('名前を変えられないノード (B-036、3.2、3.8)', () => 
                 } else {
                     await doubleClickLabel(page, item.id);
                 }
-                await expectNoNameInput(page, message);
-                await expectNotice(page, undefined, message);
+                if (item.value === null) {
+                    await expectNoNameInput(page, message);
+                    await expectNotice(page, undefined, message);
+                } else {
+                    await expectNameInputOn(page, item.id, { value: item.value }, message);
+                    await settle(page);
+                    expect(await snackbars(page).count(), message).toBe(0);
+                    // 開いた入力は Esc で名前を変えずに閉じる
+                    await page.keyboard.press('Escape');
+                    await expectNameInputClosed(page, message);
+                }
                 await expectSourceStill(page, item.doc, [], message);
             }
         }

@@ -2,8 +2,8 @@
 // 名前の入力を開き直したとき、markdag が名前の変更で自動で足した \ (印に化ける語、
 // ブロックに化ける書き始め、見出しの閉じの記号の逃がし) は入力欄に出さない (図の名前と同じ文字を出す)。決めるときは今までどおり markdag が自動で足す。
 // その値のまま決めても原文は変わらない (二重に逃がさない)。原文に人が書いた \ のうち、markdag が足すのと同じ所のものも同じ扱い。
-// 開き直す道は Enter、ラベルのダブルクリック、帯の「名前」。入力中の Enter は決めて兄弟を足し、
-// 足したばかりの入力の Esc は足す前に戻す。外へフォーカスが移ると決めて閉じる。
+// 開き直す道は Enter、ラベルのダブルクリック、帯の「名前」。入力中の Enter は名前を決めるだけで、兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) は
+// 決めて兄弟を足し、足したばかりの入力の Esc は足す前に戻す。外へフォーカスが移ると決めて閉じる。
 // 見た目そのものは見ない。名前の入力の値とフォーカスと置き場、原文の全文、onChange の呼ばれ方、選択 (data-selected と getSelection) を見る。
 // 反映は expect.poll で待ち、「変わらない」「呼ばれない」は描画の数コマと 200ms を待ってから見る
 import { existsSync } from 'node:fs';
@@ -41,7 +41,7 @@ const TASK_A = 3;
 const TASK_B = 4;
 const LEAF = 6;
 
-// Task B の名前を「設計 #a」に決めた原文 (末尾の #a がタグに化けないよう markdag が \ を足す) と、そのあと Enter で兄弟を足した原文
+// Task B の名前を「設計 #a」に決めた原文 (末尾の #a がタグに化けないよう markdag が \ を足す) と、そのあと兄弟を足すキーで兄弟を足した原文
 const RENAMED = docWith(bodyWith('## Design', ['- Task A', String.raw`- 設計 \#a`]));
 const RENAMED_ADDED = docWith(bodyWith('## Design', ['- Task A', String.raw`- 設計 \#a`, `- ${NEW}`]));
 
@@ -237,6 +237,12 @@ async function replaceName(page: Page, text: string): Promise<void> {
     await page.keyboard.type(text);
 }
 
+// 兄弟を足すキー (名前の入力中は名前を決めて兄弟を下に足す)。Enter の修飾キーは GUI 編集が開くときに navigator.platform で mac と win に分ける (mac は ⌘、win は Ctrl)
+async function addSiblingKey(page: Page): Promise<string> {
+    const mac = await page.evaluate(() => /Mac|iPhone|iPad|iPod/.test(navigator.platform));
+    return mac ? 'Meta+Enter' : 'Control+Enter';
+}
+
 // 画面の座標で押せる点を探す (要素か、要素の中の文字の上)
 async function spot(page: Page, selector: string, on: 'element' | 'text'): Promise<Point> {
     const found = await page.evaluate(
@@ -339,15 +345,16 @@ async function reopen(page: Page, id: number, how: Reopen): Promise<void> {
 }
 
 test.describe('名前の入力の初めの値に、markdag が足した \\ を出さない (整える 名前の入力の \\)', () => {
-    test('@editor 名前を「設計 #a」に決めたあと (Enter で兄弟を足し、Esc で足す前に戻す)、Enter で開き直すと入力欄の値は「設計 #a」(原文の行は「- 設計 \\#a」)', async ({ page }) => {
+    test('@editor 名前を「設計 #a」に決めたあと (兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) で兄弟を足し、Esc で足す前に戻す。入力中の Enter で決めるだけのときも)、Enter で開き直すと入力欄の値は「設計 #a」(原文の行は「- 設計 \\#a」)', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mountFresh(page, DOC);
+        const addKey = await addSiblingKey(page);
         await pressNode(page, TASK_B);
         await page.keyboard.press('Enter');
         await expectNameInputOn(page, TASK_B, 'Task B');
         await replaceName(page, '設計 #a');
-        await page.keyboard.press('Enter');
+        await page.keyboard.press(addKey);
         await expectSource(page, RENAMED_ADDED, [RENAMED, RENAMED_ADDED]);
         await expectNameInputOn(page, 5, NEW, '足した兄弟の名前の入力', true);
         await page.keyboard.press('Escape');
@@ -358,6 +365,21 @@ test.describe('名前の入力の初めの値に、markdag が足した \\ を�
 
         await page.keyboard.press('Enter');
         await expectNameInputOn(page, TASK_B, '設計 #a', '開き直した入力欄の値');
+
+        // 入力中の Enter は名前を決めるだけ (兄弟を足さず、入力を閉じて名前を変えたノードを選んだまま)。そのあと Enter で開き直しても値は「設計 #a」
+        await mountFresh(page, DOC);
+        await pressNode(page, TASK_B);
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, TASK_B, 'Task B', 'Enter で決める');
+        await replaceName(page, '設計 #a');
+        await page.keyboard.press('Enter');
+        await expectSource(page, RENAMED, [RENAMED], 'Enter で決める');
+        await expectNameInputClosed(page, 'Enter で決める');
+        await expect(labelOf(page, TASK_B), 'Enter で決める').toHaveText('設計 #a');
+        await expectSelection(page, [target(TASK_B, '設計 #a')], 'Enter で決める');
+        await expectSourceStill(page, RENAMED, [RENAMED], 'Enter で決める');
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, TASK_B, '設計 #a', 'Enter で決めたあとに開き直した入力欄の値');
         expect(errors).toEqual([]);
     });
 
@@ -413,16 +435,17 @@ test.describe('名前の入力の初めの値に、markdag が足した \\ を�
         expect(errors).toEqual([]);
     });
 
-    test('@editor 開き直した値のまま決めても名前の行は変わらない (二重に逃がさない): Enter は兄弟を足すだけで Esc で戻り、外へフォーカスを移して決めると原文も onChange も変わらない', async ({ page }) => {
+    test('@editor 開き直した値のまま決めても名前の行は変わらない (二重に逃がさない): 兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) は兄弟を足すだけで Esc で戻り、外へフォーカスを移して決めても、入力中の Enter で決めても原文も onChange も変わらない', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mountFresh(page, RENAMED);
+        const addKey = await addSiblingKey(page);
 
         await pressNode(page, TASK_B);
         await page.keyboard.press('Enter');
         await expectNameInputOpen(page, 'Enter で開いた');
-        await page.keyboard.press('Enter');
-        await expectSource(page, RENAMED_ADDED, [RENAMED_ADDED], 'そのまま Enter');
+        await page.keyboard.press(addKey);
+        await expectSource(page, RENAMED_ADDED, [RENAMED_ADDED], `そのまま ${addKey}`);
         await expectNameInputOn(page, 5, NEW, '足した兄弟の名前の入力', true);
         await page.keyboard.press('Escape');
         await expectSource(page, RENAMED, [RENAMED_ADDED, RENAMED], 'Esc');
@@ -436,6 +459,16 @@ test.describe('名前の入力の初めの値に、markdag が足した \\ を�
         await expectNameInputClosed(page);
         await expectSourceStill(page, RENAMED, [RENAMED_ADDED, RENAMED], '外へフォーカスを移して決めた');
         await expect(labelOf(page, TASK_B)).toHaveText('設計 #a');
+
+        // 開き直した値のまま入力中の Enter で決める (決めるだけ): 入力を閉じ、原文も onChange も変わらない
+        await pressNode(page, TASK_B);
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, TASK_B, '設計 #a', 'Enter で決める前に開き直した値');
+        await page.keyboard.press('Enter');
+        await expectNameInputClosed(page, 'そのまま Enter');
+        await expectSourceStill(page, RENAMED, [RENAMED_ADDED, RENAMED], 'そのまま Enter で決めた');
+        await expect(labelOf(page, TASK_B), 'そのまま Enter で決めた').toHaveText('設計 #a');
+        await expectSelection(page, [target(TASK_B, '設計 #a')], 'そのまま Enter で決めた');
         expect(errors).toEqual([]);
     });
 
@@ -473,13 +506,15 @@ test.describe('名前の入力の初めの値に、markdag が足した \\ を�
 });
 
 test.describe('名前の入力を開いて何も変えずに決めたときは原文を変えない (整える 名前の入力の \\ のメインの決定 3)', () => {
-    // 開いて何も変えずに Enter: 名前の行は変えず兄弟だけを足し (onChange は兄弟の 1 回)、Esc で足す前に戻る。開いて何も変えずに外へフォーカスを移す: 原文も onChange も変わらない
+    // 開いて何も変えずに兄弟を足すキー: 名前の行は変えず兄弟だけを足し (onChange は兄弟の 1 回)、Esc で足す前に戻る。
+    // 開いて何も変えずに外へフォーカスを移す、入力中の Enter で決める (決めるだけ): どちらも原文も onChange も変わらない
     async function expectUnchangedCommits(page: Page, doc: string, added: string, id: number, name: string, value: string): Promise<void> {
+        const addKey = await addSiblingKey(page);
         await pressLabel(page, id);
         await page.keyboard.press('Enter');
         await expectNameInputOn(page, id, value, `${name} を Enter で開いた値`);
-        await page.keyboard.press('Enter');
-        await expectSource(page, added, [added], `${name} を何も変えずに Enter`);
+        await page.keyboard.press(addKey);
+        await expectSource(page, added, [added], `${name} を何も変えずに ${addKey}`);
         await expectNameInputOn(page, 3, NEW, '足した兄弟の名前の入力', true);
         await page.keyboard.press('Escape');
         await expectSource(page, doc, [added, doc], 'Esc');
@@ -493,9 +528,18 @@ test.describe('名前の入力を開いて何も変えずに決めたときは�
         await expectNameInputClosed(page);
         await expectSourceStill(page, doc, [added, doc], `${name} を何も変えずに外へフォーカスを移して決めた`);
         await expect(labelOf(page, id)).toHaveText(name);
+
+        await pressLabel(page, id);
+        await page.keyboard.press('Enter');
+        await expectNameInputOn(page, id, value, `${name} を Enter で決める前に開き直した値`);
+        await page.keyboard.press('Enter');
+        await expectNameInputClosed(page, `${name} を何も変えずに Enter で決めた`);
+        await expectSourceStill(page, doc, [added, doc], `${name} を何も変えずに Enter で決めた`);
+        await expect(labelOf(page, id), `${name} を何も変えずに Enter で決めた`).toHaveText(name);
+        await expectSelection(page, [target(id, name)], `${name} を何も変えずに Enter で決めた`);
     }
 
-    test('@editor markdag キーのない文書の「- a #k」(#k は名前の一部): 開くと値は「a #k」。何も変えずに Enter で決めても名前の行は「- a #k」のまま (- a \\#k にしない)。外へフォーカスを移して決めても原文も onChange も変わらない', async ({ page }) => {
+    test('@editor markdag キーのない文書の「- a #k」(#k は名前の一部): 開くと値は「a #k」。何も変えずに兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) で決めても名前の行は「- a #k」のまま (- a \\#k にしない。兄弟だけを足す)。外へフォーカスを移して決めても、入力中の Enter で決めても原文も onChange も変わらない', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mountFresh(page, NO_KEY, 'edit');
@@ -503,7 +547,7 @@ test.describe('名前の入力を開いて何も変えずに決めたときは�
         expect(errors).toEqual([]);
     });
 
-    test('@editor markdag キーのある文書の「- a #k」(#k はタグ): 開くと値は「a」。何も変えずに Enter で決めても名前の行は「- a #k」のまま。外へフォーカスを移して決めても原文も onChange も変わらない', async ({ page }) => {
+    test('@editor markdag キーのある文書の「- a #k」(#k はタグ): 開くと値は「a」。何も変えずに兄弟を足すキー (mac は ⌘Enter、win は Ctrl+Enter) で決めても名前の行は「- a #k」のまま (兄弟だけを足す)。外へフォーカスを移して決めても、入力中の Enter で決めても原文も onChange も変わらない', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mountFresh(page, WITH_KEY);

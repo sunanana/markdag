@@ -19,6 +19,7 @@ mod lines;
 mod names;
 mod refs;
 mod relations;
+mod renumber;
 mod restyle;
 mod shape;
 mod tags;
@@ -84,6 +85,7 @@ fn apply(source: &str, op: &EditOp) -> EditSourceResult {
     match op {
         EditOp::AddChild { parent, label } => body::add_child(source, parent, label),
         EditOp::AddSibling { node, label } => body::add_sibling(source, node, label),
+        EditOp::AddSiblingBefore { node, label } => body::add_sibling_before(source, node, label),
         EditOp::RenameNode { node, label } => body::rename_node(source, node, label),
         EditOp::DeleteNodes { nodes } => body::delete_nodes(source, nodes),
         EditOp::MoveNode { node, parent } => body::move_node(source, node, parent),

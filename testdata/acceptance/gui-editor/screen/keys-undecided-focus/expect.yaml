@@ -1,0 +1,47 @@
+kind: 境界 (決定 S-03 a、S-04 a、S-21 a)
+os: mac
+decided: [S-03, S-04, S-09, S-21]
+checks: >-
+    フォーカスが図の中のボタン (詳細の印) にあると (何も選ばずに Tab を押して移ったときと同じ状態。例ではブラウザによらないよう、ボタンに直接フォーカスを置く)、そのあとノードを押してもフォーカスはボタンに残る。
+    この間のキーはボタンのもので、Shift+Tab は親の名前の入力を開かず、キーの既定の動きを止めずにブラウザに任せる (決定 S-03 a)。Enter はボタンを押して詳細の吹き出しを出し、名前の入力は開かない。⌘Enter も兄弟を足さない (決定 S-04 a)。
+    フォーカスがボタンにあるままノードを 2 つ選んだときの Shift+Tab も、ボタンのものとしてブラウザに任せる (決定 S-09 b は図にフォーカスがあるとき。keys-tab-selection)。
+    タグ追加のパネルの最初の欄の Shift+Tab は、パネルを開いたまま、キーの既定の動きを止めずにブラウザに任せる (決定 S-21 a)。
+    Tab と Shift+Tab でフォーカスがどこへ移るかはブラウザ次第でどこでもよいので照らさず、GUI 編集がキーの既定の動きを止めなかったこと (key_prevented: false) を照らす
+note: >-
+    決定 S-03、S-04、S-21 (2026-10-06、a: 今のまま)。決定 S-09 (2026-10-06、b: 何かを選んでいる (ノード 1 つ以外) ときの Tab と Shift+Tab は既定の動きを止めて何もしない) は、
+    図にフォーカスがあるときの決まりで keys-tab-selection が確かめる。この例の段 13 はフォーカスが図の中のボタンにあるので、ボタンのキー (決定 S-03 a) のまま。
+    段 4、13、17 は、2026-10-07 の依頼者の答え (Tab と Shift+Tab でフォーカスがどこへ移るかはブラウザ次第でどこでもよい) で、フォーカスの移り先 (focus) の代わりに key_prevented を照らすようにした。
+    ページでは段 8 から通らない (確認ページの合成の出来事の Enter では、フォーカスのあるボタンが押されない)
+states: [keys:F1.e11, keys:F1.e1, keys:F1.e3, keys:K5.e11, keys:I7.e11]
+steps:
+    - click: { blank: true }
+      expect: { selection: none, focus: diagram }
+    - focus: { note_mark: 調べる }
+      expect: { focus: 'diagram:button', selection: none }
+    - click: { node: 決める }
+      expect: { selection: nodes:決める, focus: 'diagram:button' }
+    - key: Shift+Tab
+      expect: { source: input.md, input: none, selection: nodes:決める, key_prevented: false }
+    - click: { blank: true }
+    - focus: { note_mark: 調べる }
+    - click: { node: 決める }
+      expect: { selection: nodes:決める, focus: 'diagram:button' }
+    - key: Enter
+      expect: { source: input.md, input: none, popover: true, selection: nodes:決める, focus: 'diagram:button' }
+    - key: Meta+Enter
+      expect: { source: input.md, input: none, selection: nodes:決める, focus: 'diagram:button' }
+    - key: Escape
+      expect: { selection: none }
+    - click: { node: 決める }
+    - click: { node: 書く }
+      mod: Shift
+      expect: { selection: 'nodes:決める,書く' }
+    - key: Shift+Tab
+      expect: { source: input.md, input: none, selection: 'nodes:決める,書く', key_prevented: false }
+    - focus: { diagram: true }
+    - click: { node: 決める }
+      expect: { selection: nodes:決める, focus: diagram }
+    - key: t
+      expect: { input: tag-add, focus: tag-key }
+    - key: Shift+Tab
+      expect: { input: tag-add, key_prevented: false, selection: nodes:決める }

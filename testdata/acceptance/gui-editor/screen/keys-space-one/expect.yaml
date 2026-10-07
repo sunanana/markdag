@@ -1,0 +1,26 @@
+kind: 正常
+os: mac
+checks: >-
+    タスクを 1 つ選んで Space を押して離すと、印を 1 つ進める (未着手 [ ] → 完了 [x]。選択はそのまま、通知は出さない)。⌘Z で戻る。
+    タスクでないノード (片付け) とルートでは何もしない (原文を変えず、通知も出さない)。
+    Space を押したまま図をドラッグすると図を動かし、離しても印を進めない
+states: [keys:T1.t1, keys:T1.t2, keys:T4.t1, keys:T5.t1, keys:K3.e12, keys:K3.e13]
+steps:
+    - click: { node: 点検 }
+      expect: { selection: nodes:点検, notice: null }
+    - key: ' '
+      expect: { source: after-toggle.md, selection: nodes:点検, input: none, notice: null }
+    - key: Meta+z
+      expect: { source: input.md, selection: nodes:点検 }
+    - click: { node: 片付け }
+    - key: ' '
+      expect: { source: input.md, selection: nodes:片付け, input: none, notice: null }
+    - click: { node: 計画 }
+    - key: ' '
+      expect: { source: input.md, selection: nodes:計画, input: none, notice: null }
+    - click: { node: 点検 }
+    - keydown: ' '
+    - pan: { dx: -60, dy: 30 }
+      expect: { moved: true, selection: nodes:点検, source: input.md }
+    - keyup: ' '
+      expect: { source: input.md, selection: nodes:点検 }

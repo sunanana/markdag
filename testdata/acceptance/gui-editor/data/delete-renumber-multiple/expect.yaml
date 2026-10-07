@@ -1,0 +1,6 @@
+kind: 正常
+checks: >-
+    番号付きの項目を 2 つ (2. 更新、3. 確認) まとめて消すと、残った兄弟の番号を 1 回で振り直す (1. 停止、2. 再開)
+decisions: [やらない 3 (削除と移動でも番号を振り直す)]
+op: { kind: deleteNodes, nodes: [2. 更新, 3. 確認] }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [作業] }, rename: null, notes: [] }

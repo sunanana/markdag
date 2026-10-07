@@ -1,0 +1,6 @@
+kind: 正常
+checks: >-
+    番号付きの項目 (2. 更新) を消すと、残った兄弟の番号を振り直す (2. 再開)。消したノードの親を選ぶ。0.12.0 は振り直さなかった (1. 停止、3. 再開)
+decisions: [やらない 3 (削除と移動でも番号を振り直す)]
+op: { kind: deleteNodes, nodes: [2. 更新] }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [作業] }, rename: null, notes: [] }

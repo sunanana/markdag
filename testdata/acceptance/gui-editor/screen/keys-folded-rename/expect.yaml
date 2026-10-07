@@ -1,0 +1,34 @@
+kind: 境界
+os: mac
+checks: >-
+    図の開閉の印で枝 (作業) を閉じ、閉じた枝そのものの名前を変えて Enter で決めても、閉じたまま (改)。
+    名前を変えて Ctrl+Enter で下の兄弟 (確認) の名前の入力へ移っても閉じたまま (改め)。名前を変えて Shift+Enter で兄弟を足しても閉じたまま (作業)、Esc で足す前に戻しても閉じたまま
+note: >-
+    書き直した例の承認で足したこと (2026-10-06、閉じた枝の名前の変更。直し 3)。直し 2 のあとの確かめで見つけた、閉じた枝そのものの名前を変えると開く振る舞い (examples.md の E-04) を直した。
+    閉じた枝は folded の欄 (図の開閉の状態) で照らす
+states: [keys:Q13.e5, keys:Q13.e2]
+decisions: [S-12 (例の承認で決めた。関係のない閉じた枝は閉じたまま), 閉じた枝の名前の変更 (書き直した例の承認で決めた)]
+steps:
+    - click: { fold: 作業 }
+      expect: { folded: [作業] }
+    - click: { node: 作業 }
+    - key: Enter
+      expect: { input: name, input_value: 作業, folded: [作業] }
+    - type: 改
+    - key: Enter
+      expect: { source: after-rename.md, input: none, selection: nodes:改, folded: [改], notice: { kind: info, text: 名前を「改」にしました } }
+    - key: Enter
+      expect: { input: name, input_value: 改, folded: [改] }
+    - type: 改め
+    - key: Control+Enter
+      expect: { source: after-rename-2.md, input: name, input_value: 確認, selection: nodes:確認, folded: [改め] }
+    - key: Escape
+    - key: Escape
+      expect: { selection: none, folded: [改め] }
+    - click: { node: 改め }
+    - key: Enter
+    - type: 作業
+    - key: Shift+Enter
+      expect: { source: after-add.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード, folded: [作業] }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:作業, folded: [作業] }

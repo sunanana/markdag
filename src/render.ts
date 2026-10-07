@@ -1,7 +1,8 @@
 // Markdown の文字列を受け取り、渡された要素の中に図を描く。
 // 解析、モデルの組み立て、描画をつなぎ、スタイルシートの差し込みと、数式やコードの色付けに要る外部のスタイルシートの読み込みを受け持つ。
-// 原文はここが持ち、タスクの項目のクリックでは原文を書き換えて描き直す。解析とモデルの組み立ては Rust (wasm) を呼ぶので、先に init を待つ。
-import { createHookBridge } from './bridge';
+// 原文はここが持ち、タスクの項目のクリックと、いくつかのタスクをまとめて進める口 (toggleTasks) では原文を書き換えて描き直す。
+// 解析とモデルの組み立ては Rust (wasm) を呼ぶので、先に init を待つ。
+import { createRenderBridge } from './bridge';
 import type { HookEvent, HookModule } from './model/hooks';
 import { renderDocument, type Diagnostic, type ModelOptions } from './model/model';
 import { toggleTask, type ParsedDocument, type ParseOptions } from './parse/document';
@@ -34,6 +35,14 @@ export interface MarkdagDiagram {
     readonly source: string;
     // 文書を差し替えて描き直す。今のズームとパンは保つ
     update(markdown: string): Diagnostic[];
+    // ids (図のノードの id) のタスクを、印のクリックと同じ確かめ (クリックで進む順、transformSource の行、markdag.rules と
+    // beforeTaskToggle) で relations の上流から順に見て (上流と下流の関係のないもの同士は文書の順。2 つ目からは前のタスクを
+    // 進めた状態で確かめる)、全部通れば原文を 1 回で書き換えて描き直す (onChange は 1 回、onTaskToggle はタスクごと)。原文の並びは変えない。
+    // タスクでないノードと文書にない id は飛ばす。断られたらそこで確かめをやめて何も変えず (知らせは断られた 1 件の理由だけで、
+    // 印のクリックと同じく onDiagnostic に出る) false。
+    // 進めたときも取りやめたときも、印のクリックと同じく view.addHooks で足した onToggleTask をタスクごとに確かめの順で呼ぶ
+    // (進めたときは描き直したあと)。beforeUpdate は通らない (印のクリックと同じ)
+    toggleTasks(ids: readonly number[]): boolean;
     fit(): void;
     expandAll(): void;
     resetFold(): void;
@@ -95,7 +104,7 @@ export function renderWith(container: HTMLElement, markdown: string, options: Re
     let source = markdown;
     let diagnostics: Diagnostic[] = [];
     // フックと規則の配線は橋渡しに任せ、ここは本文の持ち主として書き換えと描き直しを受け持つ
-    const bridge = createHookBridge({
+    const bridge = createRenderBridge({
         source: () => source,
         diagnostics: () => diagnostics,
         hooks,
@@ -184,6 +193,20 @@ export function renderWith(container: HTMLElement, markdown: string, options: Re
             if (!bridge.beforeUpdate(next)) return diagnostics;
             source = next;
             return draw(false);
+        },
+        toggleTasks(ids: readonly number[]) {
+            const document = view.getDocument();
+            if (destroyed || !document) return false;
+            const wanted = new Set(ids);
+            // 文書の順に、タスクのノードだけを拾う
+            const nodes = document.parsed.nodes.filter((node) => wanted.has(node.id) && node.task !== null);
+            const cycle = document.model.taskCycle;
+            return bridge.toggleTasks(nodes, cycle, () => {
+                // 記号を差し替えるだけで行はずれないので、どのタスクも描いている文書の行のまま書き換えられる
+                for (const node of nodes) if (node.task) source = toggleTask(source, node.task.line, cycle);
+                draw(false);
+                onChange?.(source);
+            });
         },
         fit: () => view.fit(),
         expandAll: () => view.expandAll(),

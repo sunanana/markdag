@@ -1,0 +1,5 @@
+kind: 誤り
+checks: >-
+    見出しの下に 2 つのリストがあると、リストごとに入れ物 (原文に自分の行を持たないノード) ができる。入れ物の上に足す操作は断る (原文を変えず、理由 no-source-line)
+op: { kind: addSiblingBefore, node: { id: 2 }, label: 新しいノード }
+expect: { status: refused, reason: no-source-line }

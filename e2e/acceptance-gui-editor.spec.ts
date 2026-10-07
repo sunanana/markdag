@@ -13,10 +13,12 @@ import type * as GuiEditorPage from '../test/acceptance/gui-editor-page';
 import type { ScreenProbe } from '../test/acceptance/gui-editor-page';
 import {
     CommandDriver,
+    GUI_OS_PLATFORM,
     failuresOf,
     inputOf,
     listGuiExamples,
     mountModeOf,
+    osOf,
     requirementsOf,
     rowsOf,
     runScreenSteps,
@@ -46,8 +48,10 @@ test.beforeAll(() => {
     if (!existsSync(resolve('dist/editor.js'))) throw new Error('dist/editor.js がない (npm run build を先に実行する)');
 });
 
-// 配布物の markdag/editor で例の input.md を開き、ページの中の部品を置く。開いたあとは確認ページと同じく、字体を待ってから全体表示にする
+// 配布物の markdag/editor で例の input.md を開き、ページの中の部品を置く。開いたあとは確認ページと同じく、字体を待ってから全体表示にする。
+// 開く前に navigator.platform を例の OS の区分 (書いていなければ mac) に見せかける (GUI 編集は開くときに Enter の修飾キーの割り当てを決めるため)
 async function openExample(page: Page, example: GuiExample): Promise<void> {
+    await page.addInitScript((platform) => Object.defineProperty(Navigator.prototype, 'platform', { get: () => platform, configurable: true }), GUI_OS_PLATFORM[osOf(example)]);
     await page.goto('/e2e/editor-harness.html');
     await page.waitForFunction(() => 'editorHarness' in window);
     await page.addScriptTag({ type: 'module', content: `import * as part from '${PAGE_PART}'; window.guiEditorPage = part;` });
@@ -125,6 +129,8 @@ async function sessionOf(page: Page, ime: boolean): Promise<ScreenSession> {
         driver: new CommandDriver('playwright のマウスとキー', driveWith(page), ime),
         mac,
         pointOf: (target) => page.evaluate((target) => (window as unknown as TestWindow).guiScreen!.pointOf(target), target),
+        focusOn: (target) => page.evaluate((target) => (window as unknown as TestWindow).guiScreen!.focusOn(target), target),
+        beginStep: () => page.evaluate(() => (window as unknown as TestWindow).guiScreen!.beginStep()),
         marqueeOf: (refs) => page.evaluate((refs) => (window as unknown as TestWindow).guiScreen!.marqueeOf(refs), refs),
         blankSpot: () => page.evaluate(() => (window as unknown as TestWindow).guiScreen!.blankSpot()),
         setSource: async (text) => {
@@ -147,8 +153,8 @@ async function sessionOf(page: Page, ime: boolean): Promise<ScreenSession> {
 
 test.describe('受け入れの例 @editor: screen', () => {
     const examples = listGuiExamples('screen');
-    test('@editor screen の例が 31 件ある', () => {
-        expect(examples.length).toBe(31);
+    test('@editor screen の例が 64 件ある', () => {
+        expect(examples.length).toBe(64);
     });
     for (const example of examples) {
         test(`@editor ${example.id} (${example.spec.kind})`, async ({ page, browserName }) => {

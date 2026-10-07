@@ -1,0 +1,49 @@
+kind: 正常 (決定 S-09 b)
+os: mac
+decided: [S-09]
+checks: >-
+    ノード 1 つ以外を選んでいるとき (ノード 2 つ以上、グループ、線、合流先を選ぶ途中) の Tab と Shift+Tab は、ブラウザの既定の動き (フォーカスの移動) を止めて何もしない (フォーカスは図のまま、選択も変えない)。
+    何も選んでいないときの Tab はブラウザの既定のまま (GUI 編集はキーの既定の動きを止めない。フォーカスがどこへ移るかはブラウザ次第なので照らさない)
+note: >-
+    決定 S-09 (2026-10-06、b)。フォーカスが図の中のボタンにあるときのキーはボタンのもの (決定 S-03 a) なので、その間の Shift+Tab はフォーカスを動かす (keys-undecided-focus)。
+    段 21 は、2026-10-07 の依頼者の答え (Tab と Shift+Tab でフォーカスがどこへ移るかはブラウザ次第でどこでもよい) で、フォーカスの移り先 (focus) の代わりに key_prevented を照らすようにした
+states: [keys:K5.e10, keys:K5.e11, keys:K6.e10, keys:K6.e11, keys:K7.e10, keys:K7.e11, keys:K9.e10, keys:K9.e11, keys:K1.e10]
+decisions: [S-09 (例の承認で決めた)]
+steps:
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+      expect: { selection: 'nodes:画面,API', focus: diagram }
+    - key: Tab
+      expect: { selection: 'nodes:画面,API', focus: diagram, input: none }
+    - key: Shift+Tab
+      expect: { selection: 'nodes:画面,API', focus: diagram, input: none }
+    - key: Escape
+    - click: { frame: g1 }
+      expect: { selection: group:g1, focus: diagram }
+    - key: Tab
+      expect: { selection: group:g1, focus: diagram, input: none }
+    - key: Shift+Tab
+      expect: { selection: group:g1, focus: diagram, input: none }
+    - key: Escape
+    - click: { edge: 'depends:画面>フロント' }
+      expect: { selection: 'edge:depends:画面>フロント', focus: diagram }
+    - key: Tab
+      expect: { selection: 'edge:depends:画面>フロント', focus: diagram }
+    - key: Shift+Tab
+      expect: { selection: 'edge:depends:画面>フロント', focus: diagram }
+    - key: Escape
+    - click: { node: 画面 }
+    - click: { node: API }
+      mod: Shift
+    - click: { bar: join-existing }
+      expect: { tool: join-target, focus: diagram }
+    - key: Tab
+      expect: { tool: join-target, selection: 'nodes:画面,API', focus: diagram }
+    - key: Shift+Tab
+      expect: { tool: join-target, selection: 'nodes:画面,API', focus: diagram }
+    - key: Escape
+    - key: Escape
+      expect: { selection: none, focus: diagram }
+    - key: Tab
+      expect: { selection: none, key_prevented: false, source: input.md }

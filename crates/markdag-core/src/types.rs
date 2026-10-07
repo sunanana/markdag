@@ -490,6 +490,11 @@ pub enum EditOp {
         node: NodeTarget,
         label: String,
     },
+    /// 兄弟を node の 1 行目の前に足す (AddSibling は node のブロックのあと)
+    AddSiblingBefore {
+        node: NodeTarget,
+        label: String,
+    },
     RenameNode {
         node: NodeTarget,
         label: String,

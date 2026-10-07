@@ -1,0 +1,29 @@
+kind: 正常
+os: win
+checks: >-
+    win の割り当て (navigator を Windows に見せかけて開く)。名前の入力中の Enter は名前を決めるだけ (ノードは増えない)。
+    Ctrl+Enter と Shift+Enter は名前を決めてからすぐ下に兄弟を足し、その名前の入力へ移る。Shift+Ctrl+Enter は決めてからすぐ上に足す。
+    足したばかりの入力を Esc でやめると、最後に足した 1 つだけを足す前に戻す
+note: 確認ページは本物の navigator で開くので、Mac で開くとこの例は飛ばす (例の OS の区分とページの区分が違う)。e2e は navigator を Windows に見せかけて通す
+states: [keys:I1.e1, keys:I1.e3, keys:I2.e2, keys:I2.e4, keys:I2.e15, keys:C2.c3, keys:C2.c4]
+decisions: [U1 (Enter の修飾キーは mac と win で別々の割り当て)]
+steps:
+    - click: { node: 決める }
+    - key: Enter
+      expect: { input: name, input_value: 決める, focus: 'name-input:node', source: input.md }
+    - type: 決定
+    - key: Enter
+      expect: { source: after-commit.md, input: none, input_value: null, focus: diagram, selection: nodes:決定, notice: { kind: info, text: 名前を「決定」にしました } }
+    - key: Enter
+      expect: { input: name, input_value: 決定 }
+    - type: 甲
+    - key: Control+Enter
+      expect: { source: after-add-1.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - type: 乙
+    - key: Shift+Enter
+      expect: { source: after-add-2.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - type: 丙
+    - key: Shift+Control+Enter
+      expect: { source: after-add-3.md, input: name, input_value: 新しいノード, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { source: after-escape.md, input: none, selection: nodes:丙 }

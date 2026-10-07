@@ -1,0 +1,37 @@
+kind: 境界 (決定 S-17 b)
+os: mac
+decided: [S-17]
+checks: >-
+    markdag.rules の taskToggle.requireUpstreamDone (上流のタスクが終わるまで進めない) のある文書。進められないタスク (上流の設計が終わっていない実装) が 1 つでも混じると、
+    Space は何も変えない (一緒に選んだ準備も進めない)。理由はアプリの onDiagnostic で知らせ、図の下の通知には出さない。
+    上流と下流 (設計と実装) を一緒に選ぶと、relations の上流の設計から確かめ (書いた順と選んだ順によらない。関門の答え K-003)、設計を進めた結果で実装を確かめるので、
+    両方進む (決定 S-17 b)。1 回の ⌘Z で両方戻る。
+    実装だけを選ぶと進まず、設計を先に進めれば実装も進められる
+note: >-
+    決定 S-17 (2026-10-06、b: まとめて進めるときは前のタスクを進めた結果で次を確かめる)。確かめる順は、関門の答え K-003 (2026-10-07) で
+    書いた順から relations の上流と下流の順 (上流が先) に替わった (この文書は上流の設計を上に書いているので、結果はどちらの順でも同じ)。
+    理由の知らせ (onDiagnostic。最初に断られた 1 件の理由だけ。K-006) は例の欄にないので照らさない
+states: [keys:T7.t1, keys:T8.t1, keys:T9.t1, keys:T9.t2]
+decisions: [U6 (進められないタスクが混じれば Space は押さなかったことにする), S-17 (例の承認で決めた)]
+steps:
+    - click: { node: 準備 }
+    - click: { node: 実装 }
+      mod: Shift
+    - key: ' '
+      expect: { source: input.md, selection: 'nodes:準備,実装', notice: null }
+    - click: { node: 設計 }
+    - click: { node: 実装 }
+      mod: Shift
+    - key: ' '
+      expect: { source: after-both.md, selection: 'nodes:設計,実装', notice: null }
+    - key: Meta+z
+      expect: { source: input.md, selection: 'nodes:設計,実装' }
+    - click: { node: 実装 }
+    - key: ' '
+      expect: { source: input.md, selection: nodes:実装 }
+    - click: { node: 設計 }
+    - key: ' '
+      expect: { source: after-design.md, selection: nodes:設計 }
+    - click: { node: 実装 }
+    - key: ' '
+      expect: { source: after-build.md, selection: nodes:実装 }

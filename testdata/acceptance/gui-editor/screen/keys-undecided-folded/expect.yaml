@@ -1,0 +1,32 @@
+kind: 境界 (決定 S-06 a、S-12 b)
+os: mac
+decided: [S-06, S-12]
+checks: >-
+    図の開閉の印で枝 (作業) を閉じてから操作する。閉じた枝の中のノード (2. 更新。閉じる前に選んだ) で Ctrl+Enter を押すと、枝を開いてから下の兄弟 (3. 再開) へ移る。
+    閉じた枝 (作業) へ兄弟から Ctrl+Enter で移ると、閉じたまま名前の入力を開く (決定 S-06 a)。
+    閉じた枝があるときに別のノード (準備) の下へ兄弟を足しても、関係のない閉じた枝は閉じたまま。Esc で足す前に戻しても閉じたまま (決定 S-12 b)
+note: >-
+    決定 S-06 (2026-10-06、a: 移った先の閉じた枝は閉じたまま)。決定 S-12 (2026-10-06、b: 兄弟や子を足したあとも、関係のない閉じた枝は閉じたまま。足したノードを見せるために開くのは今のまま)。
+    この例を書いたときは、足すと作業の枝が開いた。閉じた枝は folded の欄 (図の開閉の状態) で照らす
+states: [keys:P10.e5, keys:P11.e5, keys:P11.e2]
+steps:
+    - click: { node: 2. 更新 }
+    - click: { fold: 作業 }
+      expect: { folded: [作業], selection: nodes:2. 更新 }
+    - key: Control+Enter
+      expect: { folded: [], selection: nodes:3. 再開, input: name, input_value: 再開, source: input.md }
+    - key: Escape
+    - click: { fold: 作業 }
+      expect: { folded: [作業] }
+    - click: { node: 準備 }
+    - key: Control+Enter
+      expect: { folded: [作業], selection: nodes:作業, input: name, input_value: 作業, source: input.md }
+    - key: Escape
+    - key: Escape
+      expect: { selection: none, folded: [作業] }
+    - click: { node: 準備 }
+      expect: { folded: [作業], selection: nodes:準備 }
+    - key: Shift+Enter
+      expect: { folded: [作業], source: after-add.md, input: name, selection: nodes:新しいノード }
+    - key: Escape
+      expect: { folded: [作業], source: input.md, selection: nodes:準備 }

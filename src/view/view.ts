@@ -118,7 +118,8 @@ export interface ViewTransform {
 
 export interface ViewHooks {
     // タスクのノードがクリックされた。状態は原文が持つので、切り替えは呼び出し側が原文を書き換えて行う。
-    // cycle は、文書が決めたクリックで進む記号の順 (toggleTask にそのまま渡せる)
+    // cycle は、文書が決めたクリックで進む記号の順 (toggleTask にそのまま渡せる)。
+    // addHooks で足した受け口は、render の toggleTasks (GUI 編集の Space) でまとめて進めたときも、タスクごとに呼ばれる
     onToggleTask?: (node: OutlineNode, cycle: readonly TaskMark[]) => void;
     // ノードの文字がクリックされた。asTaskToggle は、そのクリックをタスクの切り替えとして扱ったか。
     // リンクや、自分の操作を持つ入れ子の部分のクリックでは呼ばない
@@ -194,6 +195,15 @@ const LISTENER_KINDS = {
 } as const satisfies Record<keyof ViewListeners, 'before' | 'on'>;
 type ListenerName = keyof typeof LISTENER_KINDS;
 type Listener = (...args: unknown[]) => unknown;
+
+// 図ごとの、addHooks で足した受け口 (足した順) を読む口。図のメソッドにすると公開の型に出るので、モジュールの中の入れ物で持つ
+const addedListeners = new WeakMap<MarkdagView, () => readonly ViewListeners[]>();
+
+// 足した受け口の onToggleTask だけを、足した順に呼ぶ (入口からは出さない)。図の外でいくつかのタスクをまとめて進めたとき (render の
+// toggleTasks) に、印のクリックと同じく足した受け口へ知らせる。コンストラクタの受け口 (原文を書き換える側) は呼ばない (呼ぶと 2 段進む)
+export function callAddedToggleTask(view: MarkdagView, node: OutlineNode, cycle: readonly TaskMark[]): void {
+    for (const listeners of addedListeners.get(view)?.() ?? []) listeners.onToggleTask?.(node, cycle);
+}
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const { paddingX } = MARKMAP_DEFAULTS;
@@ -455,6 +465,7 @@ export class MarkdagView {
         private readonly root: HTMLElement,
         private readonly own: ViewHooks = {},
     ) {
+        addedListeners.set(this, () => this.added.map((entry) => entry.listeners));
         root.innerHTML = '';
         root.classList.add('markdag');
         this.viewport = document.createElement('div');

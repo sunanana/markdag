@@ -2388,22 +2388,43 @@ pub(crate) fn body_icon_marks(original: &str) -> Vec<IconMark> {
     marks
 }
 
-/// 解析の結果と、ノードごとの要素の種類 (nodes と同じ順。ルートの包みのように要素を持たないノードは None)。
-/// 書き換えの層が、ノードの種類 (見出し、項目、容器、表とコードと画像、行を持たないルート) を見分けるのに使う
-pub(crate) fn parse_with_block_tags(original: &str) -> (ParsedDocument, Vec<Option<BlockTag>>) {
-    let (parsed, _, tags) = parse_with_icon_marks(original);
-    (parsed, tags)
+/// parse_with_block_tags の戻り値 (名前のない型。規則 4 章「関数名 + Result」)。tags と list_numbers は nodes と同じ順
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ParseWithBlockTagsResult {
+    pub(crate) parsed: ParsedDocument,
+    /// ノードごとの要素の種類。ルートの包みのように要素を持たないノードは None
+    pub(crate) tags: Vec<Option<BlockTag>>,
+    /// 番号付きのリストの項目の、内容の前に付けた番号 (開始の番号 + それまでの項目の数。図の名前の頭の番号)。ほかのノードは None
+    pub(crate) list_numbers: Vec<Option<u64>>,
 }
 
-// 木を visit と同じ先行順にたどり、ノードごとの要素の種類を並べる
-fn collect_block_tags(node: &OutlineTree, tags: &mut Vec<Option<BlockTag>>) {
-    tags.push(node.tag);
-    for child in &node.children {
-        collect_block_tags(child, tags);
+/// 解析の結果と、ノードごとの要素の種類と番号付きの項目の数えた番号。
+/// 書き換えの層が、ノードの種類 (見出し、項目、容器、表とコードと画像、行を持たないルート) を見分け、原文の番号を図の番号にそろえるのに使う
+pub(crate) fn parse_with_block_tags(original: &str) -> ParseWithBlockTagsResult {
+    let (parsed, _, BlockFacts { tags, list_numbers }) = parse_with_icon_marks(original);
+    ParseWithBlockTagsResult {
+        parsed,
+        tags,
+        list_numbers,
     }
 }
 
-fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>, Vec<Option<BlockTag>>) {
+// ノードごとの要素の種類と、番号付きの項目の数えた番号 (どちらも nodes と同じ順)
+struct BlockFacts {
+    tags: Vec<Option<BlockTag>>,
+    list_numbers: Vec<Option<u64>>,
+}
+
+// 木を visit と同じ先行順にたどり、ノードごとの要素の種類と番号付きの項目の数えた番号を並べる
+fn collect_block_facts(node: &OutlineTree, facts: &mut BlockFacts) {
+    facts.tags.push(node.tag);
+    facts.list_numbers.push(node.list_number);
+    for child in &node.children {
+        collect_block_facts(child, facts);
+    }
+}
+
+fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>, BlockFacts) {
     // 行と桁は変えないので、このあとの行番号は原文のものとしてそのまま使える
     let source = normalize_task_marks(original);
     let ProbeFrontmatterResult {
@@ -2453,8 +2474,11 @@ fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>, Vec<
     };
     let mut nodes: Vec<OutlineNode> = Vec::new();
     visit(&outline.root, None, 1, &mut nodes, &scope);
-    let mut block_tags: Vec<Option<BlockTag>> = Vec::with_capacity(nodes.len());
-    collect_block_tags(&outline.root, &mut block_tags);
+    let mut block_facts = BlockFacts {
+        tags: Vec::with_capacity(nodes.len()),
+        list_numbers: Vec::with_capacity(nodes.len()),
+    };
+    collect_block_facts(&outline.root, &mut block_facts);
 
     (
         ParsedDocument {
@@ -2465,7 +2489,7 @@ fn parse_with_icon_marks(original: &str) -> (ParsedDocument, Vec<IconMark>, Vec<
             features: outline.features,
         },
         outline.icon_marks,
-        block_tags,
+        block_facts,
     )
 }
 

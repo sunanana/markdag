@@ -1,0 +1,26 @@
+kind: 境界 (決定 S-13 b)
+os: mac
+decided: [S-13]
+checks: >-
+    見出し (二つのリスト) の下に 2 つのリストがあると、リストごとに名前を持たない入れ物ができる。項目 (赤、1. 一号) で Shift+Tab を押すと、入れ物を飛ばして、その上の見出しの名前の入力を開く。
+    名前の入力中なら、名前を決めてから見出しの名前の入力へ移る
+note: >-
+    決定 S-13 (2026-10-06、b: Shift+Tab で親へ移るとき、名前を持たないリストの入れ物は飛ばして、その上の見出しの名前の入力へ移る)
+states: [keys:P15.e11, keys:P16.e11, keys:Q16.e11]
+decisions: [S-13 (例の承認で決めた)]
+steps:
+    - click: { node: 赤 }
+    - key: Shift+Tab
+      expect: { source: input.md, input: name, input_value: 二つのリスト, focus: 'name-input:node', selection: nodes:二つのリスト, notice: null }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: nodes:二つのリスト }
+    - key: Escape
+      expect: { selection: none }
+    - click: { node: 1. 一号 }
+    - key: Enter
+      expect: { input: name, input_value: 一号 }
+    - type: 一番
+    - key: Shift+Tab
+      expect: { source: after-rename.md, input: name, input_value: 二つのリスト, selection: nodes:二つのリスト, notice: { kind: info, text: 名前を「1. 一番」にしました } }
+    - key: Escape
+      expect: { source: after-rename.md, input: none, selection: nodes:二つのリスト }

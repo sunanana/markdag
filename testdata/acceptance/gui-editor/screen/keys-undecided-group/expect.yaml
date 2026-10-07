@@ -1,0 +1,29 @@
+kind: 境界 (決定 S-10 a、S-11 a)
+os: mac
+decided: [S-10, S-11]
+checks: >-
+    グループを 1 つ選んでいるときの Shift+Enter と修飾キーつきの Enter (⌘、Ctrl、⌥) は何もしない (決定 S-10 a)。
+    グループの名前の入力で、使わない修飾キー (⌥) の Enter と、修飾キーを 2 つ押した Enter (⌘Ctrl) も何もしない (入力を開いたまま。決定 S-11 a)
+note: >-
+    決定 S-10 (2026-10-06、a: 何もしない。spec.md に書き足す)。決定 S-11 (2026-10-06、a: グループの名前の入力ではこれらのキーの既定の動きを止める (ノードの名前の入力では止めない)。
+    止めたかどうかは例の欄にないので照らさない)
+states: [keys:K6.e2, keys:K6.e3, keys:K6.e5, keys:K6.e7, keys:I4.e7, keys:I4.e8]
+steps:
+    - click: { frame: g1 }
+      expect: { selection: group:g1, bar: group }
+    - key: Shift+Enter
+      expect: { source: input.md, input: none, selection: group:g1 }
+    - key: Meta+Enter
+      expect: { source: input.md, input: none, selection: group:g1 }
+    - key: Control+Enter
+      expect: { source: input.md, input: none, selection: group:g1 }
+    - key: Alt+Enter
+      expect: { source: input.md, input: none, selection: group:g1 }
+    - key: Enter
+      expect: { input: group-name, input_value: 設計 }
+    - key: Alt+Enter
+      expect: { source: input.md, input: group-name, input_value: 設計, focus: 'name-input:group' }
+    - key: Meta+Control+Enter
+      expect: { source: input.md, input: group-name, input_value: 設計, focus: 'name-input:group' }
+    - key: Escape
+      expect: { source: input.md, input: none, selection: group:g1 }

@@ -3,7 +3,8 @@
 // (原文が前のままか) を確かめる。操作の書き換えが断られたときと取りやめられたときは、原文を変えずにそのことを通知に出す。
 // 図の側の操作で原文が変わったこと (render の onChange) を受け、描き直したことを編集の層に、新しい原文をアプリに知らせる。
 // 原文が変わるたびに変わる前の原文とそのときの選択を組で履歴に積み、元に戻す / やり直すで履歴の原文を描き直して、組の選択を編集の層へ返す
-// (これも図の側の変更としてアプリに知らせる)。
+// (これも図の側の変更としてアプリに知らせる)。編集の層の操作と元に戻す / やり直すで描き直すときは、前とあとに持ち主の受け口を呼ぶ
+// (関係のない閉じた枝を閉じたままにするため。図は木の形が変わると開閉を初めの状態に戻す)。
 // 片付けたあとは最後の原文と診断を返すだけで、差し替えも知らせもしない
 import type { Diagnostic, EditOutcome, MarkdagDiagram } from '../core';
 import { EditHistory } from './history';
@@ -25,6 +26,9 @@ interface SourceListeners {
     onChange?: (markdown: string) => void;
     // 戻せるものかやり直せるものが変わったかもしれない
     onHistoryChange?: () => void;
+    // 編集の層の操作か元に戻す / やり直すで原文を差し替えて描き直す直前。返した関数は、描き直したあと (選び直しの前) に呼ぶ。
+    // beforeUpdate が取りやめたら呼ばない
+    beforeRedraw?: () => () => void;
 }
 
 // 書き換えた結果 (editSource の edited)
@@ -128,7 +132,7 @@ export class EditorSource {
         }
         if (attempt.status === 'unchanged') return 'unchanged';
         const before = diagram.source;
-        diagram.update(attempt.source);
+        this.redraw(diagram, attempt.source);
         if (diagram.source !== attempt.source) {
             this.listeners.onNotice(CANCELLED_NOTICE, 'error');
             return 'cancelled';
@@ -154,6 +158,13 @@ export class EditorSource {
         return this.travel('redo');
     }
 
+    // 原文を next に差し替えて描き直し、前とあとに持ち主の受け口 (beforeRedraw) を呼ぶ
+    private redraw(diagram: MarkdagDiagram, next: string): void {
+        const redrawn = this.listeners.beforeRedraw?.();
+        diagram.update(next);
+        if (diagram.source === next) redrawn?.();
+    }
+
     // 片付ける前に、最後の原文と診断を控えて受け付けを止める
     release(): void {
         if (this.released) return;
@@ -167,7 +178,7 @@ export class EditorSource {
         const current: HistoryEntry = { source: diagram.source, selection: this.listeners.selection() };
         const target = direction === 'undo' ? this.history.undo(current) : this.history.redo(current);
         if (target === null) return false;
-        diagram.update(target.source);
+        this.redraw(diagram, target.source);
         if (diagram.source !== target.source) {
             // 取りやめられたので、動かした履歴を逆向きに 1 つ動かして元に戻す
             if (direction === 'undo') this.history.redo(target);

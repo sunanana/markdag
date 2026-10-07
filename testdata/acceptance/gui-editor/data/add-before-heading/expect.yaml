@@ -1,0 +1,5 @@
+kind: 正常
+checks: >-
+    上に足す (addSiblingBefore): 見出し (実装) の上に足すと、選んだ見出しの前に同じ段の見出し (## 新しいノード) と空行を書く。足したノードを選び、すぐ名前の入力を開く相手にする
+op: { kind: addSiblingBefore, node: 実装, label: 新しいノード }
+expect: { status: edited, source: expected.md, select: { kind: nodes, nodes: [新しいノード] }, rename: { kind: node, node: 新しいノード }, notes: [] }
