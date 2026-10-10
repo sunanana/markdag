@@ -4,6 +4,7 @@ checks: >-
     見出しのない文書のルート (原文の行を持たない。名前は title の「作業」) も名前を変えられる。帯の「名前」は押せ、Enter でも帯の「名前」でも名前の入力を開く (値は「作業」)。
     名前を決めると frontmatter の title を書き換え (title: 段取り)、⌘Z / Ctrl+Z で戻る
     (0.12.0 は名前を変えられず、帯の「名前」は押せず、Enter で理由を知らせた。例の承認のルートのタイトルの答えで書き直した)
+note: 2026-10-09 にタスク化で書き直した (行を持たないルートの帯の最後に、無効のタスク化を足した。0.12.1 の期待は docs/ignore/feature/task_ka/records/deviations.md)
 behaviors: [B-010, B-008, B-036]
 states: [C2.c14, D1.d2]
 decisions: [ルートのタイトル (例の承認で決めた。見出しのない文書のルートの名前は title。決めた名前を title に書き、なければ足す)]
@@ -13,7 +14,7 @@ steps:
     - key: ControlOrMeta+z
       expect: { source: input.md }
     - click: { node: 作業 }
-      expect: { selection: nodes:作業, bar: node, bar_buttons: [rename, child, details(off), tag-add(off), tag-select(off)] }
+      expect: { selection: nodes:作業, bar: node, bar_buttons: [rename, child, details(off), tag-add(off), tag-select(off), task(off)] }
     - key: Enter
       expect: { input: name, input_value: 作業, notice: null }
     - type: 段取り

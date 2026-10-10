@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    名前が空のタスクの項目 (`- [ ] ` だけの行。解析は記号を名前 `[ ]` に読む) のタスクを外すと、記号を消さずに `\` で逃がして `- \[ ]` と書き、
+    名前「[ ]」のタスクでない項目として残す (名前と id は変わらない)。行末の空白は残さない。ほかの項目は変えない
+states: ['task:P33.p2']
+decisions: ['spec.md 書き換え (名前が空のタスクの項目のタスク解除は `- \[ ]` と逃がして書く。名前と id は変わらない)', '例の承認の関門 (2 回目) 5/7 の d']
+op:
+    kind: toggleTaskMark
+    nodes: [{ id: 3 }]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['[ ]'] }
+    rename: null
+    notes: []

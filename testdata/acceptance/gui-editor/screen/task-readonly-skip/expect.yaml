@@ -1,0 +1,65 @@
+kind: 境界
+checks: >-
+    読み取りだけのグループのノードと、ふつうのノードを一緒に選ぶと、読み取りだけのノードはスキップし、ふつうのノードだけを書き換える (全体を断らない)。
+    タスク化かタスク解除か (ボタンの名前) は、ふつうのノードだけで決める。スナックバーにスキップした数を括弧書きで足す:
+    「(読み取り専用のグループ「確定済み」のノード 1 個はスキップしました)」、タスクにできないノードと一緒なら「(タスクにできない 1 個と、読み取り専用のグループ「確定済み」のノード 1 個はスキップしました)」、
+    グループが 2 つなら「(読み取り専用のグループ「確定済み」「固定」のノード 3 個はスキップしました)」。選択はそのまま
+states: ['task:K19.v1', 'task:K19.k1', 'task:K19.k4']
+decisions: ['spec.md U2 (2 つ以上ではそのノードだけスキップ)、2 つ以上を選んだとき (スキップしたときの括弧書き)', '作ったものを触る関門 13/17 の c', '直したものを触る関門 10/14、15/16']
+steps:
+    - click: { node: 見積もりを取る }
+    - click: { node: 日取りを決める }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,日取りを決める', bar: nodes, bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task, delete], bar_labels: { task: タスク化 } }
+    - click: { bar: task }
+      expect:
+          source: after-add.md
+          selection: 'nodes:見積もりを取る,日取りを決める'
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました (読み取り専用のグループ「確定済み」のノード 1 個はスキップしました) }
+          bar_labels: { task: タスク解除 }
+    - click: { bar: task }
+      expect:
+          source: input.md
+          selection: 'nodes:見積もりを取る,日取りを決める'
+          notice: { kind: info, text: 「見積もりを取る」のタスクを解除しました (読み取り専用のグループ「確定済み」のノード 1 個はスキップしました) }
+          bar_labels: { task: タスク化 }
+    - key: Escape
+    - click: { node: 荷造りの箱を買う }
+    - click: { node: 日取りを決める }
+      mod: Shift
+      expect: { selection: 'nodes:荷造りの箱を買う,日取りを決める', bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect:
+          source: after-remove.md
+          selection: 'nodes:荷造りの箱を買う,日取りを決める'
+          notice: { kind: info, text: 「荷造りの箱を買う」のタスクを解除しました (読み取り専用のグループ「確定済み」のノード 1 個はスキップしました) }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - click: { node: 業者を決める }
+      mod: Shift
+    - click: { node: { id: 11 } }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,業者を決める,(id 11)', bar_labels: { task: タスク化 } }
+    - key: x
+      expect:
+          source: after-add.md
+          selection: 'nodes:見積もりを取る,業者を決める,(id 11)'
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました (タスクにできない 1 個と、読み取り専用のグループ「確定済み」のノード 1 個はスキップしました) }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - click: { node: 業者を決める }
+      mod: Shift
+    - click: { node: 日取りを決める }
+      mod: Shift
+    - click: { node: 会場を決める }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,業者を決める,日取りを決める,会場を決める', bar_labels: { task: タスク化 } }
+    - key: x
+      expect:
+          source: after-add.md
+          selection: 'nodes:見積もりを取る,業者を決める,日取りを決める,会場を決める'
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました (読み取り専用のグループ「確定済み」「固定」のノード 3 個はスキップしました) }

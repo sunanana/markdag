@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    ルートの見出し (#) と、段の違う見出し (##、###) をまとめてタスク化すると、どれも行頭の # と空白のあとに [ ] と空白を書く。
+    # の数 (段) は変えず、配下の項目と、指していない見出しは変えない
+states: ['task:P6.p2', 'task:P7.p2']
+decisions: ['spec.md 書き換え (タスク化。見出しも、ルートの見出しも)', '作ったものを触る関門 1/17 (見出し)、3/17 (ルートの見出し)']
+op:
+    kind: toggleTaskMark
+    nodes: [引っ越し, 準備, 業者]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [引っ越し, 準備, 業者] }
+    rename: null
+    notes: []

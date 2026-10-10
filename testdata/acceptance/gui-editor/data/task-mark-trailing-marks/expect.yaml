@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    名前のあとに印 (#タグ、$id、%グループ) のある項目をタスク化すると、名前の前に [ ] と空白を書くだけで、名前のあとの印は変えない。
+    図の名前と id は変わらないので、frontmatter の relations (名前と $id で指す行) と groups は書き換えない
+states: ['task:P10.p2']
+decisions: ['spec.md 書き換え (名前のあとの印、図の名前と id、relations と groups の参照は変えない)']
+op:
+    kind: toggleTaskMark
+    nodes: [見積もりを取る, 荷物を運ぶ, 鍵の返却]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [見積もりを取る, 荷物を運ぶ, 鍵の返却] }
+    rename: null
+    notes: []

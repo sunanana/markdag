@@ -31,6 +31,8 @@ export type EditOp =
     | { kind: 'setTag'; nodes: NodeTarget[]; key: string; value: string | null; replaceKey: string | null }
     | { kind: 'removeTag'; nodes: NodeTarget[]; key: string }
     | { kind: 'toggleTag'; nodes: NodeTarget[]; key: string; value: string | null }
+    // タスクの記号の付け外し。タスクにできるノード (見出しと項目) のうち 1 つでもタスクでないものがあればそれに `[ ] ` を付け、全部タスクなら全部の記号を外す
+    | { kind: 'toggleTaskMark'; nodes: NodeTarget[] }
     | { kind: 'addToGroup'; group: string; nodes: NodeTarget[] }
     | { kind: 'addRelation'; from: NodeTarget; to: NodeTarget }
     | { kind: 'joinInto'; sources: NodeTarget[]; target: NodeTarget }
@@ -119,6 +121,10 @@ export interface InspectNodeResult {
     canAddSibling: boolean;
     // 1 行目に印 (%、#、$) を書けるか (タグ、グループ、$n の参照)
     canMark: boolean;
+    // タスクの記号の付け外し (toggleTaskMark) がこのノードを書けるか: タスクでないノードは記号を付けられるか、タスクは記号を外せるか。
+    // 自分の行を持つ見出しと項目のうち、名前が空の項目、1 行目が文章でない項目 (markdag キーのない文書で 1 行目の印のあとが段落の書き始めでないものと、
+    // 1 行目が空で 2 行目から名前を読むもの)、記号を外すと HTML のブロックとして読まれるタスクを除く
+    canToggleTask: boolean;
 }
 
 // 境界の戻り値。splices は書き換える前の原文の行の添字で、start の昇順、重ならない。lines は行末の \n を含まない

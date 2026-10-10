@@ -3,6 +3,8 @@
 // フォーカス、原文) を期待と同じ形の値で読む。座標、色、画像は読まない。図の API を呼ぶのは、例の段が求めるとき (setMode、undo など) だけ。
 // 見た目の規則のうち、依頼者が照らすと決めた 2 つだけは読む: 隅の部品 (セグメントと凡例のパネル) が実際に寄っている隅 (座標は返さず隅の名前)、
 // 選んだノードの箱に枠 (outline) が出ているか (有無だけ。色と太さは見ない)。
+// タスク化で照らすと決めたもの: 帯のボタンの幅 (数値。名前が替わっても幅が変わらないこと)、帯の位置 (段の前と比べて動いたか、幅が変わったか、
+// 選んだノードの左右の中央にあるか。座標は返さない)、ノードの左のチェックを出している相手。
 // 確認ページと e2e のページの両方が読む。ページの開発サーバーに依存を探させないよう、型のほかは何も import しない。
 // 名前の引き方 (nodeOf) と押す相手の書き方 (describeTarget) は、ページの外 (例の読み方の部品) からも使うので、読み込んだだけでは DOM に触らない
 import type { OutlineNode } from '../../src/core';
@@ -95,6 +97,45 @@ function outlined(element: Element | null): boolean {
     return style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0;
 }
 
+// 帯の左の辺と幅 (図の領域の左上からの画面の px。ページのスクロールに左右されない)。帯がなければ null
+function barSpanOf(container: HTMLElement): { left: number; width: number } | null {
+    const bar = allVisible(container, '.mdag-editor-bar')[0];
+    if (!bar) return null;
+    const rect = bar.getBoundingClientRect();
+    return { left: rect.left - container.getBoundingClientRect().left, width: rect.width };
+}
+
+// 帯が選んだノード (全部を囲む矩形) の左右の中央に置かれているか (中央どうしの差が 1px 以内)。帯か選んだノードの箱がなければ null
+function barCenteredOf(container: HTMLElement, bar: Element | undefined): boolean | null {
+    if (!bar) return null;
+    const boxes = [...container.querySelectorAll('.mdag-node[data-selected]')].flatMap((node) => {
+        const box = node.querySelector('.mdag-box');
+        return box ? [box.getBoundingClientRect()] : [];
+    });
+    if (boxes.length === 0) return null;
+    const rect = bar.getBoundingClientRect();
+    const middle = (Math.min(...boxes.map((box) => box.left)) + Math.max(...boxes.map((box) => box.right))) / 2;
+    return Math.abs(rect.left + rect.width / 2 - middle) <= 1;
+}
+
+// ノードの左のチェックを出している相手のノードの名前 (出していなければ null)。チェックの右にあり、上下の中央がチェックの高さに入る箱のうち、いちばん近いもの。
+// 幅か高さが 0 の箱 (名前が空の項目は箱を描かない) は相手にしない (隣のノードの箱の中に重なって、近さで選ばれてしまうため)
+function taskCheckOf(container: HTMLElement, name: (id: number) => string): string | null {
+    const check = allVisible(container, '.mdag-editor-task-check')[0];
+    if (!check) return null;
+    const rect = check.getBoundingClientRect();
+    let found: { id: number; gap: number } | null = null;
+    for (const node of container.querySelectorAll<HTMLElement>('.mdag-node[data-id]')) {
+        const box = node.querySelector('.mdag-box')?.getBoundingClientRect();
+        if (!box || box.width === 0 || box.height === 0) continue;
+        const middle = box.top + box.height / 2;
+        const gap = box.left - rect.right;
+        if (gap < -1 || middle < rect.top || middle > rect.bottom) continue;
+        if (found === null || gap < found.gap) found = { id: Number(node.dataset.id), gap };
+    }
+    return found === null ? '?' : name(found.id);
+}
+
 // 名前 (refText) と id。描いている文書から引く
 function namesOf(editor: MarkdagEditor): { nodes: readonly OutlineNode[]; name(id: number): string; id(ref: unknown): number } {
     const nodes = editor.view.getDocument()?.parsed.nodes ?? [];
@@ -185,6 +226,8 @@ function observeEditor(ctx: PageContext, editor: MarkdagEditor, before: Transfor
     const tagPanel = allVisible(container, '.mdag-editor-tag-panel')[0] as HTMLElement | undefined;
     const nameInput = allVisible(container, '.mdag-editor-name-input')[0] as HTMLInputElement | undefined;
     const detailsField = allVisible(container, '.mdag-editor-details-editor textarea')[0] as HTMLTextAreaElement | undefined;
+    const barButtons = bar ? [...bar.querySelectorAll<HTMLButtonElement>('.mdag-editor-bar-button')] : [];
+    const perButton = <T>(read: (button: HTMLButtonElement) => T): Record<string, T> => Object.fromEntries(barButtons.map((button) => [button.dataset.command ?? '', read(button)]));
     const frames: Record<string, number> = {};
     for (const element of container.querySelectorAll<SVGElement>('.mdag-frame[data-group]')) {
         const id = element.dataset.group ?? '';
@@ -217,7 +260,16 @@ function observeEditor(ctx: PageContext, editor: MarkdagEditor, before: Transfor
         edge_selected: container.hasAttribute('data-edge-selected'),
         bar: bar?.dataset.for ?? 'none',
         bar_title: bar ? (bar.querySelector('.mdag-editor-bar-title')?.textContent ?? null) : null,
-        bar_buttons: bar ? [...bar.querySelectorAll<HTMLButtonElement>('.mdag-editor-bar-button')].map((button) => `${button.dataset.command ?? ''}${button.disabled ? '(off)' : ''}`) : [],
+        // 無効は disabled か aria-disabled="true" (タスク化のボタンは無効でも押下を受けるので aria-disabled で示す)
+        bar_buttons: bar
+            ? [...bar.querySelectorAll<HTMLButtonElement>('.mdag-editor-bar-button')].map((button) => `${button.dataset.command ?? ''}${button.disabled || button.getAttribute('aria-disabled') === 'true' ? '(off)' : ''}`)
+            : [],
+        // 帯のボタンごと (data-command → 値): 見えている名前、title、幅 (画面の px を 0.1 で丸めたもの)
+        bar_labels: perButton((button) => button.textContent?.trim() ?? ''),
+        bar_titles: perButton((button) => button.title),
+        bar_widths: perButton((button) => Math.round(button.getBoundingClientRect().width * 10) / 10),
+        bar_centered: barCenteredOf(container, bar),
+        task_check: taskCheckOf(container, names.name),
         handles: (allVisible(container, '.mdag-editor-handle') as HTMLElement[]).map((handle) => handle.dataset.handle ?? '').sort(),
         bounds: allVisible(container, '.mdag-editor-selection-bounds').length,
         input: inputOf(container),
@@ -405,6 +457,8 @@ function pointOf(ctx: PageContext, editor: MarkdagEditor, target: Target): Point
     if ('tool' in target) return inside(`.mdag-editor-tool[data-tool="${String(target.tool)}"]`);
     if ('bar' in target) return inside(`.mdag-editor-bar-button[data-command="${String(target.bar)}"]`);
     if ('handle' in target) return inside(`.mdag-editor-handle[data-handle="${String(target.handle)}"]`);
+    // ノードの左のチェック (出しているのは 1 つだけ。値は true)
+    if ('task_check' in target) return inside('.mdag-editor-task-check');
     if ('segment' in target) return inside(`.mdag-editor-segment button[data-mode="${String(target.segment)}"]`);
     if ('legend_row' in target) return inside(`.mdag-editor-legend-row[data-group="${String(target.legend_row)}"] .mdag-editor-legend-name`);
     if ('legend_chip' in target) return inside(`.mdag-editor-legend-row[data-group="${String(target.legend_chip)}"] .mdag-editor-legend-chip`);
@@ -465,6 +519,8 @@ export interface ScreenProbe {
     // 図の真ん中に近い、何もないところ (なければ null)
     blankSpot(): Point | null;
     setMode(mode: EditorMode): boolean;
+    // 閉じた枝を、名前 (「親/名前」と { id } も) の並びのノードにする (アプリが図の setFolded を呼ぶのと同じ)
+    setFolded(refs: unknown[]): void;
     // undo と redo は戻り値、fit と destroy は null
     callApi(name: string): unknown;
     blurWindow(): void;
@@ -486,6 +542,8 @@ export function createScreenProbe(ctx: PageContext): ScreenProbe {
     // この段で最後に押したキー (修飾キーだけのものを除く)。window の取り込みの段で出来事を控え、既定の動きを止めたか (defaultPrevented) は
     // 段のあとに読む (出来事を送り終えたあとに読むので、GUI 編集とページの受け口の順によらない)
     let lastKey: KeyboardEvent | null = null;
+    // 段の始まりの帯の左の辺と幅 (bar_moved と bar_resized が比べる相手)
+    let barAtStart: { left: number; width: number } | null = null;
     window.addEventListener(
         'keydown',
         (event) => {
@@ -498,10 +556,16 @@ export function createScreenProbe(ctx: PageContext): ScreenProbe {
         focusOn: (target) => focusOn(ctx, editor(), target),
         beginStep: () => {
             lastKey = null;
+            barAtStart = barSpanOf(ctx.container);
         },
         marqueeOf: (refs) => marqueeOf(ctx.container, editor(), refs),
         blankSpot: () => blankSpot(ctx.container, null),
         setMode: (mode) => editor().setMode(mode),
+        setFolded: (refs) => {
+            const current = editor();
+            const nodes = current.view.getDocument()?.parsed.nodes ?? [];
+            current.view.setFolded(refs.map((ref) => nodeOf(nodes, ref).id));
+        },
         callApi: (name) => {
             const current = editor();
             if (name === 'undo') return current.undo();
@@ -523,7 +587,17 @@ export function createScreenProbe(ctx: PageContext): ScreenProbe {
             }
         },
         // key_prevented: この段で最後に押したキーの既定の動きを止めたか (true は GUI 編集が受けて止めた、false はブラウザに任せた、null はキーを押していない)
-        observe: (before, extra) => observe(ctx, before, { ...extra, key_prevented: lastKey === null ? null : lastKey.defaultPrevented }),
+        // bar_moved と bar_resized: 段の始まりと比べて、帯の左の辺が動いたか、帯の幅が変わったか (0.5px より大きい差。段の前かあとに帯がなければ null)
+        observe: (before, extra) => {
+            const bar = barSpanOf(ctx.container);
+            const start = barAtStart;
+            return observe(ctx, before, {
+                ...extra,
+                key_prevented: lastKey === null ? null : lastKey.defaultPrevented,
+                bar_moved: start === null || bar === null ? null : Math.abs(bar.left - start.left) > 0.5,
+                bar_resized: start === null || bar === null ? null : Math.abs(bar.width - start.width) > 0.5,
+            });
+        },
         summary: () => screenSummary(ctx),
     };
 }

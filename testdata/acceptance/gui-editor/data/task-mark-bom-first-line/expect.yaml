@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    文書の先頭に BOM (U+FEFF) があり、1 行目の項目 (一行目の項目) と 2 行目の項目を一緒にタスク化すると、1 行目は BOM を外して `- [ ] 一行目の項目` と書く。
+    2 行目は今までどおり [ ] を書き、指していない 3 行目のタスクは変えない。BOM は文書の先頭の 1 つだけなので、外したあとの原文に BOM は残らない
+note: >-
+    editSource の知らせ (notes) は照らしていない。spec.md は BOM を外したことをスナックバーに出さないと決めたが、editSource の知らせに出すかは決めていない
+states: ['task:P19.p2', 'task:P20.p2']
+decisions: ['spec.md 書き換え (文書の先頭に BOM があり 1 行目のノードに記号を付けるときは BOM を外して書く)', '例の承認の関門 8/17 の d', '直したものを触る (3 回目) 4/9']
+op:
+    kind: toggleTaskMark
+    nodes: [一行目の項目, 二行目の項目]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [一行目の項目, 二行目の項目] }
+    rename: null

@@ -332,7 +332,7 @@ fn edit_bounds_tag_the_last_line_of_a_crlf_document_without_a_final_newline() {
 const ALL_OPS_DOC: &str =
     "---\nmarkdag:\n    groups:\n        g:\n            label: G\n---\n# R\n- a %g #k\n- b\n- c\n";
 
-// 原文の正しいノードを指す、19 種の操作
+// 原文の正しいノードを指す、20 種の操作
 fn every_op(source: &str) -> Vec<(&'static str, Value)> {
     let r = target_of(source, "R");
     let a = target_of(source, "a");
@@ -374,6 +374,10 @@ fn every_op(source: &str) -> Vec<(&'static str, Value)> {
         (
             "toggleTag",
             json!({ "kind": "toggleTag", "nodes": [a], "key": "k", "value": null }),
+        ),
+        (
+            "toggleTaskMark",
+            json!({ "kind": "toggleTaskMark", "nodes": [a, c] }),
         ),
         (
             "addToGroup",
@@ -502,6 +506,10 @@ fn edit_bounds_every_node_op_refuses_stale_targets() {
             (
                 "toggleTag",
                 json!({ "kind": "toggleTag", "nodes": [a, bad], "key": "k", "value": null }),
+            ),
+            (
+                "toggleTaskMark",
+                json!({ "kind": "toggleTaskMark", "nodes": [a, bad] }),
             ),
             (
                 "addToGroup",

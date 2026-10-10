@@ -28,6 +28,7 @@ import {
     setGroupColorOp,
     setTagOp,
     toggleTagOp,
+    toggleTaskMarkOp,
     ungroupOp,
 } from '../src/editor/commands';
 import type { EditedOutcome } from '../src/editor/source';
@@ -90,6 +91,7 @@ describe('操作の組み立て (design 3.3)', () => {
             [removeTagOp([a], 'k'), { kind: 'removeTag', nodes: [a], key: 'k' }],
             [toggleTagOp([a, b], { key: 'k', value: null }), { kind: 'toggleTag', nodes: [a, b], key: 'k', value: null }],
             [toggleTagOp([a], { key: 'k', value: 'v' }), { kind: 'toggleTag', nodes: [a], key: 'k', value: 'v' }],
+            [toggleTaskMarkOp([a, b]), { kind: 'toggleTaskMark', nodes: [a, b] }],
         ];
         for (const [built, expected] of cases) expect(built, expected.kind).toStrictEqual(expected);
     });
@@ -220,6 +222,7 @@ describe('書き換えた結果の通知の文 (B-003。承認した受け入れ
             setTagOp([screen, api], 'prio', 'high', null),
             removeTagOp([screen], 'owner'),
             toggleTagOp([screen, api], { key: 'owner', value: 'alice' }),
+            toggleTaskMarkOp([screen, api]),
         ];
         for (const op of ops) {
             const text = editedNotice(op, editedBy(BASE, op), [], { groupLabel: '設計' });

@@ -4,7 +4,8 @@
 // グループはグループの名前 (markdag.groups のキー) で指し、図の強調 (selectGroups) にもその名前を渡す。1 つは { kind: 'group' }、
 // 2 つ以上は { kind: 'groups' } (選んだ順) で持ち、外して 1 つになれば { kind: 'group' } に、なくなれば選択なしに戻す。
 // 描き直したあとは、同じ id で refText も同じノードだけを選んだままにし、線とグループはその文書にまだあるときだけ選んだままにする
-// (行がずれた文書で、別のノードを選ばないため)。
+// (行がずれた文書で、別のノードを選ばないため)。閉じた枝の中に隠れたもの (ノード、メンバーが全部隠れたグループ、端が隠れた線) は
+// 選択から外せる (いつ外すかは呼ぶ側)。
 // ルートを複数の選択に入れない決まりと、選んだあとの見せ方は呼ぶ側が受け持つ
 import type { EdgeTarget, EditSelection, GraphModel, NodeTarget, OutlineNode, ViewDocument } from '../core';
 
@@ -119,6 +120,32 @@ export function sameSelection(a: EditorSelection, b: EditorSelection): boolean {
 function hasEdge(edge: EdgeTarget, drawn: DrawnParts): boolean {
     if (edge.kind === 'tree') return drawn.nodes.some((node) => node.id === edge.target && node.parent === edge.source);
     return drawn.relations.some((relation) => relation.kind === edge.kind && relation.source === edge.source && relation.target === edge.target);
+}
+
+// 閉じた枝の中に隠れたもの (祖先のどれかが folded にあるノード) を外した選択。ノードは隠れたものだけを外し、閉じた枝そのもの
+// (folded にあるノード) は見えているので残す。グループはメンバー (groupsOf でそのグループに入るノード) が全部隠れたものを外し、
+// 線は片方の端のノードが隠れたら外す (見えないものを選んだままにしない)
+export function withoutFolded(
+    selection: EditorSelection,
+    nodes: DrawnParts['nodes'],
+    folded: readonly number[],
+    groupsOf: ReadonlyMap<number, readonly string[]>,
+): EditorSelection {
+    if (selection.kind === 'none' || folded.length === 0) return selection;
+    const closed = new Set(folded);
+    const parents = new Map(nodes.map((node) => [node.id, node.parent]));
+    const hidden = (id: number): boolean => {
+        for (let parent = parents.get(id) ?? null; parent !== null; parent = parents.get(parent) ?? null) if (closed.has(parent)) return true;
+        return false;
+    };
+    if (selection.kind === 'nodes') return nodesSelection(selection.nodes.filter((target) => !hidden(target.id)));
+    if (selection.kind === 'edge') return hidden(selection.edge.source) || hidden(selection.edge.target) ? NO_SELECTION : selection;
+    const groupHidden = (id: string): boolean => {
+        const members = [...groupsOf].flatMap(([node, groups]) => (groups.includes(id) ? [node] : []));
+        return members.length > 0 && members.every(hidden);
+    };
+    const kept = selectedGroups(selection).filter((id) => !groupHidden(id));
+    return kept.length === selectedGroups(selection).length ? selection : groupsSelection(kept);
 }
 
 // 描き直した文書で選び直す。ノードは同じ id で refText も同じものだけを残し、線とグループは文書にまだあれば残す

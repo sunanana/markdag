@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    印が - * + の項目と、番号が 1. と 1) の項目をまとめてタスク化すると、どれも行頭の印か番号のあとに [ ] と空白を書く (いつも未着手)。
+    印と番号と区切り (. と )) は変えない。図の名前 (番号付きは番号を含む。) の項目も . の形) は変えず、指したノードを選び直す
+states: ['task:P1.p2', 'task:P2.p2', 'task:P3.p2', 'task:P4.p2', 'task:P5.p2']
+decisions: ['spec.md 書き換え (タスク化)', '作ったものを触る関門 1/17 (項目、番号付きの項目)']
+op:
+    kind: toggleTaskMark
+    nodes: [見積もりを取る, 荷造りの箱を買う, 不用品を処分する, 2. 電気・ガス・水道, 1. 住所を変える]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [見積もりを取る, 荷造りの箱を買う, 不用品を処分する, 2. 電気・ガス・水道, 1. 住所を変える] }
+    rename: null
+    notes: []

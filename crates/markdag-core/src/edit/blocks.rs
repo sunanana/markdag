@@ -12,6 +12,7 @@ use regex::Regex;
 use super::headings::atx_heading;
 use super::lines::{is_blank, split_carriage};
 use super::names::{input_label, normalize_label};
+use super::tasks::can_toggle;
 use crate::model::model::{ModelOptions, build_model};
 use crate::model::util::JsValue;
 use crate::parse::{
@@ -464,6 +465,7 @@ pub(super) fn inspect(source: &str, target: &NodeTarget) -> Option<InspectNodeRe
         // 印を読まない見出し (下線の見出しと行頭に空白のある見出し) も、ATX の見出しに書き直せれば書ける
         can_mark: first.as_ref().is_some_and(|first| first.can_mark)
             || atx_heading(&read, node).is_some(),
+        can_toggle_task: can_toggle(&read, node),
     })
 }
 

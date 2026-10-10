@@ -1,0 +1,44 @@
+kind: 境界
+checks: >-
+    X はノードを 1 つ以上選んでいるときだけ書き換える。何も選んでいない、グループ、線を選んでいるときは、書き換えずにスナックバーで選び方を案内する
+    (「タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む)」。T と同じ形)。
+    修飾キーつき (Shift+X、⌘X、Ctrl+X、Alt+X) は使わず、原文を変えずにキーの既定の動きを止めない (ブラウザの切り取りなどのまま)。閲覧ではキーを受けない
+states: ['task:K1.k4', 'task:K2.k6', 'task:K2.k7', 'task:K2.k8', 'task:K21.k4', 'task:K22.k4', 'task:K31.k4']
+decisions: ['spec.md 案 2 (修飾キー、選んでいないときの案内、閲覧では受けない)', '作ったものを触る関門 8/17']
+steps:
+    - click: { blank: true }
+      expect: { selection: none }
+    - key: x
+      expect: { source: input.md, selection: none, notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) } }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る }
+    - key: Shift+X
+      expect: { source: input.md, selection: nodes:見積もりを取る, key_prevented: false }
+    - key: ControlOrMeta+x
+      expect: { source: input.md, selection: nodes:見積もりを取る, key_prevented: false }
+    - key: Control+x
+      expect: { source: input.md, selection: nodes:見積もりを取る, key_prevented: false }
+    - key: Alt+x
+      expect: { source: input.md, selection: nodes:見積もりを取る, key_prevented: false }
+    - key: x
+      expect: { source: after-add.md, notice: { kind: info, text: 「見積もりを取る」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - click: { frame_label: g1 }
+      expect: { selection: group:g1 }
+    - key: x
+      expect: { source: input.md, selection: group:g1, notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) } }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - key: x
+      expect: { source: after-add.md, notice: { kind: info, text: 「見積もりを取る」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - click: { edge: 'depends:見積もりを取る>鍵の返却' }
+      expect: { selection: 'edge:depends:見積もりを取る>鍵の返却' }
+    - key: x
+      expect: { source: input.md, selection: 'edge:depends:見積もりを取る>鍵の返却', notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) } }
+    - set_mode: view
+      expect: { mode: view }
+    - key: x
+      expect: { source: input.md, key_prevented: false }

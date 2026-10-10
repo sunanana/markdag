@@ -150,6 +150,35 @@ pub(super) fn heading_body(lead: &str, body: &str, rest: &str) -> String {
     escaped(lead, body, rest, true)
 }
 
+/// タスクの記号を外して行頭 lead のすぐあとに来る本文 (原文の字) を、同じ名前に読まれるように逃がしたもの。
+/// 記号を外して位置が変わるのは本文の書き始めだけなので、書き始めがブロックかタスクの記号に読まれるときと、行頭や本文のあと rest と
+/// 合わさってタスクの記号か区切り線に読まれるときだけ `\` を足す (本文の中と末尾は記号があったときと同じ読み方なので足さない)。
+/// HTML のブロックの書き始めは逃がさない (逃がすと HTML が文字になり、Markdown として読んだときの見た目が変わる。
+/// 外すと HTML のブロックが下線の行を飲み込んで見出しでなくなる下線の見出しのタスクは、呼ぶ側が外さない)
+pub(super) fn unmarked_body(lead: &str, body: &str, rest: &str, heading: bool) -> String {
+    if body.is_empty() {
+        return String::new();
+    }
+    let mut at: Vec<usize> = Vec::new();
+    match line_block(body) {
+        LineBlock::Paragraph | LineBlock::Html => {}
+        LineBlock::OrderedList => at.push(body.bytes().take_while(u8::is_ascii_digit).count()),
+        LineBlock::Other => at.push(0),
+    }
+    if TASK_LIKE.is_match(body) {
+        at.push(0);
+    }
+    at.sort_unstable();
+    at.dedup();
+    if !at.contains(&0) {
+        let written = with_backslashes(body, &at);
+        if task_from_name(lead, &written, rest, heading) || thematic_break(lead, &written) {
+            at.insert(0, 0);
+        }
+    }
+    with_backslashes(body, &at)
+}
+
 // 行頭 lead と本文のあと rest (空白、見出しの閉じの記号、末尾の印) の間に置く名前を逃がしたもの
 fn escaped(lead: &str, name: &str, rest: &str, heading: bool) -> String {
     let mut at = name_escapes(lead, name, heading);
@@ -170,7 +199,7 @@ fn name_escapes(lead: &str, name: &str, heading: bool) -> Vec<usize> {
     match line_block(name) {
         LineBlock::Paragraph => {}
         LineBlock::OrderedList => at.push(name.bytes().take_while(u8::is_ascii_digit).count()),
-        LineBlock::Other => at.push(0),
+        LineBlock::Html | LineBlock::Other => at.push(0),
     }
     if TASK_LIKE.is_match(name) {
         at.push(0);

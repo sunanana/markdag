@@ -80,22 +80,22 @@ function expectPlainName(source: string, id: number, label: string): void {
     expect(node.task, where).toBeNull();
 }
 
-// can* の並び: canRename、canDelete、canMove、canHaveDetails、canAddChild、canAddSibling、canMark
-type Can = [boolean, boolean, boolean, boolean, boolean, boolean, boolean];
-const ITEM: Can = [true, true, true, true, true, true, true];
+// can* の並び: canRename、canDelete、canMove、canHaveDetails、canAddChild、canAddSibling、canMark、canToggleTask
+type Can = [boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean];
+const ITEM: Can = [true, true, true, true, true, true, true, true];
 // 見出しも詳細を持てる (最後の関門 原文の都合で断る 6。D-039)
-const HEADING: Can = [true, true, true, true, true, true, true];
-const ROOT_HEADING: Can = [true, false, false, true, true, true, true];
+const HEADING: Can = [true, true, true, true, true, true, true, true];
+const ROOT_HEADING: Can = [true, false, false, true, true, true, true, true];
 // 下線の見出しと行頭に空白のある ATX の見出しは、印を書く前に ATX の見出しに書き直すので印を書ける (最後の関門 原文の都合で断る 1。D-039)
-const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true];
-const CONTAINER: Can = [false, true, false, false, true, false, false];
-const BLOCK: Can = [false, true, true, false, false, false, false];
+const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true, true];
+const CONTAINER: Can = [false, true, false, false, true, false, false, false];
+const BLOCK: Can = [false, true, true, false, false, false, false, false];
 // 行を持たないルートの名前は frontmatter の title なので、名前を変えられる (例の承認のルートのタイトル)
-const LINELESS_ROOT: Can = [true, false, false, false, true, true, false];
+const LINELESS_ROOT: Can = [true, false, false, false, true, true, false, false];
 
 function inspected(id: number, kind: core.InspectNodeResult['kind'], label: string, details: string | null, task: boolean, can: Can): core.InspectNodeResult {
-    const [canRename, canDelete, canMove, canHaveDetails, canAddChild, canAddSibling, canMark] = can;
-    return { id, kind, label, details, task, canRename, canDelete, canMove, canHaveDetails, canAddChild, canAddSibling, canMark };
+    const [canRename, canDelete, canMove, canHaveDetails, canAddChild, canAddSibling, canMark, canToggleTask] = can;
+    return { id, kind, label, details, task, canRename, canDelete, canMove, canHaveDetails, canAddChild, canAddSibling, canMark, canToggleTask };
 }
 
 function thrown(run: () => unknown): unknown {
@@ -194,6 +194,7 @@ describe('editSource と inspectNode (GUI 編集の段 2: 書き換えの土台�
             canAddChild: boolean;
             canAddSibling: boolean;
             canMark: boolean;
+            canToggleTask: boolean;
         }>();
         expectTypeOf(markdag.editSource).toEqualTypeOf(core.editSource);
         expectTypeOf(markdag.inspectNode).toEqualTypeOf(core.inspectNode);
@@ -762,7 +763,7 @@ describe('editSource の addChild と addSibling (GUI 編集の段 3: メイン�
     it('見出しの最後の子が表、コード、画像なら canAddChild は false で、addChild は structure-changed (兄弟は足せる)。見出しの canHaveDetails は true (D-079)', () => {
         for (const source of HEADING_WITH_BLOCKS) {
             expect(nodeOf(source, 3).parent, source).toBe(2);
-            expect(core.inspectNode(source, { id: 2, refText: 'A' }), source).toEqual(inspected(2, 'heading', 'A', null, false, [true, true, true, true, false, true, true]));
+            expect(core.inspectNode(source, { id: 2, refText: 'A' }), source).toEqual(inspected(2, 'heading', 'A', null, false, [true, true, true, true, false, true, true, true]));
             expect(addChild(source, 2, 'A'), source).toEqual(refused('structure-changed'));
         }
         const level6 = '# R\n###### F\n\n~~~\nx\n~~~\n';

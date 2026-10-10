@@ -79,19 +79,21 @@ const DOC_VIEW = docWith(['mode: view']);
 const DOC_SWITCH = docWith(['mode: switch', 'default: edit']);
 
 // 1 つのノードを選んだときの帯の並び (sep は区切り)
-const NODE_BAR = ['rename', 'child', 'sibling', 'details', 'tag-add', 'tag-select', 'sep', 'delete'];
+const NODE_BAR = ['rename', 'child', 'sibling', 'details', 'tag-add', 'tag-select', 'task', 'sep', 'delete'];
 // ルートを選んだときの帯のボタン (兄弟と削除がない)
-const ROOT_BAR_COMMANDS = ['rename', 'child', 'details', 'tag-add', 'tag-select'];
+const ROOT_BAR_COMMANDS = ['rename', 'child', 'details', 'tag-add', 'tag-select', 'task'];
 // 2 つ以上を選んだときの帯の並び (title は選んだ数)
-const NODES_BAR = ['title', 'join-new', 'join-existing', 'group', 'tag-add', 'tag-select', 'sep', 'delete'];
-// 帯のボタンと、押せるかを決める inspectNode の欄。タグは 1 行目の印なので canMark
-const CAN: Record<string, keyof InspectNodeResult> = {
+const NODES_BAR = ['title', 'join-new', 'join-existing', 'group', 'tag-add', 'tag-select', 'task', 'sep', 'delete'];
+// 帯のボタンと、押せるかを決める inspectNode の欄。タグは 1 行目の印なので canMark。
+// タスク化は欄でなく種類で決まる (タスクにできるのは自分の行を持つ見出しと項目)
+const CAN: Record<string, keyof InspectNodeResult | ((inspect: InspectNodeResult) => boolean)> = {
     rename: 'canRename',
     child: 'canAddChild',
     sibling: 'canAddSibling',
     details: 'canHaveDetails',
     'tag-add': 'canMark',
     'tag-select': 'canMark',
+    task: (inspect) => inspect.kind === 'heading' || inspect.kind === 'item',
     delete: 'canDelete',
 };
 
@@ -728,7 +730,7 @@ const hintText = async (page: Page): Promise<string> => ((await hint(page).textC
 const countPattern = (count: number): RegExp => new RegExp(`(^|[^0-9])${count}([^0-9]|$)`);
 
 test.describe('ノードを押して選ぶと出る帯 (B-011、B-012、B-076、3.8、6.5)', () => {
-    test('@editor 選択の道具でノードを押すと、そのノードだけに data-selected が付き、ノードの上に帯 (data-for="node") が 1 つ出る。並びは 名前、子の追加、兄弟追加、詳細編集、タグ追加、タグ選択、(区切り)、削除', async ({ page }) => {
+    test('@editor 選択の道具でノードを押すと、そのノードだけに data-selected が付き、ノードの上に帯 (data-for="node") が 1 つ出る。並びは 名前、子の追加、兄弟追加、詳細編集、タグ追加、タグ選択、タスク化、(区切り)、削除', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mount(page, DOC);
@@ -776,7 +778,7 @@ test.describe('ノードを押して選ぶと出る帯 (B-011、B-012、B-076、
         expect(await getSource(page)).toBe(DOC);
     });
 
-    test('@editor ルートを選んだ帯には兄弟追加と削除がなく、名前、子の追加、詳細編集、タグ追加、タグ選択の順 (B-012、10.2 の B-012)', async ({ page }) => {
+    test('@editor ルートを選んだ帯には兄弟追加と削除がなく、名前、子の追加、詳細編集、タグ追加、タグ選択、タスク化の順 (B-012、10.2 の B-012)', async ({ page }) => {
         await open(page);
         await mount(page, DOC);
         await useSelectTool(page);
@@ -787,7 +789,7 @@ test.describe('ノードを押して選ぶと出る帯 (B-011、B-012、B-076、
         expect(bar?.items.filter((item) => item !== 'sep')).toEqual(ROOT_BAR_COMMANDS);
     });
 
-    test('@editor 帯のボタンは、inspectNode の can* が false なら押せない (見出し、項目、下線の見出し、コード、行頭に空白のある見出し) (3.8)', async ({ page }) => {
+    test('@editor 帯のボタンは、inspectNode の can* が false なら押せない。タスク化は種類が見出しか項目でなければ押せない (見出し、項目、下線の見出し、コード、行頭に空白のある見出し) (3.8)', async ({ page }) => {
         await open(page);
         await mount(page, DOC_KINDS);
         await useSelectTool(page);
@@ -815,7 +817,7 @@ test.describe('ノードを押して選ぶと出る帯 (B-011、B-012、B-076、
             expect(commands, `ノード ${id}`).toEqual(id === ROOT ? ROOT_BAR_COMMANDS : NODE_BAR.filter((item) => item !== 'sep'));
             const expectedDisabled = commands.filter((command) => {
                 const key = CAN[command];
-                return key !== undefined && inspect[key] === false;
+                return key !== undefined && (typeof key === 'function' ? !key(inspect) : inspect[key] === false);
             });
             expect(bar?.disabled, `ノード ${id} (${inspect.kind})`).toEqual(expectedDisabled);
             seen.disabled += expectedDisabled.length;
@@ -1087,7 +1089,7 @@ test.describe('修飾キーのクリック (B-062、B-063)', () => {
 });
 
 test.describe('複数の選択 (B-064、B-065、5.2 の軸 C)', () => {
-    test('@editor 2 つ以上を選ぶと、それぞれに data-selected、全体を囲む外枠が 1 つ、帯 (data-for="nodes") に選んだ数と 合流ノードを作る、既存のノードへ合流、グループ、タグ追加、タグ選択、(区切り)、削除', async ({ page }) => {
+    test('@editor 2 つ以上を選ぶと、それぞれに data-selected、全体を囲む外枠が 1 つ、帯 (data-for="nodes") に選んだ数と 合流ノードを作る、既存のノードへ合流、グループ、タグ追加、タグ選択、タスク化、(区切り)、削除', async ({ page }) => {
         await open(page);
         await mount(page, DOC);
         await useSelectTool(page);

@@ -24,9 +24,10 @@ export type EnterRole = 'plain' | 'add' | 'step';
 // 親、書いた順で 1 つ上の兄弟、1 つ下の兄弟を選んでその名前の入力を開く。delete は選んだノードを配下ごと消す。
 // join は選んだノードから新しいノードへ合流させる。group は選んだノードをグループにまとめる (ブラウザの検索より先に受ける)。
 // details は選んだノードの詳細の入力を開く。tag-add は選んだノードのタグ追加のパネルを開く。
+// task は選んだノードのタスク化か解除 (Shift つきは命令にしない)。
 // hand と select はその道具に替える (名前は道具と同じ)。
 // 矢印キーは選ぶノードを移す命令で、名前はキーと同じ (どこへ移すかは並びの部品が決める)
-export type KeyCommand = 'undo' | 'redo' | 'cancel' | 'rename' | 'add-child' | 'add-sibling' | 'add-sibling-before' | 'rename-parent' | 'rename-previous' | 'rename-next' | 'delete' | 'join' | 'group' | 'details' | 'tag-add' | 'hand' | 'select' | ArrowKey;
+export type KeyCommand = 'undo' | 'redo' | 'cancel' | 'rename' | 'add-child' | 'add-sibling' | 'add-sibling-before' | 'rename-parent' | 'rename-previous' | 'rename-next' | 'delete' | 'join' | 'group' | 'details' | 'tag-add' | 'task' | 'hand' | 'select' | ArrowKey;
 
 const ARROW_KEYS: readonly string[] = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'] satisfies readonly ArrowKey[];
 
@@ -76,6 +77,7 @@ export function commandForKey(input: KeyInput, platform: KeyPlatform): KeyComman
         if (input.key.toLowerCase() === 'j') return 'join';
         if (input.key.toLowerCase() === 'd') return 'details';
         if (input.key.toLowerCase() === 't') return 'tag-add';
+        if (input.key.toLowerCase() === 'x') return input.shiftKey ? null : 'task';
         if (input.key.toLowerCase() === 'h') return 'hand';
         if (input.key.toLowerCase() === 'v') return 'select';
         return ARROW_KEYS.includes(input.key) ? (input.key as ArrowKey) : null;

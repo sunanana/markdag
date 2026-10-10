@@ -1,0 +1,45 @@
+kind: 正常
+checks: >-
+    タスクでないノードを 1 つ選ぶと、コンテキストメニューのタグ選択のあと、区切りと削除の前に「タスク化」ボタンが出る (title に X、幅 70px)。ヒントに「X タスク化 / 解除」が入る。
+    押すと行頭の印のあとに [ ] を書き、スナックバーに「「見積もりを取る」をタスク化しました」。選択はそのまま、フォーカスは図に戻る。ボタンは「タスク解除」に替わるが、幅 (70px) もコンテキストメニューの幅と位置も変わらない。
+    続けて押すと記号を外し「「見積もりを取る」のタスクを解除しました」。⌘Z は 1 回で 1 つ前の原文に戻り、⌘⇧Z でやり直せる
+states: ['task:K2.v1', 'task:K2.v2', 'task:K2.v3', 'task:K2.k1', 'task:K3.v1', 'task:K32.k2', 'task:H1.h1', 'task:H1.h5', 'task:H1.h6']
+decisions: ['spec.md 案 1 (置き場、名前、幅を変えない、位置を保つ、title に X、フォーカス)、書き換えのあと (通知の文、⌘Z)', '作ったものを触る関門 1/17、6/17、7/17 の b、11/17', '直したものを触る関門 1/13、2/13']
+steps:
+    - click: { node: 見積もりを取る }
+      expect:
+          selection: nodes:見積もりを取る
+          bar: node
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task, delete]
+          bar_labels: { task: タスク化 }
+          bar_titles: { task: { contains: (X) } }
+          bar_widths: { task: 70 }
+          hint: { contains: X タスク化 / 解除 }
+    - click: { bar: task }
+      expect:
+          source: after-add.md
+          selection: nodes:見積もりを取る
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました }
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task, delete]
+          bar_labels: { task: タスク解除 }
+          bar_titles: { task: { contains: (X) } }
+          bar_widths: { task: 70 }
+          bar_resized: false
+          bar_moved: false
+          focus: diagram
+    - click: { bar: task }
+      expect:
+          source: input.md
+          selection: nodes:見積もりを取る
+          notice: { kind: info, text: 「見積もりを取る」のタスクを解除しました }
+          bar_labels: { task: タスク化 }
+          bar_widths: { task: 70 }
+          bar_resized: false
+          bar_moved: false
+          focus: diagram
+    - key: ControlOrMeta+z
+      expect: { source: after-add.md, selection: nodes:見積もりを取る }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: nodes:見積もりを取る }
+    - key: ControlOrMeta+Shift+z
+      expect: { source: after-add.md, selection: nodes:見積もりを取る }

@@ -1,0 +1,55 @@
+kind: 境界
+checks: >-
+    ノードを 1 つ選んでいても、手のひら、名前の入力、詳細の入力、タグのパネルを開いている間、合流先を選ぶ途中、閲覧ではノードの左のチェックを出さない。
+    選択の道具に戻す、入力やパネルを閉じると、選んだノードの左にまた出す。Space を押している間 (Space+ドラッグで図を動かす途中を含む) と、ノードを付け替えるドラッグの途中は出したまま。
+    閲覧へ切り替えると選択が解けるので、GUI 編集に戻してもノードを選ぶまで出さない
+note: >-
+    2026-10-09 に、チェックを選んでいるときに出す形に書き直した (例の承認の関門 6/17)。合流先を選ぶ途中は 2 つ以上を選んでいるときにしか入らないので、2 つ以上で出さないことと同じ見え方になる
+states: ['task:C2.c23', 'task:C26.c1', 'task:C26.c23', 'task:C2.c21', 'task:C23.c1', 'task:C2.c22', 'task:C24.c1', 'task:C25.c1', 'task:C31.c1', 'task:C2.c17', 'task:C31.c17', 'task:C29.c1', 'task:C29.c3', 'task:C27.c1', 'task:C27.c13', 'task:C36.c27', 'task:C32.c2', 'task:C32.c27']
+decisions: ['spec.md 案 3 (手のひら、名前などの入力中、合流先を選ぶ途中、閲覧では出さない)', '例の承認の関門 6/17', '直したものを触る (3 回目) 2/9 の a (Space を押している間とドラッグの途中も出したまま)']
+steps:
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - key: h
+      expect: { tool: hand, selection: nodes:見積もりを取る, task_check: null }
+    - key: v
+      expect: { tool: select, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - key: Enter
+      expect: { input: name, task_check: null }
+    - key: Escape
+      expect: { input: none, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - key: d
+      expect: { input: details, task_check: null }
+    - key: Escape
+      expect: { input: none, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - key: t
+      expect: { input: tag-add, task_check: null }
+    - key: Escape
+      expect: { input: none, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - keydown: ' '
+      expect: { source: input.md, task_check: 見積もりを取る }
+    - pan: { dx: -60, dy: 30 }
+      expect: { moved: true, source: input.md, task_check: 見積もりを取る }
+    - keyup: ' '
+      expect: { source: input.md, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - drag: { from: { node: 見積もりを取る }, to: { node: 手続き }, release: false }
+      expect: { drop_target: 手続き, task_check: 見積もりを取る }
+    - up: { blank: true }
+      expect: { source: input.md, drop_target: null, selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - click: { node: 不用品を処分する }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,不用品を処分する', task_check: null }
+    - click: { bar: join-existing }
+      expect: { tool: join-target, task_check: null }
+    - click: { blank: true }
+      expect: { tool: select, selection: 'nodes:見積もりを取る,不用品を処分する', task_check: null }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - set_mode: view
+      expect: { mode: view, task_check: null }
+    - hover: { node: 転出届を出す }
+      expect: { task_check: null }
+    - set_mode: edit
+      expect: { mode: edit, selection: none, task_check: null }
+    - click: { node: 不用品を処分する }
+      expect: { selection: nodes:不用品を処分する, task_check: 不用品を処分する }

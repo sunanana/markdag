@@ -293,12 +293,19 @@
     appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 44px;
     margin: 0; padding: 4px 5px 3px; border: 0; border-radius: 5px; background: transparent; color: inherit; font: inherit; white-space: nowrap; cursor: pointer;
 }
-.mdag-editor-bar-button:hover:not(:disabled) { background: var(--mdag-editor-hover); color: var(--markdag-text); }
+.mdag-editor-bar-button:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--mdag-editor-hover); color: var(--markdag-text); }
 .mdag-editor-bar-button[data-command="delete"] { color: var(--mdag-editor-danger); }
-.mdag-editor-bar-button:disabled { opacity: 0.4; cursor: default; }
+/* 無効のボタン。タスク化のボタンは押下を受けたまま aria-disabled で無効を示すので、同じ見た目にする */
+.mdag-editor-bar-button:disabled, .mdag-editor-bar-button[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .mdag-editor-bar-button:focus { outline: none; }
 .mdag-editor-bar-button:focus-visible { outline: 2px solid var(--markdag-accent); outline-offset: 1px; }
 .mdag-editor-bar-sep { width: 1px; margin: 4px 2px; background: var(--markdag-border); }
+/* タスク化のボタンの名前。今でない名前 (data-other) を見えない字で同じ所に重ね、「タスク化」と「タスク解除」のどちらでもボタンの幅を同じにする。
+   字の幅はブラウザで違うので、幅の下限を決めてどのブラウザでも同じ幅にする */
+.mdag-editor-bar-button[data-command="task"] { min-width: 70px; }
+.mdag-editor-bar-button[data-command="task"] > span { display: grid; justify-items: center; }
+.mdag-editor-bar-button[data-command="task"] > span > span, .mdag-editor-bar-button[data-command="task"] > span::after { grid-area: 1 / 1; }
+.mdag-editor-bar-button[data-command="task"] > span::after { content: attr(data-other); visibility: hidden; }
 /* 2 つ以上を選んだときの全体の外枠。選んだノードの全体の矩形に重ね、少し外側に破線を描く。押下は下のノードへ通す */
 .mdag-editor-selection-bounds { pointer-events: none; outline: 1px dashed var(--markdag-accent); outline-offset: 6px; border-radius: 4px; }
 /* 矩形選択の矩形。押下は受けない */
@@ -360,6 +367,12 @@
    つまみの要素の中に置くので、乗せたときのカーソルと強調はつまみの絵の上と同じ */
 .mdag-editor-handle-hit { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .mdag-editor-handle-hit > div { position: absolute; }
+/* 選んだノードがタスクでないときに、ノードの左に出すチェック (破線の四角にチェック)。子と兄弟の + と線を引く点と同じ色で、初めから濃く出す。
+   乗せたときは + と同じく、四角を塗り、チェックを地の色にする */
+.mdag-editor-task-check { display: flex; padding: 2px; border-radius: 5px; color: var(--markdag-accent); cursor: pointer; }
+.mdag-editor-task-check rect { fill: var(--markdag-bg); }
+.mdag-editor-task-check:hover rect { fill: currentColor; }
+.mdag-editor-task-check:hover path { stroke: var(--markdag-bg); }
 /* 線を引くドラッグと合流させるドラッグの途中の引く線。図の領域と同じ大きさの入れ物に描き、押下は受けない (ポインタの下のノードを隠さない) */
 .mdag-editor-link-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mdag-editor-link-preview { fill: none; stroke: var(--markdag-accent); stroke-width: 2; stroke-dasharray: 6 4; }

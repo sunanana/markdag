@@ -1,0 +1,28 @@
+kind: 境界
+checks: >-
+    ルートの見出しを選ぶと、ルートのコンテキストメニュー (兄弟追加と削除がない) の最後に「タスク化」ボタンが出る。
+    押すと # のあとに [ ] を書き「「引っ越し」をタスク化しました」、ボタンは「タスク解除」に替わる。X で記号を外し「「引っ越し」のタスクを解除しました」
+states: ['task:K7.v1', 'task:K7.v2', 'task:K7.k1', 'task:K32.k4', 'task:P7.p1']
+decisions: ['spec.md タスクにできるノード (ルートの見出しを含む)、案 1 (ルートの帯にも出す)', '作ったものを触る関門 3/17']
+steps:
+    - click: { node: 引っ越し }
+      expect:
+          selection: nodes:引っ越し
+          bar: node
+          bar_buttons: [rename, child, details, tag-add, tag-select, task]
+          bar_labels: { task: タスク化 }
+          bar_titles: { task: { contains: (X) } }
+    - click: { bar: task }
+      expect:
+          source: after-add.md
+          selection: nodes:引っ越し
+          notice: { kind: info, text: 「引っ越し」をタスク化しました }
+          bar_buttons: [rename, child, details, tag-add, tag-select, task]
+          bar_labels: { task: タスク解除 }
+    - key: x
+      expect:
+          source: input.md
+          selection: nodes:引っ越し
+          notice: { kind: info, text: 「引っ越し」のタスクを解除しました }
+          bar_labels: { task: タスク化 }
+          key_prevented: true

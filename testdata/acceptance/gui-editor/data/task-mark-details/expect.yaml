@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    詳細 (2 行目からの引用ブロック) のある項目をタスク化すると、1 行目だけに [ ] と空白を書き、詳細の行は変えない
+states: ['task:P11.p2']
+decisions: ['spec.md 書き換え (タスク化)']
+op:
+    kind: toggleTaskMark
+    nodes: [不用品を処分する]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [不用品を処分する] }
+    rename: null
+    notes: []

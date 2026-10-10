@@ -1,0 +1,15 @@
+kind: 正常
+checks: >-
+    指したノードが全部タスクなら、状態によらず (未着手 [ ]、作業中 [/]、完了 [x] と [X]、中止 [-]) 全部の記号とあとの空白を外す。
+    指していない項目 (見積もりを取る) は変えない
+states: ['task:K13.k2', 'task:P15.p2']
+decisions: ['spec.md 書き換え (タスク解除は状態によらない)、2 つ以上を選んだとき (全部タスクならタスク解除)', '作ったものを触る関門 5/17']
+op:
+    kind: toggleTaskMark
+    nodes: [荷造りの箱を買う, 荷物をまとめる, 新居を決める, 業者を決める, 古い家具を売る]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [荷造りの箱を買う, 荷物をまとめる, 新居を決める, 業者を決める, 古い家具を売る] }
+    rename: null
+    notes: []

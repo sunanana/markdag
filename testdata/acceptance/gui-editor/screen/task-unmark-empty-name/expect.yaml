@@ -1,0 +1,43 @@
+kind: 境界
+checks: >-
+    名前が空のタスクの項目 (`- [ ] ` だけの行。図の名前は「[ ]」) を選ぶと、コンテキストメニューの「タスク解除」は有効のまま。
+    押しても X でも、記号を `\` で逃がして `- \[ ]` と書き、名前「[ ]」のタスクでない項目として残す (名前と id は変わらないので、選択はそのまま)。
+    スナックバーはほかのタスク解除と同じ「「[ ]」のタスクを解除しました」。タスクでなくなったのでチェックが出る。
+    もう一度 X でタスク化すると `- [ ] \[ ]` (名前は「[ ]」のまま)。⌘Z で 1 回ずつ戻る
+states: ['task:P33.p1', 'task:P33.p2', 'task:P33.p3', 'task:P33.p4', 'task:P33.p5']
+decisions: ['spec.md 書き換え (名前が空のタスクの項目のタスク解除は `- \[ ]` と逃がして書く。名前と id は変わらない)', '例の承認の関門 (2 回目) 5/7 の d', 'spec.md 書き換えのあと (選んでいたものは選んだまま、通知の文)']
+note: 名前が空のタスクの項目は箱に名前の字がないので、下の項目を選んでから ↑ で選ぶ (screen/task-empty-name と同じ)。付け直したときに `\` が残るのは、例の承認の関門の 16/18 の a (外して付け直すと `\` が残る) と同じ
+steps:
+    - click: { node: 名前のある項目 }
+      expect: { selection: nodes:名前のある項目 }
+    - key: ArrowUp
+      expect:
+          selection: 'nodes:[ ]'
+          bar: node
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task, delete]
+          bar_labels: { task: タスク解除 }
+          task_check: null
+    - key: x
+      expect:
+          source: after-unmark.md
+          selection: 'nodes:[ ]'
+          notice: { kind: info, text: '「[ ]」のタスクを解除しました' }
+          bar_labels: { task: タスク化 }
+          task_check: '[ ]'
+    - key: x
+      expect:
+          source: after-remark.md
+          selection: 'nodes:[ ]'
+          notice: { kind: info, text: '「[ ]」をタスク化しました' }
+          bar_labels: { task: タスク解除 }
+          task_check: null
+    - key: ControlOrMeta+z
+      expect: { source: after-unmark.md }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: 'nodes:[ ]', bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect:
+          source: after-unmark.md
+          selection: 'nodes:[ ]'
+          notice: { kind: info, text: '「[ ]」のタスクを解除しました' }
+          bar_labels: { task: タスク化 }

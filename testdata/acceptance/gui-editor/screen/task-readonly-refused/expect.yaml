@@ -1,0 +1,50 @@
+kind: 誤り
+checks: >-
+    読み取りだけのグループ (markdag.rules.taskToggle.readonlyGroups。表示の名前は「確定済み」) のノードは、タスク化もタスク解除もしない (U2 の答え)。
+    選んだものが全部読み取りだけのグループのノードなら、コンテキストメニューのタスクのボタンは無効 (グレーアウト)。名前は書き換えられるとしたら何をするかで決まる (全部タスクなら「タスク解除」、1 つでもタスクでないものがあれば「タスク化」)。
+    無効でも押すと、原文を変えずにスナックバーに、しようとした操作に合う理由を出す (「「確定済み」のグループは読み取り専用のため、タスク解除できません」/「…タスク化できません」。誤り)。X も同じ文。
+    タスクにできないノード (表) と一緒でも、読み取りだけのノードで名前を決め、読み取りだけの理由を先に出す
+states: ['task:K16.v1', 'task:K16.k3', 'task:K16.k4', 'task:K17.v1', 'task:K17.k3', 'task:K17.k4', 'task:K18.v1', 'task:K18.k3', 'task:K20.v1', 'task:K20.k3']
+decisions: ['spec.md U2 (読み取りだけのグループ)、2 つ以上を選んだとき (無効のボタンの名前、断りの文)', '作ったものを触る関門 13/17 の c、14/17 の b', '直したものを触る関門 7/14、9/14、12/15、13/15、14/16', '直したものを触る (2 回目) 2/7、4/7、5/7']
+steps:
+    - click: { node: 業者を決める }
+      expect:
+          selection: nodes:業者を決める
+          bar: node
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク解除 }
+    - click: { bar: task }
+      expect: { source: input.md, selection: nodes:業者を決める, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク解除できません } }
+    - click: { node: 日取りを決める }
+      expect:
+          selection: nodes:日取りを決める
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect: { source: input.md, selection: nodes:日取りを決める, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク化できません } }
+    - click: { node: 業者を決める }
+    - key: x
+      expect: { source: input.md, selection: nodes:業者を決める, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク解除できません }, key_prevented: true }
+    - click: { node: 日取りを決める }
+      mod: Shift
+      expect:
+          selection: 'nodes:業者を決める,日取りを決める'
+          bar: nodes
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect: { source: input.md, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク化できません } }
+    - key: Escape
+    - click: { node: 業者を決める }
+    - click: { node: { id: 6 } }
+      mod: Shift
+      expect:
+          selection: 'nodes:業者を決める,(id 6)'
+          bar: nodes
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク解除 }
+    - click: { bar: task }
+      expect: { source: input.md, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク解除できません } }
+    - click: { node: 日取りを決める }
+    - key: x
+      expect: { source: input.md, selection: nodes:日取りを決める, notice: { kind: error, text: 「確定済み」のグループは読み取り専用のため、タスク化できません }, key_prevented: true }

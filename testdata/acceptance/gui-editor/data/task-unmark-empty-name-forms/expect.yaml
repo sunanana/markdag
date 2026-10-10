@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    名前が空のタスクは、項目でも見出しでも、状態によらず (未着手、作業中、完了の大文字 [X])、名前のあとに印 (%グループ) があっても、
+    記号を `\` で逃がして名前として残す (`## \[ ]`、`- \[x]`、`- \[/]`、`- \[ ] %g1`)。名前と id は変わらない
+    (大文字の [X] の名前は解析では [x] なので、`\[x]` と書く)。グループの所属 (%g1) と frontmatter は変えない
+states: ['task:P33.p2', 'task:P36.p2', 'task:P37.p2', 'task:P38.p2']
+decisions: ['spec.md 書き換え (名前が空のタスクの項目のタスク解除は `- \[ ]` と逃がして書く。名前と id は変わらない。タスク解除は状態によらない。名前のあとの印は変えない)', '例の承認の関門 (2 回目) 5/7 の d']
+op:
+    kind: toggleTaskMark
+    nodes: [{ id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['[ ]', '[x]', '[/]', '[ ]'] }
+    rename: null
+    notes: []

@@ -1,9 +1,10 @@
 kind: 正常
 decided: [U-08]
 checks: >-
-    Shift / ⌘ +クリックでノードを足す・外す。2 つ以上で、帯 (選んだ数、合流ノードを作る、既存のノードへ合流、グループ、タグ追加、タグ選択、削除)、
+    Shift / ⌘ +クリックでノードを足す・外す。2 つ以上で、帯 (選んだ数、合流ノードを作る、既存のノードへ合流、グループ、タグ追加、タグ選択、タスク化、削除)、
     合流させる点、全体の外枠を出す。ルートは足さず理由を知らせる。何もないところからのドラッグで矩形選択、修飾キーつきの矩形は足す。
     矩形の途中の Esc は矩形をやめ (矩形が消え)、離しても何も選ばない。選択は Esc の前のまま (U-08 で決まった)。2 つ以上を選んで Delete を押すと全部を消し、1 回の元に戻すで戻る
+note: 2026-10-09 にタスク化で書き直した (帯の並びにタスク化を足した。0.12.1 の期待は docs/ignore/feature/task_ka/records/deviations.md)
 behaviors: [B-041, B-062, B-063, B-064, B-065, B-060, B-061, B-047, B-085, B-100]
 states: [C2.c2, C3.c2, C3.c11, C1.c3, C3.c4, C3.c3, E4.e2, E4.e5, E4.e3]
 decisions: [F-01 (修飾キーは Shift と ⌘)]
@@ -16,7 +17,7 @@ steps:
           selected: [画面, API]
           bar: nodes
           bar_title: 2 個を選択
-          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, delete]
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task, delete]
           handles: [join]
           bounds: 1
           hint: { contains: 合流ノードを作る }

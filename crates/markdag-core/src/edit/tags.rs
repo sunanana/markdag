@@ -181,9 +181,9 @@ pub(super) fn toggle_tag(
     })
 }
 
-// 指したノード (文書の順、重ねて指したものは 1 つ) と書き換える前の原文の解析。古い NodeTarget なら断り、
-// ノードがなければ変えない
-fn selected<'s>(
+/// 指したノード (文書の順、重ねて指したものは 1 つ) と書き換える前の原文の解析。古い NodeTarget なら断り、
+/// ノードがなければ変えない
+pub(super) fn selected<'s>(
     source: &'s str,
     targets: &[NodeTarget],
 ) -> Result<(ParsedSource<'s>, Vec<OutlineNode>), EditSourceResult> {

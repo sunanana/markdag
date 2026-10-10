@@ -1,0 +1,44 @@
+kind: 境界
+checks: >-
+    文書の先頭に BOM (U+FEFF) があり、1 行目の項目 (一行目の項目) をコンテキストメニューの「タスク化」でタスク化すると、BOM を外して `- [ ] 一行目の項目` と書く。
+    スナックバーは BOM のない文書と同じ「「一行目の項目」をタスク化しました」で、BOM のことは出さない。X で外しても BOM は戻らず、スナックバーも同じ形。
+    ⌘Z は 1 回ずつ戻り、2 回で BOM のある元の原文に戻る。ノードの左のチェックで押しても同じく BOM を外して書く。
+    2 行目の項目のタスク化では BOM に触らない
+note: >-
+    BOM は見えない字なので、原文の比べは input.md と after-second.md の先頭の BOM を含めた全文。例の Markdown に frontmatter を置くと 1 行目がノードの行でなくなるので、
+    GUI 編集で開くのは mount のオプションの mode (edit) で指定した。
+    確認ページの自動の通しでは、原文の欄 (Monaco) が BOM を持てず BOM のない原文で開くので、BOM のある原文と比べる段 5、7、9 が食い違う (e2e は BOM のまま開いて照らす)
+mount: { mode: edit }
+states: ['task:K36.v1', 'task:K36.k1', 'task:P19.p1', 'task:P19.p3', 'task:P19.p4', 'task:C15.c1', 'task:C15.c4', 'task:P20.p2']
+decisions: ['spec.md 書き換え (文書の先頭に BOM があり 1 行目のノードに記号を付ける / 外すときは BOM を外して書く。BOM を外したことはスナックバーに出さない)', '例の承認の関門 8/17 の d', '直したものを触る (3 回目) 4/9', '直したものを触る (4 回目) 2/2 (BOM の知らせを出さない)']
+steps:
+    - click: { node: 一行目の項目 }
+      expect: { selection: nodes:一行目の項目, bar: node, bar_labels: { task: タスク化 }, task_check: 一行目の項目 }
+    - click: { bar: task }
+      expect:
+          source: after-first.md
+          selection: nodes:一行目の項目
+          bar_labels: { task: タスク解除 }
+          notice: { kind: info, text: 「一行目の項目」をタスク化しました }
+          task_check: null
+    - key: x
+      expect:
+          source: after-first-unmark.md
+          selection: nodes:一行目の項目
+          notice: { kind: info, text: 「一行目の項目」のタスクを解除しました }
+          task_check: 一行目の項目
+    - key: ControlOrMeta+z
+      expect: { source: after-first.md }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: nodes:一行目の項目, task_check: 一行目の項目 }
+    - click: { task_check: true }
+      expect:
+          source: after-first.md
+          selection: nodes:一行目の項目
+          notice: { kind: info, text: 「一行目の項目」をタスク化しました }
+          task_check: null
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - click: { node: 二行目の項目 }
+    - key: x
+      expect: { source: after-second.md, selection: nodes:二行目の項目, notice: { kind: info, text: 「二行目の項目」をタスク化しました } }

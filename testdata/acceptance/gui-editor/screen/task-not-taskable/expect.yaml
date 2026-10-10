@@ -1,0 +1,70 @@
+kind: 誤り
+checks: >-
+    タスクにできないノード (表、コード、自分の行を持たないルート) だけを選ぶと、コンテキストメニューの「タスク化」ボタンは無効 (グレーアウト) で名前は「タスク化」のまま。
+    無効でも押すと、原文を変えずにスナックバーに理由「このノードはタスクにできません」(誤り) を出す。X も同じ文。
+    タスクにできる項目と表を一緒に選ぶとボタンは押せ、押すと項目だけをタスク化して「(タスクにできない 1 個はスキップしました)」を足す。選択は表も含めてそのまま
+states: ['task:K10.v1', 'task:K10.k3', 'task:K11.v1', 'task:K11.k4', 'task:K15.v1', 'task:K15.k3', 'task:K14.v1', 'task:K14.k1', 'task:K8.v1', 'task:K8.k3']
+decisions: ['spec.md タスクにできるノード、2 つ以上を選んだとき (スキップの文)、案 1 (タスクにできるノードがなければ押せない)', '作ったものを触る関門 4/17', '直したものを触る関門 8/14 (無効でも押したら理由)、10/14 (「スキップしました」)', '直したものを触る (2 回目) 3/7']
+steps:
+    - click: { node: { id: 5 } }
+      expect:
+          selection: nodes:(id 5)
+          bar: node
+          bar_buttons: [rename(off), child(off), sibling(off), details(off), tag-add(off), tag-select(off), task(off), delete]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect: { source: input.md, selection: nodes:(id 5), notice: { kind: error, text: このノードはタスクにできません } }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - key: x
+      expect: { source: after-add.md, notice: { kind: info, text: 「見積もりを取る」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - click: { node: { id: 7 } }
+      expect:
+          selection: nodes:(id 7)
+          bar_buttons: [rename(off), child(off), sibling(off), details(off), tag-add(off), tag-select(off), task(off), delete]
+          bar_labels: { task: タスク化 }
+    - key: x
+      expect: { source: input.md, selection: nodes:(id 7), notice: { kind: error, text: このノードはタスクにできません }, key_prevented: true }
+    - click: { node: 見積もりを取る }
+    - click: { node: { id: 5 } }
+      mod: Shift
+      expect:
+          selection: 'nodes:見積もりを取る,(id 5)'
+          bar: nodes
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task, delete]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect:
+          source: after-add.md
+          selection: 'nodes:見積もりを取る,(id 5)'
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました (タスクにできない 1 個はスキップしました) }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: { id: 5 } }
+    - click: { node: { id: 7 } }
+      mod: Shift
+      expect:
+          selection: 'nodes:(id 5),(id 7)'
+          bar: nodes
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect: { source: input.md, selection: 'nodes:(id 5),(id 7)', notice: { kind: error, text: このノードはタスクにできません } }
+    - set_source: title-root.md
+    - click: { node: 牛乳 }
+    - key: x
+      expect: { source: title-root-after.md, notice: { kind: info, text: 「牛乳」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: title-root.md }
+    - key: Escape
+    - click: { node: 買い物リスト }
+      expect:
+          selection: nodes:買い物リスト
+          bar: node
+          bar_buttons: [rename, child, details(off), tag-add(off), tag-select(off), task(off)]
+          bar_labels: { task: タスク化 }
+    - click: { bar: task }
+      expect: { source: title-root.md, selection: nodes:買い物リスト, notice: { kind: error, text: このノードはタスクにできません } }

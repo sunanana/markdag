@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    改行が CRLF の文書でタスク化すると、書き換えた行も CRLF のまま (行末の \r を残す)。ほかの行は変えない。
+    タスクのもの (荷造りの箱を買う) と一緒に指すと、タスクでないものだけに [ ] を書く
+states: ['task:P16.p2']
+decisions: ['spec.md 書き換え (タスク化)、2 つ以上を選んだとき (1 つでもタスクでないものがあればタスク化)']
+op:
+    kind: toggleTaskMark
+    nodes: [見積もりを取る, 荷造りの箱を買う]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [見積もりを取る, 荷造りの箱を買う] }
+    rename: null
+    notes: []

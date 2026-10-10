@@ -316,15 +316,18 @@ fn fresh_marks(node: &OutlineNode, task: bool) -> bool {
 
 // 1 行目の印 (タグはキーと値。位置は名前の長さで動くので比べない)、グループ、$id、タスクの状態が同じか
 pub(super) fn same_marks(old: &OutlineNode, new: &OutlineNode) -> bool {
+    same_trailing_marks(old, new)
+        && old.task.as_ref().map(|task| task.state) == new.task.as_ref().map(|task| task.state)
+}
+
+/// 1 行目の末尾の印 (タグはキーと値。位置は名前の長さで動くので比べない)、グループ、$id が同じか (タスクの状態は見ない)
+pub(super) fn same_trailing_marks(old: &OutlineNode, new: &OutlineNode) -> bool {
     let tags = |tags: &[NodeTag]| -> Vec<(String, Vec<String>)> {
         tags.iter()
             .map(|tag| (tag.key.clone(), tag.values.clone()))
             .collect()
     };
-    tags(&old.tags) == tags(&new.tags)
-        && old.groups == new.groups
-        && old.ref_id == new.ref_id
-        && old.task.as_ref().map(|task| task.state) == new.task.as_ref().map(|task| task.state)
+    tags(&old.tags) == tags(&new.tags) && old.groups == new.groups && old.ref_id == new.ref_id
 }
 
 #[cfg(test)]

@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    下線で書く見出し (=== と ---) のタスクも解除できる (U1 の答え)。見出しの文字の行の先頭の記号 ([x]、[/]) と空白を外し、下線の行は変えない
+states: ['task:P8.p3', 'task:P9.p3']
+decisions: ['U1 (下線の見出しもタスク化 / 解除できる。作ったものを触る関門 12/17 の a)']
+op:
+    kind: toggleTaskMark
+    nodes: [引っ越し, 準備]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [引っ越し, 準備] }
+    rename: null
+    notes: []

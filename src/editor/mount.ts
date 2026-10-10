@@ -11,6 +11,17 @@
 // ノードの文字と詳細のダブルクリックから受けて命令の部品に渡す。Enter の修飾キーの割り当て (兄弟を足すキーと兄弟へ移るキー) は、開くときに 1 回見分けた
 // OS の区分 (mac か win) で決める。Space を押して、ポインタもほかのキーも押さずに離したら、選んだノードのうちタスクのものの印をまとめて 1 つ進める
 // (図の側の口で、印のクリックと同じ確かめを全部に当て、1 回の書き換えにする。履歴も 1 つ)。
+// 帯の「タスク化」/「タスク解除」と X で、選んだノードのタスクの記号を付けるか外す (何も選んでいなければ案内を出す)。帯のボタンの名前と押せるかは
+// 選んだノードの原文の事実と読み取りだけのグループで決め、事実は同じ原文のあいだ控えて引き直さない。書き換えられるノードがなければ帯のボタンは
+// 無効の見た目のまま押せ、押すと X と同じく書き換えずに理由を出す。帯のタスクのボタンを押した直後は、ノードの箱の幅が変わっても帯を画面の上で
+// 同じ左右の位置に保ち、次に帯を置き直すとき (帯のほかのボタンを押したときを含む) に選んだノードの中央へ戻す。X とチェックでは保たない。
+// X はドラッグの途中と合流先を選ぶ途中には受けない (押し間違いでドラッグと合流先を選ぶ途中をやめないため)。
+// 選択の道具でノードを 1 つだけ選んでいて、そのノードがタスクにできてまだタスクでなく、読み取りだけのグループに入らなければ、ノードの左にチェックを出し、
+// 押したらそのノードをタスクにする (選択は変えない)。点と + と同じく、入力とパネルを開いている間、手のひら、合流先を選ぶ途中、閲覧では出さない。
+// 選んだノードが閉じた枝の中に隠れたら (枝を閉じたとき、外からの差し替えで開閉が文書の初めの状態に戻ったとき)、そのノードを選択から外す
+// (2 つ以上なら隠れたものだけ。もう一度開いても選び直さない)。見えないノードを選んだままにすると、キーの操作が見えないノードに当たるため。
+// 選んだグループのメンバーが全部隠れたとき、選んだ線の片方の端が隠れたときも同じく外す。名前の入力と詳細の入力を開いている間に相手が隠れたら、
+// 外を押したときと同じく入れたもので決めて閉じてから外す (見えない入力を残さない。図は動かさず、閉じた枝は閉じたまま)。
 // 道具は道具箱と H (手のひら) / V (選択) で替える (合流先を選ぶ途中ならやめてから替える)。最初の道具は選択。
 // 編集の層の操作と元に戻す / やり直すで原文を書き換えても、関係のない閉じた枝は閉じたままにする。
 // 選択の道具でのノードのドラッグは、ポインタの下の移せる先に枠を出し、離した所のノードへの付け替えの命令にする (ノードの外なら案内)。
@@ -51,11 +62,13 @@ import {
     type DragToPan,
     type EdgeTarget,
     type EditorSettings,
+    type InspectNodeResult,
     type LegendItem,
     type LegendPosition,
     type MarkdagView,
     type NodeTarget,
     type OutlineNode,
+    type OverlayAnchor,
     type OverlaySpan,
     type OverlayTarget,
     type RenderOptions,
@@ -88,13 +101,15 @@ import {
     targetOf,
     toggleGroup,
     toggleNode,
+    withoutFolded,
     type EditorSelection,
 } from './selection';
 import { FALLBACK_EDITOR_SETTINGS, resolveModeRule, sameEditorSettings, type EditorMode, type EditorModeOption, type ModeRule } from './settings';
 import { EditorSource, type Redraw } from './source';
+import { blockedAdding, taskLocksOf, taskPlan } from './tasks';
 import { Tools } from './tools';
 import { ColorPicker } from './ui/color-picker';
-import { ContextBar, type BarCommand } from './ui/context-bar';
+import { ContextBar, type BarCommand, type BarTask } from './ui/context-bar';
 import { Corners } from './ui/corners';
 import { Handles, type DragHandleKind, type PlusHandleKind } from './ui/handles';
 import { Hint, type HintSelection } from './ui/hint';
@@ -102,6 +117,7 @@ import { LegendPanel, type LegendAction } from './ui/legend-panel';
 import { Segment } from './ui/segment';
 import { Snackbar } from './ui/snackbar';
 import type { TagPanelKind } from './ui/tag-panel';
+import { TaskCheck } from './ui/task-check';
 import { Toolbox, type ToolboxItem } from './ui/toolbox';
 
 // render から受け取るオプション。legend と details は編集の層が決めるので受け取らない (図の側の凡例は作らず、凡例のパネルを出す)
@@ -160,6 +176,9 @@ const IDLE_NOTICES: Partial<Record<ToolboxItem, string>> = {
     group: GROUP_IDLE_NOTICE,
 };
 
+// ノードを選んでいないときに、タスク化か解除 (X) を求めたときの案内
+const TASK_PICK_NOTICE = 'タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む)';
+
 // ノードを 1 つだけ選んでいないときに、D で詳細の入力を求めたときの案内
 const DETAILS_PICK_NOTICE = '詳細を書くノードを 1 つだけ選んでから D を押してください (クリックで選ぶ)';
 
@@ -195,6 +214,13 @@ const HEX_INVALID_NOTICE = '16 進の色は #RGB か #RRGGBB の形で入れて�
 
 
 const sameTransform = (a: ViewTransform, b: ViewTransform): boolean => a.k === b.k && a.x === b.x && a.y === b.y;
+
+// 帯を画面の上で保つ左の位置 (図の領域の左上からの画面の px) と、保つのをやめるかを比べる、押した書き換えのあとの原文、図の表示位置、
+// 図の領域の幅、閉じた枝。after は押している途中は null (その間の描き直しでは保ったままにする)
+interface BarHold {
+    left: number;
+    after: { source: string; transform: ViewTransform; areaWidth: number; folded: string } | null;
+}
 
 // undefined の欄を落とす (render は渡された欄で図の指定を上書きするので、undefined を渡すと既定の値が消える)
 function definedOnly<T extends object>(value: Record<string, unknown>): T {
@@ -237,8 +263,11 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     // 操作の帯と複数の選択の外枠を、図の重ね置きの層から外す
     let detachBar: (() => void) | null = null;
     let detachBounds: (() => void) | null = null;
-    // 帯を重ねている相手 (同じ相手なら重ね直さない。押している途中のボタンを動かさないため)
+    // 帯を重ねている相手 (同じ相手なら重ね直さない。押している途中のボタンを動かさないため) と、重ねたときの置き方 (保つのをやめてすぐ置き直すときに使う)
     let barTarget = '';
+    let barAnchor: OverlayAnchor | null = null;
+    // 帯のタスク化のボタンを押した直後に、帯を画面の上で保っている左右の位置 (保っていなければ null)
+    let barHold: BarHold | null = null;
     // 図の線の強調に渡している、選んだ線のキー (GUI 編集で線を選んでいるときだけ。閲覧の図の線の選択には触らない)
     let edgeShown: string | null = null;
     // 図のグループの強調を渡しているか (GUI 編集でグループを選んでいるときだけ。閲覧の図のグループの選択には触らない)
@@ -258,6 +287,12 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     // 最後に描いた文書の凡例の出す指定 (変わったときだけ開閉を初めの状態に戻す) と、パネルを置いている隅
     let legendDisplay: readonly LegendItem[] | null = null;
     let legendCorner: LegendPosition | null = null;
+    // ノードの原文の事実 (inspectNode) の控えと、それを読んだ原文 (原文が変わったら捨てる)
+    let factsSource: string | null = null;
+    const factsCache = new Map<string, InspectNodeResult | null>();
+    // 書き換えと元に戻す / やり直すの描き直しの途中で、枝の開閉を置き直しているか (閉じていた枝を閉じたままにする、戻したノードを見せるために開く)。
+    // その間の開閉の変化では選択を外さない (選び直しはそのあとに描き直した文書で行う)
+    let refolding = false;
     // document、window、図の要素に付けた受け口をまとめて外す
     const teardown = new AbortController();
 
@@ -378,9 +413,19 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         teardown.signal,
     );
     handles.setZoom(view.getTransform().k);
+    // 選んだノードがタスクでないときの、ノードの左のチェック。置き場は選択の枠に合わせるので、図の倍率が変わるたびに直す
+    const taskCheck = new TaskCheck((element, anchor) => view.attachOverlay(element, anchor), pressTaskCheck, teardown.signal);
+    taskCheck.setZoom(view.getTransform().k);
     const removeHooks = view.addHooks({
         ...pointer.hooks,
-        onTransform: (transform) => handles.setZoom(transform.k),
+        onTransform: (transform) => {
+            handles.setZoom(transform.k);
+            taskCheck.setZoom(transform.k);
+        },
+        // 枝を閉じて隠れた選んだノードは選択から外す (描き直しの途中の開閉の置き直しでは外さない)
+        onFoldChange: () => {
+            if (!refolding) dropFolded();
+        },
         onCanvasPointerDown: (event, target) => {
             pressCanvas(event.button === 0 && target.kind === 'blank');
             pointer.hooks.onCanvasPointerDown?.(event, target);
@@ -427,6 +472,8 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         if (next.dragToPan !== applied.dragToPan) changes.dragToPan = next.dragToPan;
         if (next.details !== applied.details) changes.details = next.details;
         applied = next;
+        // 詳細の見せ方を替えるとノードの大きさが変わるので、帯を保つのをやめる
+        if (changes.details !== undefined) barHold = null;
         if (Object.keys(changes).length > 0) view.setOptions(changes);
     }
 
@@ -438,6 +485,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         toolbox.showTool(tools.state);
         showHint();
         showHandles();
+        showTaskCheck();
         applyViewOptions();
     }
 
@@ -631,6 +679,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         if (commands.isInputOpen) commands.closeTags();
         showHint();
         showHandles();
+        showTaskCheck();
         showBar();
     }
 
@@ -691,7 +740,37 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     function keepFolds(): () => void {
         const before = view.getDocument()?.parsed.nodes ?? [];
         const folded = view.getFolded();
-        return () => view.setFolded(carriedFolds(before, folded, view.getDocument()?.parsed.nodes ?? []));
+        return () => refold(() => view.setFolded(carriedFolds(before, folded, view.getDocument()?.parsed.nodes ?? [])));
+    }
+
+    // 描き直しの途中の開閉の置き直し (この間の開閉の変化では選択を外さない)
+    function refold(change: () => void): void {
+        refolding = true;
+        try {
+            change();
+        } finally {
+            refolding = false;
+        }
+    }
+
+    // 選んだもののうち、閉じた枝の中に隠れたものを選択から外す (閉じた枝そのものは見えているので選んだまま。グループはメンバーが全部隠れたら、
+    // 線は片方の端が隠れたら外す)。開いている名前の入力か詳細の入力の相手が外れるなら、先に入れたもので決めて閉じる
+    function dropFolded(): void {
+        if (destroyed || mode !== 'edit') return;
+        const shown = (): EditorSelection => {
+            const drawn = view.getDocument();
+            return withoutFolded(selection, drawn?.parsed.nodes ?? [], view.getFolded(), drawn?.model.groupsOf ?? new Map());
+        };
+        if (commands.isInputOpen && !sameSelection(shown(), selection)) {
+            // 入力の欄が相手と一緒に隠れてフォーカスが頁の body へ外れていたら、決めたあとは図の要素へ戻す (キーの操作を続けられるように)。
+            // アプリのほかの要素にあるフォーカスは動かさない
+            const lost = (): boolean => document.activeElement === null || document.activeElement === document.body;
+            const inside = lost() || commands.contains(document.activeElement);
+            commands.commitInput('hidden');
+            if (inside && lost() && !destroyed) focusContainer();
+        }
+        if (destroyed || mode !== 'edit') return;
+        select(shown());
     }
 
     // 原文が変わって描き直したあと (図は選択の印を外している)。矩形選択の途中をやめ、外からの差し替えと元に戻す / やり直すでは
@@ -701,6 +780,8 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     function redrawn(redraw: Redraw): void {
         if (destroyed) return;
         pointer.cancel();
+        // チェックの相手は前の原文のノードなので消す (選び直しで出し直す)
+        taskCheck.hide();
         // 合流させる始点は前の原文のノードなので、合流先を選ぶ途中をやめる
         endJoin();
         // 色の四角は組み直すので、カラーピッカーを閉じる
@@ -720,7 +801,16 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         select(mode === 'edit' ? keepDrawn(redraw.cause === 'history' ? redraw.restored : selection, drawn) : NO_SELECTION, true);
         // 元に戻す / やり直すで選び直したノードは、閉じた枝の中に隠さない (祖先を開く。図は動かさない)。
         // 閉じた枝は書き換える前のまま閉じておくので、戻したノードが見えないまま選ばれて、消せてしまわないように
-        if (redraw.cause === 'history' && !destroyed) for (const node of selectedNodes(selection)) view.revealNode(node.id);
+        if (redraw.cause === 'history') {
+            if (destroyed) return;
+            refold(() => {
+                for (const node of selectedNodes(selection)) view.revealNode(node.id);
+            });
+            return;
+        }
+        // 外からの差し替えと図の側の書き換え (フック) で木の形が変わると、図は開閉を文書の初めの状態に戻し、そのことを知らせない。
+        // 閉じた枝に隠れた選んだノードは、枝を閉じたときと同じく選択から外す
+        dropFolded();
     }
 
     // 文書の markdag.editor が変わったときだけ、mode の設定と default に合わせ直す
@@ -762,6 +852,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         showGroup();
         showHint();
         showHandles();
+        showTaskCheck();
         showBar();
     }
 
@@ -806,10 +897,42 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         }
         if (targets.length === 1) {
             const node = view.getDocument()?.parsed.nodes.find((item) => item.id === first.id);
-            bar.show({ for: 'node', root: node?.parent === null, facts: inspectNode(source.source, first) });
-        } else bar.show({ for: 'nodes', count: targets.length });
+            bar.show({ for: 'node', root: node?.parent === null, facts: factsOf(first), task: barTask(targets) });
+        } else bar.show({ for: 'nodes', count: targets.length, task: barTask(targets) });
         // 2 つ以上のときは外枠の破線の外に離す
         attachBar(target, ids.join(','), targets.length === 1 ? BAR_GAP : BAR_GAP_AROUND_BOUNDS);
+    }
+
+    // ノードの原文の事実。同じ原文のあいだは控えを使う (帯とチェックは、選択と描き直しとポインタの移動のたびに引くため)。
+    // 図と原文が合わないノードと、書き換えの入口が投げたときは null
+    function factsOf(node: NodeTarget): InspectNodeResult | null {
+        const current = source.source;
+        if (factsSource !== current) {
+            factsCache.clear();
+            factsSource = current;
+        }
+        const key = `${node.id}\n${node.refText}`;
+        const cached = factsCache.get(key);
+        if (cached !== undefined) return cached;
+        let facts: InspectNodeResult | null;
+        try {
+            facts = inspectNode(current, node);
+        } catch {
+            facts = null;
+        }
+        factsCache.set(key, facts);
+        return facts;
+    }
+
+    // 帯のタスク化のボタンの状態: 選んだノードのうちタスクにできて読み取りだけのグループに入らないものに、1 つでもタスクでないものがあればタスク化、
+    // 全部タスクならタスク解除。書けるノードがなければ (読み取りだけのグループのノード、タスクにできないノード、記号を外せないタスクだけなら) 無効。
+    // 無効の名前は、しようとする操作 (押したときと X の断る文に合わせる。読み取りだけのグループのノードがあればそれで決め、外せないタスクならタスク解除)。
+    // 2 つ以上を選んだ帯でも、ノードごとに原文を解析し直して事実を引く (同じ原文と同じノードは控えを使う)。数百個を囲んで選んでも出るまで 0.3 秒ほどなので、軽くする作りは入れない
+    function barTask(nodes: readonly NodeTarget[]): BarTask {
+        const lockOf = taskLocksOf(view.getDocument());
+        const plan = taskPlan(nodes, factsOf, lockOf);
+        if (plan !== null) return { name: plan.adding ? 'add' : 'remove', enabled: true };
+        return { name: blockedAdding(nodes, factsOf, lockOf) ? 'add' : 'remove', enabled: false };
     }
 
     // 帯を相手の上 (入らなければ下) に重ね、左右は道具箱の右から図の右の端の手前までに収める。
@@ -817,21 +940,66 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     function attachBar(target: OverlayTarget, key: string, gap: number): void {
         if (detachBar !== null && key === barTarget) return;
         detachBar?.();
-        detachBar = view.attachOverlay(bar.element, { target, place: ['top', 'bottom'], gap, within: barSpan });
+        barHold = null;
+        barAnchor = { target, place: ['top', 'bottom'], gap, within: barSpan };
+        detachBar = view.attachOverlay(bar.element, barAnchor);
         barTarget = key;
     }
 
-    // 帯を左右に収める範囲 (図の領域の左上からの画面の px。編集の層は図の領域と同じ位置と大きさ)
+    // 帯を左右に収める範囲 (図の領域の左上からの画面の px。編集の層は図の領域と同じ位置と大きさ)。
+    // 帯を保っている間は、保つ位置にちょうど帯の幅だけの範囲 (図の側はそこへ帯をずらす)
     function barSpan(): OverlaySpan {
         const area = layer.getBoundingClientRect();
+        const held = heldBarSpan(area.width);
+        if (held !== null) return held;
         const left = toolbox.element.hidden ? 0 : toolbox.element.getBoundingClientRect().right - area.left;
         return { left: left + BAR_EDGE, right: area.width - BAR_EDGE };
+    }
+
+    // 帯のタスク化のボタンを押した直後に保つ範囲。押した書き換えのあとに、原文 (ほかの書き換え、X とチェック、元に戻す)、図の表示位置 (パンとズーム)、
+    // 図の領域の幅、閉じた枝のどれかが変わったら、保つのをやめて null (図の側が置き直すこの呼び出しから、選んだノードの左右の中央に戻る)。
+    // ほかに、選択が変わる、入力とパネルを開く、詳細の見せ方を替える、帯のタスクのボタンのほかのボタンを押すときも保つのをやめる。
+    // 保つのは左右の位置だけで、上下は今までどおりノードの上か下に合わせる
+    function heldBarSpan(areaWidth: number): OverlaySpan | null {
+        const hold = barHold;
+        if (hold === null) return null;
+        const after = hold.after;
+        if (after !== null && (after.source !== source.source || !sameTransform(after.transform, view.getTransform()) || after.areaWidth !== areaWidth || after.folded !== view.getFolded().join(','))) {
+            barHold = null;
+            return null;
+        }
+        return { left: hold.left, right: hold.left + bar.element.offsetWidth };
+    }
+
+    // 帯のタスク化のボタン。押した直後は、ノードの箱の幅が変わっても (□ が付くか外れる) 帯を画面の上で同じ左右の位置に保ち、
+    // 押したボタンをポインタの下に残す (続けて押せば元に戻せる)。次に帯を置き直すときは選んだノードの左右の中央に戻る。
+    // X キーとノードの左のチェックで替えたときは保たない (原文が変わるので、描き直しで中央に置き直す)。
+    // 無効の見た目のボタンは書き換えずに理由を出すだけなので、帯の置き方を変えない
+    function pressBarTask(): void {
+        if (!barTask(selectedNodes(selection)).enabled) {
+            taskSelected();
+            return;
+        }
+        const area = layer.getBoundingClientRect();
+        barHold = detachBar !== null && !bar.element.hidden ? { left: bar.element.getBoundingClientRect().left - area.left, after: null } : null;
+        taskSelected();
+        if (barHold !== null) barHold = { ...barHold, after: { source: source.source, transform: view.getTransform(), areaWidth: layer.getBoundingClientRect().width, folded: view.getFolded().join(',') } };
+    }
+
+    // 帯を保つのをやめる。帯を出していれば、図の側の次の置き直しを待たずに今の相手の左右の中央へ置き直す
+    // (箱の大きさも原文も変えない操作では、図の側が置き直さないため)
+    function releaseBarHold(): void {
+        if (barHold === null) return;
+        barHold = null;
+        if (detachBar !== null && barAnchor !== null) detachBar = view.attachOverlay(bar.element, barAnchor);
     }
 
     function removeBar(): void {
         detachBar?.();
         detachBar = null;
         barTarget = '';
+        barAnchor = null;
+        barHold = null;
     }
 
     // 帯と 2 つ以上の外枠を外す
@@ -968,6 +1136,14 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         else commands.groupNodes(nodes);
     }
 
+    // 選んでいるノードのタスク化か解除 (帯の「タスク化」/「タスク解除」と X)。ノードを選んでいなければ (グループや線の選択を含む) 選び方を案内する
+    function taskSelected(): void {
+        if (destroyed || mode !== 'edit') return;
+        const nodes = selectedNodes(selection);
+        if (nodes.length === 0) snackbar.show(TASK_PICK_NOTICE, 'info');
+        else commands.toggleTaskMark(nodes);
+    }
+
     // 何もないところのクリック。合流先を選ぶ途中ならやめ (選択は残す)、押下でタグのパネルを閉じたなら選択を残し、そうでなければ選択を解く
     function clickBlank(): void {
         const closedTags = blankClosedTags;
@@ -1018,6 +1194,23 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         if (node === null) return;
         commands.add(kind, node);
         returnFocus();
+    }
+
+    // ノードの左のチェックの押下。選択の道具のときだけ、そのノード 1 つをタスクにする (選んでいるものは変えない)。フォーカスは図の要素へ戻す
+    function pressTaskCheck(id: number): void {
+        if (destroyed || mode !== 'edit' || tools.state !== 'select') return;
+        const node = view.getDocument()?.parsed.nodes.find((item) => item.id === id);
+        if (node) commands.markTask(targetOf(node));
+        returnFocus();
+    }
+
+    // ノードの左のチェック。点と + と同じとき (GUI 編集の選択の道具で、入力とパネルを開いていない) に、ノードを 1 つだけ選んでいて、
+    // そのノード 1 つのねらいがタスク化 (タスクにできてまだタスクでなく、読み取りだけのグループに入らない。押したときの命令の部品と同じ決まり) なら、
+    // そのノードの左に出す。Space を押している間 (図を動かす途中) とドラッグの途中も、点と + と同じく出したまま
+    function showTaskCheck(): void {
+        const node = mode === 'edit' && tools.state === 'select' && commands.inputKind === null ? singleNode() : null;
+        if (node !== null && taskPlan([node], factsOf, taskLocksOf(view.getDocument()))?.adding === true) taskCheck.show(node.id);
+        else taskCheck.hide();
     }
 
     // 点のドラッグを離した。ノードの外なら案内する。始点が 1 つなら離したノードへ線を引き (同じノードは理由が出る)、
@@ -1128,7 +1321,8 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
     }
 
     // 矢印キー。何も選んでいなければカーソルにいちばん近いノード (カーソルがウィンドウの外ならルート) を選ぶ。
-    // 選んでいれば最後に選んだノードから動き、1 つの選択にする。動く前に、選んだノードが閉じた枝の中なら開き、→ ではそのノードの枝も開く。
+    // 選んでいれば最後に選んだノードから動き、1 つの選択にする。動く前に、選んだノードが閉じた枝の中なら開き (閉じた枝に隠れた選んだノードは
+    // 選択から外すので、ふつうは開くものはない)、→ ではそのノードの枝も開く。
     // 並びは動き終えたあとの位置で決め、選んだノードが図の領域の外なら見える所まで動かす
     function moveSelection(key: ArrowKey): void {
         const nodes = view.getDocument()?.parsed.nodes;
@@ -1155,11 +1349,13 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         return { x: pointerAt.x - origin.left, y: pointerAt.y - origin.top };
     }
 
-    // 操作の帯のボタン。名前、子の追加、兄弟追加、詳細編集は選んだノード (1 つ) に、削除、合流、グループ、タグ追加、タグ選択は選んだノードの全部に、
+    // 操作の帯のボタン。名前、子の追加、兄弟追加、詳細編集は選んだノード (1 つ) に、削除、合流、グループ、タグ追加、タグ選択、タスク化は選んだノードの全部に、
     // グループの名前とグループ解除は選んだグループに当てる。
     // 合流先を選ぶ途中なら、やめてからボタンの操作をする。名前の入力か詳細の入力かタグのパネルを開いたらフォーカスはその中に置き、そうでなければ図の要素へ戻す
     function pressBar(command: BarCommand): void {
         if (destroyed) return;
+        // タスクのボタンのほかは (これから足すボタンも)、押したら必ず帯を保つのをやめる
+        if (command !== 'task') releaseBarHold();
         endJoin();
         const node = mode === 'edit' ? singleNode() : null;
         const group = mode === 'edit' ? selectedGroup(selection) : null;
@@ -1174,6 +1370,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
                 else commands.ungroup(group);
             }
         } else if (command === 'tag-add' || command === 'tag-select') openTagPanel(command === 'tag-add' ? 'add' : 'select');
+        else if (command === 'task') pressBarTask();
         else if (node !== null) {
             if (command === 'rename') commands.rename(node);
             else if (command === 'child' || command === 'sibling') commands.add(command, node);
@@ -1289,7 +1486,10 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
         } else if (command === 'delete') deleteSelected();
         else if (command === 'details') editDetails();
         else if (command === 'tag-add') openTagPanel('add');
-        else if (command === 'join') {
+        // ドラッグの途中と合流先を選ぶ途中の X は受けない (どちらも続ける。D と T は受ける)
+        else if (command === 'task') {
+            if (!pointer.dragging && !tools.joining) taskSelected();
+        } else if (command === 'join') {
             if (!joinNew()) snackbar.show(JOIN_FEW_NOTICE, 'error');
         } else if (command === 'group') groupSelected();
         else if (command === 'ArrowLeft' || command === 'ArrowRight' || command === 'ArrowUp' || command === 'ArrowDown') moveSelection(command);
@@ -1416,6 +1616,7 @@ export function mountEditor(container: HTMLElement, markdown: string, options: E
             detachBar?.();
             detachBounds?.();
             handles.hide();
+            taskCheck.hide();
             barTarget = '';
             view.setSelection([]);
             // 編集の層の要素と、図の要素に付けた目印と tabindex を外す

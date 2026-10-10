@@ -525,6 +525,10 @@ pub enum EditOp {
         key: String,
         value: Option<String>,
     },
+    /// タスクの記号の付け外し。タスクにできるノードのうち 1 つでもタスクでないものがあればそれに `[ ] ` を付け、全部タスクなら全部の記号を外す
+    ToggleTaskMark {
+        nodes: Vec<NodeTarget>,
+    },
     AddToGroup {
         group: String,
         nodes: Vec<NodeTarget>,
@@ -757,6 +761,10 @@ pub struct InspectNodeResult {
     pub can_add_sibling: bool,
     /// 1 行目に印 (%、#、$) を書けるか
     pub can_mark: bool,
+    /// タスクの記号の付け外し (toggle_task_mark) がこのノードを書けるか: タスクでないノードは記号を付けられるか、タスクは記号を外せるか。
+    /// 自分の行を持つ見出しと項目のうち、名前が空の項目、1 行目が文章でない項目 (markdag キーのない文書で 1 行目の印のあとが段落の書き始めでないものと、
+    /// 1 行目が空で 2 行目から名前を読むもの)、記号を外すと HTML のブロックとして読まれるタスクを除く
+    pub can_toggle_task: bool,
 }
 
 // ---- タグの型 (src/model/tags.ts) ----

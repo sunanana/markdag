@@ -1,0 +1,50 @@
+kind: 境界
+checks: >-
+    選んだノードが、親や祖先の枝を開閉の丸で閉じて見えなくなったら、そのノードの選択を解く (コンテキストメニューもチェックも消える)。そこで X を押すと、書き換えずに選び方を案内する。
+    もう一度開いて見えても、選択は解いたまま。2 つ以上を選んでいて一部だけ見えなくなったら、見えなくなったものだけ選択から外し、X は見えている方だけを書き換える。
+    閉じた枝そのもの (開閉の丸を押したノード) は見えているので選んだままで、X でタスク化できる
+note: >-
+    2 段上の祖先 (引っ越し) を閉じたときも同じく解く。全部のキーに当たる決まりなので、ほかのキーは screen/keys-undecided-folded (Ctrl+Enter) で確かめた
+states: ['task:K34.v1', 'task:K34.k4', 'task:F1.f13', 'task:F1.f17', 'task:F5.f17', 'task:K37.v1', 'task:K37.k4', 'task:F2.f13', 'task:F2.f17', 'task:K38.v1', 'task:K38.k4', 'task:F4.f13', 'task:Z19.z1']
+decisions: ['spec.md 閉じた枝の中の選んだノード (見えなくなったら選択を解く、開いても解いたまま、2 つ以上なら見えなくなったものだけ、閉じた枝そのものは選んだまま)、案 2 (選んでいないときの X は案内)', '例の承認の関門 11/17 の d、12/18 の a', '直したものを触る (3 回目) 7/9']
+steps:
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - click: { fold: 準備 }
+      expect: { folded: [準備], selection: none, bar: none, task_check: null }
+    - key: x
+      expect:
+          source: input.md
+          selection: none
+          notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) }
+          key_prevented: true
+    - click: { fold: 準備 }
+      expect: { folded: [], selection: none, bar: none }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る }
+    - click: { fold: 引っ越し }
+      expect: { folded: [引っ越し], selection: none, bar: none }
+    - click: { fold: 引っ越し }
+      expect: { folded: [], selection: none, bar: none }
+    - click: { node: 見積もりを取る }
+    - click: { node: 1. 転出届を出す }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,1. 転出届を出す', bar: nodes }
+    - click: { fold: 準備 }
+      expect: { folded: [準備], selection: nodes:1. 転出届を出す, bar: node }
+    - key: x
+      expect: { source: after-visible.md, selection: nodes:1. 転出届を出す, notice: { kind: info, text: 「1. 転出届を出す」をタスク化しました } }
+    - click: { fold: 準備 }
+      expect: { folded: [], selection: nodes:1. 転出届を出す }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+      expect: { selection: none }
+    - click: { node: 準備 }
+      expect: { selection: nodes:準備 }
+    - click: { fold: 準備 }
+      expect: { folded: [準備], selection: nodes:準備, bar: node, task_check: 準備 }
+    - key: x
+      expect: { source: after-branch.md, selection: nodes:準備, notice: { kind: info, text: 「準備」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }

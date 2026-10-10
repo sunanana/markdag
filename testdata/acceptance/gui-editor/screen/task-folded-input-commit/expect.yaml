@@ -1,0 +1,57 @@
+kind: 境界
+checks: >-
+    名前の入力か詳細の入力を開いて打っている間に、アプリの setFolded で親の枝を閉じて選んだノードが隠れたら、外を押したときと同じく、
+    打っていた文字で書き換えて (スナックバーも外を押したときと同じ) 入力を閉じ、選択を解く。閉じた枝は閉じたまま (見せるために開かない)。
+    もう一度開いても選択は解いたまま。タグのパネルも外を押したときと同じく閉じる (パネルは外を押しても欄の文字を付けないので、原文は変えない)
+note: >-
+    外からの差し替え (原文が変わる) で開閉が初めに戻って隠れたときに、入力を保存せずに閉じる 0.12.0 からの振る舞いは変えていない (修正案 T-006 で最後の関門に聞く)。
+    開閉の丸を押したときは、外の押下として先に入力を決める (0.12.0 から。この例では押さない)
+states: ['task:F9.f17', 'task:F9.f13', 'task:F12.f17', 'task:F13.f17']
+decisions: ['spec.md 閉じた枝の中の選んだノード (入力を開いている間に選んだノードが隠れたら、入力を決めて閉じる。外を押したときと同じ)', '例の承認の関門 (2 回目) 7/7 の b', '例の承認の関門 11/17 の d、12/18 の a (隠れたら選択を解く、開いても解いたまま)']
+steps:
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る }
+    - key: Enter
+      expect: { input: name, input_value: 見積もりを取る }
+    - type: 見積もりを比べる
+      expect: { input: name, input_value: 見積もりを比べる, source: input.md }
+    - set_folded: [準備]
+      expect:
+          folded: [準備]
+          source: after-rename.md
+          input: none
+          selection: none
+          bar: none
+          task_check: null
+          notice: { kind: info, text: 名前を「見積もりを比べる」にしました }
+    - key: x
+      expect:
+          source: after-rename.md
+          selection: none
+          notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) }
+    - set_folded: []
+      expect: { folded: [], source: after-rename.md, input: none, selection: none, bar: none }
+    - click: { node: 不用品を処分する }
+      expect: { selection: nodes:不用品を処分する }
+    - key: d
+      expect: { input: details }
+    - type: 粗大ごみの日を調べる
+      expect: { input: details, input_value: 粗大ごみの日を調べる, source: after-rename.md }
+    - set_folded: [準備]
+      expect:
+          folded: [準備]
+          source: after-details.md
+          input: none
+          selection: none
+          bar: none
+          notice: { kind: info, text: 「不用品を処分する」の詳細を書きました }
+    - set_folded: []
+      expect: { folded: [], source: after-details.md, input: none, selection: none }
+    - click: { node: 不用品を処分する }
+      expect: { selection: nodes:不用品を処分する }
+    - key: t
+      expect: { input: tag-add, focus: tag-key }
+    - type: owner
+      expect: { input: tag-add, tag_fields: { key: owner } }
+    - set_folded: [準備]
+      expect: { folded: [準備], source: after-details.md, input: none, selection: none, bar: none }

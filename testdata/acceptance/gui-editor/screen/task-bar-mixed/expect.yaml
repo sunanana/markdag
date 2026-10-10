@@ -1,0 +1,46 @@
+kind: 正常
+checks: >-
+    タスクでないもの (見積もりを取る) とタスク (未着手と完了) を一緒に選ぶと、2 つ以上のコンテキストメニューにも「タスク化」ボタンが出る (タグ選択のあと、区切りと削除の前。幅 70px)。ヒントに「X タスク化 / 解除」。
+    押すとタスクでないものだけに [ ] を書き (タスクのものは状態のまま)、スナックバーは書き換えた数で「「見積もりを取る」をタスク化しました」。ボタンは「タスク解除」に替わり、幅と位置は変わらない。
+    続けて押すと全部の記号を状態によらず外し「3 個のノードのタスクを解除しました」。選択はどちらも 3 つのまま。⌘Z の 1 回で 3 つがまとめて戻る
+states: ['task:K12.v1', 'task:K12.v2', 'task:K12.v3', 'task:K12.k1', 'task:K13.v1', 'task:H3.h1', 'task:H3.h5']
+decisions: ['spec.md 2 つ以上を選んだとき、案 1、書き換えのあと (1 回の操作で履歴も 1 つ)', '作ったものを触る関門 2/17、6/17、10/17、11/17', '直したものを触る関門 1/13']
+steps:
+    - click: { node: 見積もりを取る }
+    - click: { node: 荷造りの箱を買う }
+      mod: Shift
+    - click: { node: 新居を決める }
+      mod: Shift
+      expect:
+          selection: 'nodes:見積もりを取る,荷造りの箱を買う,新居を決める'
+          bar: nodes
+          bar_title: 3 個を選択
+          bar_buttons: [join-new, join-existing, group, tag-add, tag-select, task, delete]
+          bar_labels: { task: タスク化 }
+          bar_titles: { task: { contains: (X) } }
+          bar_widths: { task: 70 }
+          hint: { contains: X タスク化 / 解除 }
+    - click: { bar: task }
+      expect:
+          source: after-add.md
+          selection: 'nodes:見積もりを取る,荷造りの箱を買う,新居を決める'
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました }
+          bar: nodes
+          bar_labels: { task: タスク解除 }
+          bar_widths: { task: 70 }
+          bar_resized: false
+          bar_moved: false
+          focus: diagram
+    - click: { bar: task }
+      expect:
+          source: after-remove.md
+          selection: 'nodes:見積もりを取る,荷造りの箱を買う,新居を決める'
+          notice: { kind: info, text: 3 個のノードのタスクを解除しました }
+          bar_labels: { task: タスク化 }
+          bar_widths: { task: 70 }
+          bar_resized: false
+          bar_moved: false
+    - key: ControlOrMeta+z
+      expect: { source: after-add.md, selection: 'nodes:見積もりを取る,荷造りの箱を買う,新居を決める' }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: 'nodes:見積もりを取る,荷造りの箱を買う,新居を決める' }

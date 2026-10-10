@@ -3,8 +3,8 @@
 // 書き換えたあとに選ぶものを返すか、変えない理由か断る理由を返す。原文の全体は返さず、包みが原文の行に継ぎ足す
 // (書き換えない行の字を原文のまま保つ)。書き換えたあとの原文を解析し直し、ねらいと違う形に読まれる書き換えは断る。
 // 本文の書き換えと、frontmatter の書き換え (位置の木で行を探して足す、消す、書き直す) と、両方にまたがるグループの書き換え
-// (本文の %印と markdag.groups の定義)、詳細とタグの書き換え (markdag キーのない文書には markdag: を足す) を受け持つ。本文を書き換えたときは、
-// frontmatter の参照を追って書き直す (名前の変更と削除の追随、読み方が変わって指せなくなった参照の守り)。
+// (本文の %印と markdag.groups の定義)、詳細とタグの書き換え (markdag キーのない文書には markdag: を足す)、タスクの記号の付け外しを受け持つ。
+// 本文を書き換えたときは、frontmatter の参照を追って書き直す (名前の変更と削除の追随、読み方が変わって指せなくなった参照の守り)。
 // 原文の書き方の都合では断らず、書き直して通す: 単独の \r は文書の改行にそろえてから操作を当て、frontmatter の書き方
 // (フロー形式、| や > の値) で操作が断ったときは、その所を書き直した原文で操作をやり直す。書き直しは操作の書き換えと 1 つの差し替えの列にまとめ、
 // 操作が書き換えないとき (変えない、断る) は書き直しも返さない。
@@ -23,6 +23,7 @@ mod renumber;
 mod restyle;
 mod shape;
 mod tags;
+mod tasks;
 mod verify;
 
 use crate::types::{
@@ -100,6 +101,7 @@ fn apply(source: &str, op: &EditOp) -> EditSourceResult {
         EditOp::ToggleTag { nodes, key, value } => {
             tags::toggle_tag(source, nodes, key, value.as_deref())
         }
+        EditOp::ToggleTaskMark { nodes } => tasks::toggle_task_mark(source, nodes),
         EditOp::AddRelation { from, to } => relations::add_relation(source, from, to),
         EditOp::JoinInto { sources, target } => relations::join_into(source, sources, target),
         EditOp::JoinIntoNew { sources, label } => relations::join_into_new(source, sources, label),

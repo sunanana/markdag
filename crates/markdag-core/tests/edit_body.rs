@@ -155,18 +155,18 @@ fn assert_select_matches_reparse(source: &str, result: &Value) {
     }
 }
 
-// can* の並び: canRename、canDelete、canMove、canHaveDetails、canAddChild、canAddSibling、canMark
-type Can = [bool; 7];
-const ITEM: Can = [true; 7];
+// can* の並び: canRename、canDelete、canMove、canHaveDetails、canAddChild、canAddSibling、canMark、canToggleTask
+type Can = [bool; 8];
+const ITEM: Can = [true; 8];
 // 見出しも詳細を持てる (最後の関門 原文の都合で断る 6。D-038)
-const HEADING: Can = [true, true, true, true, true, true, true];
-const ROOT_HEADING: Can = [true, false, false, true, true, true, true];
+const HEADING: Can = [true, true, true, true, true, true, true, true];
+const ROOT_HEADING: Can = [true, false, false, true, true, true, true, true];
 // 下線の見出しと行頭に空白のある ATX の見出しは、印を書く前に ATX の見出しに書き直すので印を書ける (最後の関門 原文の都合で断る 1。D-038)
-const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true];
-const CONTAINER: Can = [false, true, false, false, true, false, false];
-const BLOCK: Can = [false, true, true, false, false, false, false];
+const UNMARKABLE_HEADING: Can = [true, true, true, true, true, true, true, true];
+const CONTAINER: Can = [false, true, false, false, true, false, false, false];
+const BLOCK: Can = [false, true, true, false, false, false, false, false];
 // 行を持たないルートの名前は frontmatter の title なので、名前を変えられる (例の承認のルートのタイトル)
-const LINELESS_ROOT: Can = [true, false, false, false, true, true, false];
+const LINELESS_ROOT: Can = [true, false, false, false, true, true, false, false];
 
 fn inspected(
     id: u32,
@@ -176,7 +176,16 @@ fn inspected(
     task: bool,
     can: Can,
 ) -> Value {
-    let [rename, delete, move_, details_ok, child, sibling, mark] = can;
+    let [
+        rename,
+        delete,
+        move_,
+        details_ok,
+        child,
+        sibling,
+        mark,
+        toggle_task,
+    ] = can;
     normalized(json!({
         "id": id,
         "kind": kind,
@@ -190,6 +199,7 @@ fn inspected(
         "canAddChild": child,
         "canAddSibling": sibling,
         "canMark": mark,
+        "canToggleTask": toggle_task,
     }))
 }
 
@@ -283,7 +293,7 @@ fn edit_inspect_node_tells_roots_without_a_line_and_list_roots() {
             ref_text,
             None,
             false,
-            [true, false, false, false, true, false, false],
+            [true, false, false, false, true, false, false, false],
         );
         for key in [
             "id",
@@ -752,6 +762,7 @@ fn edit_source_result_json_has_the_contract_fields() {
             "canMark",
             "canMove",
             "canRename",
+            "canToggleTask",
             "details",
             "id",
             "kind",
@@ -1566,7 +1577,7 @@ fn edit_add_child_is_not_offered_under_a_heading_whose_last_child_is_a_block() {
                 "A",
                 None,
                 false,
-                [true, true, true, true, false, true, true]
+                [true, true, true, true, false, true, true, true]
             )),
             "{source:?}"
         );

@@ -142,6 +142,7 @@ async function sessionOf(page: Page, ime: boolean): Promise<ScreenSession> {
             if (!arrived) throw new Error('原文の差し替えが図に届きませんでした');
         },
         setMode: (mode) => page.evaluate((mode) => (window as unknown as TestWindow).guiScreen!.setMode(mode), mode),
+        setFolded: (refs) => page.evaluate((refs) => (window as unknown as TestWindow).guiScreen!.setFolded(refs), refs),
         callApi: (name) => page.evaluate((name) => (window as unknown as TestWindow).guiScreen!.callApi(name), name),
         blurWindow: () => page.evaluate(() => (window as unknown as TestWindow).guiScreen!.blurWindow()),
         settle: (ms) => page.evaluate((ms) => (window as unknown as TestWindow).guiEditorPage!.settle(ms), ms),
@@ -153,8 +154,8 @@ async function sessionOf(page: Page, ime: boolean): Promise<ScreenSession> {
 
 test.describe('受け入れの例 @editor: screen', () => {
     const examples = listGuiExamples('screen');
-    test('@editor screen の例が 64 件ある', () => {
-        expect(examples.length).toBe(64);
+    test('@editor screen の例が 84 件ある', () => {
+        expect(examples.length).toBe(84);
     });
     for (const example of examples) {
         test(`@editor ${example.id} (${example.spec.kind})`, async ({ page, browserName }) => {

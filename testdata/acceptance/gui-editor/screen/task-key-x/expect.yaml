@@ -1,0 +1,26 @@
+kind: 正常
+checks: >-
+    ノードを選んで X (修飾キーなし) を押すと、コンテキストメニューのボタンと同じ決まりでタスク化 / タスク解除する。大文字の X (CapsLock。Shift なし) も同じ。キーの既定の動きは止める。
+    2 つ以上なら 1 回で全部を書き換え、スナックバーは「2 個のノードをタスク化しました」「2 個のノードのタスクを解除しました」。選択はそのまま。⌘Z の 1 回で 2 つがまとめて戻り、⌘⇧Z でやり直せる
+states: ['task:K2.k4', 'task:K2.k5', 'task:K3.k4', 'task:K12.k4', 'task:K13.k4', 'task:K13.k12', 'task:K13.k13']
+decisions: ['spec.md 案 2 (X。大文字も同じ)、2 つ以上を選んだとき、書き換えのあと (通知の文、⌘Z)', '作ったものを触る関門 8/17、10/17']
+steps:
+    - click: { node: 見積もりを取る }
+    - key: x
+      expect: { source: after-one.md, selection: nodes:見積もりを取る, notice: { kind: info, text: 「見積もりを取る」をタスク化しました }, key_prevented: true, bar_labels: { task: タスク解除 } }
+    - key: X
+      expect: { source: input.md, selection: nodes:見積もりを取る, notice: { kind: info, text: 「見積もりを取る」のタスクを解除しました }, key_prevented: true, bar_labels: { task: タスク化 } }
+    - click: { node: 不用品を処分する }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,不用品を処分する' }
+    - key: x
+      expect: { source: after-two.md, selection: 'nodes:見積もりを取る,不用品を処分する', notice: { kind: info, text: 2 個のノードをタスク化しました }, key_prevented: true }
+    - key: x
+      expect: { source: input.md, selection: 'nodes:見積もりを取る,不用品を処分する', notice: { kind: info, text: 2 個のノードのタスクを解除しました }, key_prevented: true }
+    - key: ControlOrMeta+z
+      expect: { source: after-two.md, selection: 'nodes:見積もりを取る,不用品を処分する' }
+    - key: ControlOrMeta+Shift+z
+      expect: { source: input.md, selection: 'nodes:見積もりを取る,不用品を処分する' }
+    - key: ControlOrMeta+z
+    - key: ControlOrMeta+z
+      expect: { source: input.md }

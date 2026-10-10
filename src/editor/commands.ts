@@ -1,4 +1,5 @@
-// 名前、子、兄弟、削除、付け替え、線を引く、合流、グループ (まとめる、作る、入れる、名前、色、枠の有無、解除)、詳細、タグ (付ける、外す、付け外し) の操作の命令。
+// 名前、子、兄弟、削除、付け替え、線を引く、合流、グループ (まとめる、作る、入れる、名前、色、枠の有無、解除)、詳細、タグ (付ける、外す、付け外し)、
+// タスクの記号の付け外し (選んだノードのタスク化か解除と、ノードの左のチェックからの 1 つのタスク化) の操作の命令。
 // 命令を editSource の操作に組み立てて今の原文に当て、結果を原文の持ち主に渡す。
 // 書き換えのあとは、結果の選び直し (select) と名前の入力の相手 (rename) を、描き直した図の同じ id のノードの refText と比べてから使う
 // (合わなければ使わずに、そのことを結果の通知に足す。フックの transformSource が行をずらす文書)。選ぶノードと名前の入力の相手は図の領域に見せる。
@@ -19,6 +20,9 @@
 // ノードが 1 つで印を書けなければ開かずに理由を知らせる)、中身を今の文書と選択に合わせる、閉じる。パネルの操作は選んだノードの全部に 1 回の書き換えで当て
 // (付いているタグの編集はそのタグを持つノードに当てる)、書き換えのあとも選んだノードと並びはそのまま、パネルは開いたままにする。
 // 2 つ以上を選んでいるときは、パネルを開くときもタグの操作のあとも図を動かさない (1 つなら選んだノードを見える所へ動かす。holdsView)。
+// タスクの記号の付け外しは、今の選択のまま選び直し、1 つでも図を動かさない。読み取りだけのグループのノードは書き換えずにスキップし
+// (書き換えの操作に渡さない)、タスク化か解除かは残りで決める。残りがなければ書き換えずに理由を知らせる (グループは表示の名前で出し、
+// 文はしようとした操作に合わせる)。スキップした数は結果の文に括弧書きで足す。
 // 付けたタグ (タグ追加、更新、タグ選択で付けた) を最近使ったタグとして覚える (この部品がある間だけ)。
 // タグ選択で開いてから出した登録されているタグは、付け外しでどのノードにも残らなくなっても、開いている間は行を出し続ける。
 // 開くか、足すか、閉じるかの判断と、図とのやりとり (重ねる位置、選択、通知、フォーカス) は持ち主 (CommandHost) を通す
@@ -39,6 +43,7 @@ import { outlineTarget, type OutlineStep } from './navigation';
 import { drawnParts, keepDrawn, nodesSelection, sameSelection, selectedNodes, targetOf, type DrawnParts, type EditorSelection } from './selection';
 import type { ApplyStatus, EditAttempt, EditedOutcome, EditorSource } from './source';
 import { attachedTags, hasTag, mergeTags, registeredTags, rememberTag, tagChoiceOf, tagState, tagText, type TagChoice } from './tags';
+import { lockedTaskOf, taskLocksOf, taskPlan, type TaskFacts } from './tasks';
 import { DetailsEditor, type DetailsEditorAction } from './ui/details-editor';
 import type { HintInput } from './ui/hint';
 import { NameInput, type NameInputAction, type NameInputFor } from './ui/name-input';
@@ -55,12 +60,13 @@ export const JOIN_NODE_LABEL = '合流点';
 type AddKind = 'child' | 'sibling' | 'sibling-before';
 
 // 名前を決めるきっかけ。key は入力中のキー (Enter、修飾キーつきの Enter、Tab、Shift+Tab。決められなければ入力を開いたまま)。
-// leave はフォーカスが入力の外へ移ったか、入力の外を押したとき。switch は閲覧へ切り替えるとき (どちらも決められなくても閉じる)
-type CommitCause = 'key' | 'leave' | 'switch';
+// leave はフォーカスが入力の外へ移ったか、入力の外を押したとき。switch は閲覧へ切り替えるとき。hidden は入力の相手が閉じた枝に隠れて
+// 選択から外れるとき (図を動かさず、隠れた相手を見せるために枝を開かない)。leave、switch、hidden は決められなくても閉じる
+type CommitCause = 'key' | 'leave' | 'switch' | 'hidden';
 
 // 詳細を保存するきっかけ。save は保存のキーの Enter と保存のボタン (保存できなければ入力を開いたまま)。
-// leave と switch は名前と同じ (保存できなくても閉じる)
-type DetailsCommitCause = 'save' | 'leave' | 'switch';
+// leave、switch、hidden は名前と同じ (保存できなくても閉じる)
+type DetailsCommitCause = 'save' | 'leave' | 'switch' | 'hidden';
 
 interface CommandHost {
     readonly view: MarkdagView;
@@ -108,10 +114,16 @@ interface Tagging {
     shown: TagChoice[];
 }
 
-// 書き換えた結果の文に添えるもの。groupLabel はグループの操作の文に出す名前、tagAdded はタグ選択の付け外しで付けたか
+// 書き換えた結果の文に添えるもの。groupLabel はグループの操作の文に出す名前、tagAdded はタグ選択の付け外しで付けたか。
+// taskAdded はタスクの記号の付け外しで付けたか、taskNodes は記号を書くか外したノード、taskSkipped はタスクにできずにスキップしたノードの数、
+// taskLocked は読み取りだけのグループに入っていてスキップしたノードの、そのグループの表示の名前 (ノードごと)
 interface NoticeContext {
     groupLabel?: string;
     tagAdded?: boolean;
+    taskAdded?: boolean;
+    taskNodes?: readonly NodeTarget[];
+    taskSkipped?: number;
+    taskLocked?: readonly string[];
 }
 
 // 名前を決めた結果。決めたら、決めたあとのノード (図と合わなければ null)
@@ -262,6 +274,10 @@ export function toggleTagOp(nodes: readonly NodeTarget[], tag: TagChoice): EditO
     return { kind: 'toggleTag', nodes: nodes.map(copyTarget), key: tag.key, value: tag.value };
 }
 
+export function toggleTaskMarkOp(nodes: readonly NodeTarget[]): EditOp {
+    return { kind: 'toggleTaskMark', nodes: nodes.map(copyTarget) };
+}
+
 function copyTarget(node: NodeTarget): NodeTarget {
     return { id: node.id, refText: node.refText };
 }
@@ -319,6 +335,9 @@ function tagNameOf(key: string, value: string | null): string {
 // context.groupLabel はグループの操作で文に出す名前 (まとめる、作る、名前の変更は書き換えたあとの名前、ほかは書き換える前の名前)
 export function editedNotice(op: EditOp, edited: EditedOutcome, extra: readonly string[] = [], context: NoticeContext = {}): string {
     const groupLabel = context.groupLabel ?? '';
+    // 文書の先頭の BOM を外した知らせ (frontmatter を作るときと、1 行目のノードのタスクの記号を付け外しするとき) は出さない。
+    // 使う人が意識するものではないので、BOM のない文書と同じ文にする
+    const notes = edited.notes.filter((note) => note.code !== 'bom-removed');
     let head: string;
     if (op.kind === 'addChild') head = '子を足しました';
     else if (op.kind === 'addSibling' || op.kind === 'addSiblingBefore') head = '兄弟を足しました';
@@ -352,8 +371,20 @@ export function editedNotice(op: EditOp, edited: EditedOutcome, extra: readonly 
     else if (op.kind === 'toggleTag') {
         const tag = tagNameOf(op.key, op.value);
         head = context.tagAdded === false ? `${nodesNameOf(op.nodes)}から ${tag} を外しました` : `${nodesNameOf(op.nodes)}に ${tag} を付けました`;
+    } else if (op.kind === 'toggleTaskMark') {
+        const written = context.taskNodes ?? op.nodes;
+        const [only] = written;
+        const subject = written.length === 1 && only !== undefined ? nameOf(only) : `${written.length} 個のノード`;
+        head = context.taskAdded === false ? `${subject}のタスクを解除しました` : `${subject}をタスク化しました`;
+        // スキップした数は「。」でつながず、括弧書きで同じ文に続ける。読み取りだけのグループのものは、グループの表示の名前を並べて
+        // 「読み取り専用のグループ「確定済み」「固定」のノード N 個」と書き、タスクにできないものと「と、」でつなぐ
+        const skips: string[] = [];
+        if (context.taskSkipped !== undefined && context.taskSkipped > 0) skips.push(`タスクにできない ${context.taskSkipped} 個`);
+        const locked = context.taskLocked ?? [];
+        if (locked.length > 0) skips.push(`読み取り専用のグループ${[...new Set(locked)].map((label) => `「${label}」`).join('')}のノード ${locked.length} 個`);
+        if (skips.length > 0) head += ` (${skips.join('と、')}はスキップしました)`;
     } else head = '原文を書き換えました';
-    return [head, ...extra, ...edited.notes.map((note) => note.message)].join('。');
+    return [head, ...extra, ...notes.map((note) => note.message)].join('。');
 }
 
 export class EditCommands {
@@ -543,6 +574,23 @@ export class EditCommands {
         this.run(ungroupOp(id), this.groupLabel(id));
     }
 
+    // 選んだノードのタスク化か解除 (帯と X)。タスクにできるノードのうち 1 つでもタスクでないものがあればそれをタスクにし、全部タスクなら全部の記号を外す
+    // (タスクにできないノードは書き換えの側がスキップし、1 つもなければ断られて理由が出る。読み取りだけのグループのノードはスキップする)。
+    // 帯の無効のタスクのボタンもここを通り、X と同じ理由が出る。選んだノードと並びはそのまま、図は動かさない
+    toggleTaskMark(nodes: readonly NodeTarget[]): void {
+        if (!this.leaveInputs()) return;
+        if (nodes.length === 0) return;
+        this.runTaskMark(nodes);
+    }
+
+    // ノードの左のチェック。そのノード 1 つだけをタスクにする (タスクにできないか、もうタスクか、読み取りだけのグループのノードなら何もしない)。
+    // 選んでいるものは変えず、図は動かさない
+    markTask(node: NodeTarget): void {
+        if (!this.leaveInputs()) return;
+        if (taskPlan([node], this.taskFactsOf(), taskLocksOf(this.host.view.getDocument()))?.adding !== true) return;
+        this.runTaskMark([node]);
+    }
+
     // 選んだノードの詳細の入力を、ノードの右 (入らなければ下、下にも入らなければ上) に開く。名前の入力が開いていれば名前を決めてから開く。
     // 詳細を書けないノードと、図と原文が合っていないノードでは開かずに理由を知らせる
     openDetails(node: NodeTarget): void {
@@ -590,7 +638,7 @@ export class EditCommands {
         let status: ApplyStatus;
         try {
             status = this.host.source.apply(attemptEdit(this.host.source.source, op), (edited) => {
-                this.settle(op, edited);
+                this.settle(op, edited, {}, cause !== 'hidden');
             });
         } finally {
             this.applying = false;
@@ -787,7 +835,7 @@ export class EditCommands {
         let status: ApplyStatus;
         try {
             status = this.host.source.apply(attemptEdit(this.host.source.source, op), (edited) => {
-                settled.node = this.settle(op, edited);
+                settled.node = this.settle(op, edited, {}, cause !== 'hidden');
             });
         } finally {
             this.applying = false;
@@ -865,6 +913,50 @@ export class EditCommands {
         });
     }
 
+    // タスクの記号の付け外しを当てる (GUI 編集でなければ何もしない)。
+    // 読み取りだけのグループの規則はタスク化とタスク解除の両方に当て、上流の完了を求める規則とフックの beforeTaskToggle は当てない。
+    // 読み取りだけのグループに入るタスクにできるノードは、操作に渡さずにスキップする。スキップしたほかにタスクにできるノードがなければ、書き換えずに理由を知らせる。
+    // 読み取りだけのグループのノードがあればその理由を先に出し (タスクにできないノードの理由は出さない)、文はそのノードでしようとした操作に合わせる
+    // (グループは表示の名前で出す。組み込みの規則の文は id のまま)
+    private runTaskMark(nodes: readonly NodeTarget[]): void {
+        if (!this.host.editing()) return;
+        const factsOf = this.taskFactsOf();
+        const lockOf = taskLocksOf(this.host.view.getDocument());
+        const plan = taskPlan(nodes, factsOf, lockOf);
+        if (plan === null) {
+            const locked = lockedTaskOf(nodes, factsOf, lockOf);
+            if (locked !== null) {
+                this.host.notice(`「${this.groupLabel(locked.group) || locked.group}」のグループは読み取り専用のため、${locked.adding ? 'タスク化' : 'タスク解除'}できません`, 'error');
+                return;
+            }
+        }
+        const passed = plan === null ? nodes : nodes.filter((node) => lockedTaskOf([node], factsOf, lockOf) === null);
+        const op = toggleTaskMarkOp(passed);
+        const context: NoticeContext =
+            plan === null ? {} : { taskAdded: plan.adding, taskNodes: plan.written, taskSkipped: plan.skipped, taskLocked: plan.locked.map((id) => this.groupLabel(id) || id) };
+        this.host.source.apply(attemptEdit(this.host.source.source, op), (edited) => {
+            this.settle(op, edited, context);
+        });
+    }
+
+    // 今の原文で見たノードの事実を引く関数 (同じ呼び出しの中では同じノードを引き直さない)。図と原文が合わないか、書き換えの入口が投げたら null
+    private taskFactsOf(): (node: NodeTarget) => TaskFacts | null {
+        const source = this.host.source.source;
+        const known = new Map<number, TaskFacts | null>();
+        return (node) => {
+            const cached = known.get(node.id);
+            if (cached !== undefined) return cached;
+            let facts: TaskFacts | null;
+            try {
+                facts = inspectNode(source, node);
+            } catch {
+                facts = null;
+            }
+            known.set(node.id, facts);
+            return facts;
+        };
+    }
+
     // タグのパネルの中身。タグ追加は選んだノードに付いているタグとキーの候補、タグ選択は最近使ったタグと登録されているタグ
     // (開いてから出したものも残す)。行には選んだノードのうちそのタグを持つ数の状態を添える
     private tagContent(tagging: Tagging, ids: readonly number[]): TagPanelContent {
@@ -894,13 +986,16 @@ export class EditCommands {
     }
 
     // 書き換えて描き直したあと: 結果の通知、選び直し、選んだノードを見せる、名前の入力 (ノードかグループ) を開く。
-    // タグの操作は、選んでいたノードの並びのまま選び直す (結果の select の refText を使う)。
-    // 選び直したノードが 2 つ以上なら、どの操作でも図を動かさない (holdsView。凡例の + の addToGroup とタグの操作)。
+    // タグの操作は、選んでいたノードの並びのまま選び直す (結果の select の refText を使う)。タスクの記号の付け外しは、今の選択のまま選び直す
+    // (結果の選び直しを使わない。スキップしたノードも選んだまま)。
+    // 選び直したノードが 2 つ以上なら、どの操作でも図を動かさない (holdsView。凡例の + の addToGroup とタグの操作)。タスクの記号の付け外しは 1 つでも動かさない。
+    // reveal が偽 (入力の相手が閉じた枝に隠れて決めたとき) も動かさない (見せると閉じた枝を開いてしまうため)。
     // グループにまとめたときは、まとめたノード (操作の nodes の並び) をグループの名前の入力に渡す。
     // 選び直したノードが 1 つなら返す (入力中の Enter / Tab で続けて足す相手)
-    private settle(op: EditOp, edited: EditedOutcome, context: NoticeContext = {}): NodeTarget | null {
+    private settle(op: EditOp, edited: EditedOutcome, context: NoticeContext = {}, reveal = true): NodeTarget | null {
         const drawn = drawnParts(this.host.view.getDocument());
-        const wanted = TAG_OPS.has(op.kind) ? inOrderOf(this.host.selection(), edited.select) : edited.select;
+        const taskMark = op.kind === 'toggleTaskMark';
+        const wanted = taskMark ? this.host.selection() : TAG_OPS.has(op.kind) ? inOrderOf(this.host.selection(), edited.select) : edited.select;
         const select = keepDrawn(wanted, drawn);
         const rename = edited.rename;
         const mismatch = !sameSelection(select, wanted) || (rename !== null && !this.renameDrawn(rename, drawn));
@@ -917,7 +1012,7 @@ export class EditCommands {
         if (!this.host.editing()) return null;
         const chosen = selectedNodes(select);
         const [only] = chosen;
-        if (only !== undefined && !holdsView(chosen.length)) this.host.view.ensureVisible(only.id);
+        if (reveal && !taskMark && only !== undefined && !holdsView(chosen.length)) this.host.view.ensureVisible(only.id);
         if (rename?.kind === 'node') this.openName(rename.node, true);
         else if (rename?.kind === 'group') this.openGroupName(rename.id, true, 'diagram', op.kind === 'groupNodes' ? op.nodes : []);
         return chosen.length === 1 ? (chosen[0] ?? null) : null;

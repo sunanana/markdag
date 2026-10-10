@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    行頭の印のあとの空白が 2〜4 字の行と、印のあとがタブの行 (見出しの ##、- と * の項目、1. と 2) の番号付きの項目) をまとめてタスク化すると、
+    印のあとの空白とタブはそのまま残し、その後ろに [ ] と空白を書く (いつも未着手)。印と番号と区切りは変えない。図の名前は変えず、指したノードを選び直す
+states: ['task:P1.p2', 'task:P2.p2', 'task:P4.p2', 'task:P5.p2', 'task:P6.p2']
+decisions: ['spec.md 書き換え (タスク化。行頭の印、番号、字下げは変えない)', '最後の関門 7/15 の a (テストの穴を埋める例。records/mutation.md の M01)']
+op:
+    kind: toggleTaskMark
+    nodes: [準備, 見積もりを取る, 荷造りの箱を買う, 1. 転出届を出す, 2. 電気・ガス・水道]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [準備, 見積もりを取る, 荷造りの箱を買う, 1. 転出届を出す, 2. 電気・ガス・水道] }
+    rename: null
+    notes: []

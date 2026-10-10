@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    文書の先頭に BOM があり行の終わりが CRLF の文書で、1 行目のルートの見出し (# 引っ越し) をタスク化すると、BOM を外して `# [ ] 引っ越し` と書く。
+    書いた行の終わりは CRLF のまま。ほかの行は変えない
+note: >-
+    editSource の知らせ (notes) は照らしていない (data/task-mark-bom-first-line と同じ理由)
+states: ['task:P29.p2']
+decisions: ['spec.md 書き換え (BOM を外して書く。タスク化は見出しも、ルートの見出しも)', '例の承認の関門 8/17 の d']
+op:
+    kind: toggleTaskMark
+    nodes: [引っ越し]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [引っ越し] }
+    rename: null

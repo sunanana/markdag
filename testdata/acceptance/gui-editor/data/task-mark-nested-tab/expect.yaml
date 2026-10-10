@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    入れ子の項目 (字下げがタブのものと空白 4 つのもの) をタスク化すると、字下げとリストの印をそのまま残し、印のあとに [ ] と空白を書く。
+    親の項目と、指していない兄弟は変えない
+states: ['task:P1.p2']
+decisions: ['spec.md 書き換え (行頭の印、字下げは変えない)']
+op:
+    kind: toggleTaskMark
+    nodes: [本, 鍋]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [本, 鍋] }
+    rename: null
+    notes: []

@@ -1,0 +1,16 @@
+kind: 境界
+checks: >-
+    名前が空で、記号のすぐあとに末尾の印 (%グループ) が続くタスク (完了の大文字 [X]、作業中 [/]、中止 [-]) をまとめてタスク解除すると、
+    記号を `\` で逃がして名前として残す (`- \[x] %g1`、`- \[/] %g1`、`- \[-] %g1`)。大文字の [X] の名前は解析では [x] なので `\[x]` と書く。
+    名前と id は変わらず、グループの所属 (%g1) と frontmatter は変えない。指したノードを選び直す
+states: ['task:P37.p2', 'task:P38.p2']
+decisions: ['spec.md 書き換え (名前が空のタスクの項目のタスク解除は `\` で逃がして書く。タスク解除は状態によらない。名前のあとの印は変えない)', '最後の関門 7/15 の a (テストの穴を埋める例。records/mutation.md の M03)']
+op:
+    kind: toggleTaskMark
+    nodes: ['[x]', '[/]', '[-]']
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['[x]', '[/]', '[-]'] }
+    rename: null
+    notes: []

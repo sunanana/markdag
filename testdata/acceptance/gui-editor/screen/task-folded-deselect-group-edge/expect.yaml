@@ -1,0 +1,36 @@
+kind: 境界
+checks: >-
+    グループを選んでいて、そのグループのノードが全部閉じた枝に隠れたら、グループの選択を解く (コンテキストメニューも消える)。
+    グループのノードが一部だけ隠れたとき (枝そのもののノードは見えている) は選んだまま。
+    線を選んでいて、線の片方の端のノード (終点でも始点でも) が閉じた枝に隠れたら、線の選択を解く (線の強調も消える)。
+    どれも、もう一度開いて見えても、選択は解いたまま (ノードと同じ扱い)。解いたあとの X は、何も選んでいないときと同じく書き換えずに選び方を案内する
+states: ['task:F15.f17', 'task:F10.f13', 'task:F10.f17', 'task:F14.f17', 'task:F11.f17']
+decisions: ['spec.md 閉じた枝の中の選んだノード (グループと線の選択も同じく解く: グループのノードが全部隠れたとき、線の片方の端のノードが隠れたとき)', '例の承認の関門 (2 回目) 4/7 の b', '例の承認の関門 11/17 の d、12/18 の a (開いても解いたまま)']
+steps:
+    - click: { frame_label: g1 }
+      expect: { selection: group:g1, bar: group }
+    - click: { fold: 当日 }
+      expect: { folded: [当日], selection: group:g1, bar: group }
+    - click: { fold: 当日 }
+      expect: { folded: [], selection: group:g1, bar: group }
+    - click: { fold: 引っ越し }
+      expect: { folded: [引っ越し], selection: none, bar: none }
+    - key: x
+      expect:
+          source: input.md
+          selection: none
+          notice: { kind: info, text: タスク化するノードを選んでください (クリック、または何もないところからドラッグで囲む) }
+    - click: { fold: 引っ越し }
+      expect: { folded: [], selection: none, bar: none }
+    - click: { edge: 'depends:見積もりを取る>鍵の返却' }
+      expect: { selection: 'edge:depends:見積もりを取る>鍵の返却', edge_selected: true }
+    - click: { fold: 当日 }
+      expect: { folded: [当日], selection: none, edge_selected: false }
+    - click: { fold: 当日 }
+      expect: { folded: [], selection: none, edge_selected: false }
+    - click: { edge: 'depends:見積もりを取る>鍵の返却' }
+      expect: { selection: 'edge:depends:見積もりを取る>鍵の返却', edge_selected: true }
+    - click: { fold: 準備 }
+      expect: { folded: [準備], selection: none, edge_selected: false }
+    - click: { fold: 準備 }
+      expect: { folded: [], selection: none, edge_selected: false }

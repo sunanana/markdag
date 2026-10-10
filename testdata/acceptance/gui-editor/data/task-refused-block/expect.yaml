@@ -1,0 +1,9 @@
+kind: 誤り
+checks: >-
+    タスクにできないノード (表とコード) だけを指すと、原文を変えずに断る (理由 block-node。ほかの操作が表とコードのノードを断る理由と同じ)
+states: ['task:P24.p2', 'task:P25.p2']
+decisions: ['spec.md タスクにできるノード (表とコードはできない)、2 つ以上を選んだとき (全部できなければ断る)']
+op:
+    kind: toggleTaskMark
+    nodes: [{ id: 3 }, { id: 5 }]
+expect: { status: refused, reason: block-node }

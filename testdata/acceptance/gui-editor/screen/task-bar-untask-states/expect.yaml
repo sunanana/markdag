@@ -1,0 +1,23 @@
+kind: 正常
+checks: >-
+    タスクのノードを 1 つ選ぶと、コンテキストメニューのボタンは状態によらず「タスク解除」(title に X)。
+    未着手 [ ]、作業中 [/]、完了 [x]、中止 [-] のどれも、押すと記号とあとの空白を外し、スナックバーに「「名前」のタスクを解除しました」。選択はそのまま
+states: ['task:K3.v1', 'task:K3.v2', 'task:K3.k2', 'task:K4.v1', 'task:K4.k2', 'task:K5.v1', 'task:K5.k2', 'task:K6.v1', 'task:K6.k2']
+decisions: ['spec.md 書き換え (タスク解除は状態によらない)、案 1 (全部タスクなら「タスク解除」)', '作ったものを触る関門 5/17']
+steps:
+    - click: { node: 荷造りの箱を買う }
+      expect: { selection: nodes:荷造りの箱を買う, bar_labels: { task: タスク解除 }, bar_titles: { task: { contains: (X) } } }
+    - click: { bar: task }
+      expect: { source: after-todo.md, selection: nodes:荷造りの箱を買う, notice: { kind: info, text: 「荷造りの箱を買う」のタスクを解除しました }, bar_labels: { task: タスク化 } }
+    - click: { node: 荷物をまとめる }
+      expect: { selection: nodes:荷物をまとめる, bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect: { source: after-doing.md, selection: nodes:荷物をまとめる, notice: { kind: info, text: 「荷物をまとめる」のタスクを解除しました }, bar_labels: { task: タスク化 } }
+    - click: { node: 新居を決める }
+      expect: { selection: nodes:新居を決める, bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect: { source: after-done.md, selection: nodes:新居を決める, notice: { kind: info, text: 「新居を決める」のタスクを解除しました }, bar_labels: { task: タスク化 } }
+    - click: { node: 古い家具を売る }
+      expect: { selection: nodes:古い家具を売る, bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect: { source: after-canceled.md, selection: nodes:古い家具を売る, notice: { kind: info, text: 「古い家具を売る」のタスクを解除しました }, bar_labels: { task: タスク化 } }

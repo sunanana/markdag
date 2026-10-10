@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    改行で終わらない文書の最後の行 (完了のタスク) のタスクを解除すると、記号と空白を外し、文書の終わりは改行なしのまま。ほかの行は変えない
+states: ['task:P1.p3']
+decisions: ['spec.md 書き換え (タスク解除)']
+op:
+    kind: toggleTaskMark
+    nodes: [報告]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [報告] }
+    rename: null
+    notes: []

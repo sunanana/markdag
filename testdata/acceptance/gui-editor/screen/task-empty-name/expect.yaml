@@ -1,0 +1,50 @@
+kind: 誤り
+checks: >-
+    名前が空の項目 (`- ` だけの行) を 1 つ選ぶと、コンテキストメニューの「タスク化」は無効 (グレーアウト) で名前は「タスク化」のまま。ノードの左のチェックは出さない。
+    無効でも押すと、原文を変えずにスナックバーに「名前が空の項目はタスクにできません。先に名前を付けてください」(誤り) を出す。X も同じ文で、キーの既定の動きを止める。
+    名前のある項目と一緒に選ぶとボタンは押せ、押すと名前のある項目だけをタスク化して「(タスクにできない 1 個はスキップしました)」を足す。選択は名前が空の項目も含めてそのまま
+note: >-
+    名前が空の項目は箱を描かない (幅と高さが 0) のでポインタで押せない。下の項目を選んでから ↑ で選ぶ。名前が空の項目の名前は空なので、選択は (id 3) と書く。
+    同じスナックバーの文が続くと前の文が残っていても一致してしまうので、2 つの断りの段の間に別の文が出る段 (転出届を出すのタスク化) をはさんだ
+states: ['task:K35.v1', 'task:K35.k3', 'task:K35.k4', 'task:C14.c1', 'task:C14.c10', 'task:P17.p1', 'task:P17.p2', 'task:P17.p5', 'task:K14.k1']
+decisions: ['spec.md 書き換え (名前が空の項目はタスクにできない。コンテキストメニューの「タスク化」は無効にし、押したら (X キーも) 理由を出す)、2 つ以上を選んだとき (タスクにできないノードは飛ばし、スナックバーで数を知らせる)', '例の承認の関門 9/17 の c', '直したものを触る (3 回目) 6/9', '直したものを触る関門 10/14 (「スキップしました」)']
+steps:
+    - click: { node: 名前のある項目 }
+      expect: { selection: nodes:名前のある項目, bar_labels: { task: タスク化 }, task_check: 名前のある項目 }
+    - key: ArrowUp
+      expect:
+          selection: nodes:(id 3)
+          bar: node
+          bar_buttons: [rename, child, sibling, details, tag-add, tag-select, task(off), delete]
+          bar_labels: { task: タスク化 }
+          task_check: null
+    - click: { bar: task }
+      expect:
+          source: input.md
+          selection: nodes:(id 3)
+          notice: { kind: error, text: 名前が空の項目はタスクにできません。先に名前を付けてください }
+    - click: { node: 転出届を出す }
+    - key: x
+      expect: { source: after-add.md, notice: { kind: info, text: 「転出届を出す」をタスク化しました } }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: 名前のある項目 }
+    - key: ArrowUp
+      expect: { selection: nodes:(id 3), task_check: null }
+    - key: x
+      expect:
+          source: input.md
+          selection: nodes:(id 3)
+          notice: { kind: error, text: 名前が空の項目はタスクにできません。先に名前を付けてください }
+          key_prevented: true
+    - click: { node: 名前のある項目 }
+      mod: Shift
+      expect: { selection: 'nodes:(id 3),名前のある項目', bar: nodes, bar_labels: { task: タスク化 }, task_check: null }
+    - click: { bar: task }
+      expect:
+          source: after-named.md
+          selection: 'nodes:(id 3),名前のある項目'
+          notice: { kind: info, text: 「名前のある項目」をタスク化しました (タスクにできない 1 個はスキップしました) }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }

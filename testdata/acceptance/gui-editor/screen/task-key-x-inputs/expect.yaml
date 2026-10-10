@@ -1,0 +1,29 @@
+kind: 境界
+checks: >-
+    名前の入力、詳細の入力、タグのパネルの欄、ページのほかの入力欄の中の X は文字のまま (入力に x が入る)。タスク化せず、原文を変えず、スナックバーも出さず、キーの既定の動きを止めない
+states: ['task:K23.k10', 'task:K24.k10', 'task:K25.k10', 'task:K23.k4', 'task:K24.k4', 'task:K25.k4']
+decisions: ['spec.md 案 2 (入力の中の X は文字のまま)']
+steps:
+    - click: { node: 見積もりを取る }
+    - key: Enter
+      expect: { input: name }
+    - key: x
+      expect: { input: name, input_value: { contains: x }, source: input.md, notice: null, key_prevented: false }
+    - key: Escape
+      expect: { input: none, source: input.md, selection: nodes:見積もりを取る }
+    - key: d
+      expect: { input: details }
+    - key: x
+      expect: { input: details, input_value: { contains: x }, source: input.md, notice: null, key_prevented: false }
+    - key: Escape
+      expect: { input: none, source: input.md, selection: nodes:見積もりを取る }
+    - key: t
+      expect: { input: tag-add, focus: tag-key }
+    - key: x
+      expect: { input: tag-add, tag_fields: { key: { contains: x } }, source: input.md, notice: null, key_prevented: false }
+    - key: Escape
+      expect: { input: none, source: input.md }
+    - click: { outside: true }
+      expect: { focus: outside }
+    - key: x
+      expect: { source: input.md, notice: null, key_prevented: false }

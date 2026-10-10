@@ -1,0 +1,9 @@
+kind: 誤り
+checks: >-
+    名前が空の項目 (`- ` だけの行) だけを指すと、原文を変えずに断る (理由のコード empty-name)。記号を付けると名前が `[ ]` の項目と読まれるため
+states: ['task:P17.p2']
+decisions: ['spec.md 書き換え (名前が空の項目はタスクにできない)', '例の承認の関門 9/17 の c', '直したものを触る (3 回目) 6/9']
+op:
+    kind: toggleTaskMark
+    nodes: [{ id: 3 }]
+expect: { status: refused, reason: empty-name }

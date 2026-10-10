@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    名前が空の項目 (`- ` だけの行) と名前のある項目を一緒に指すと、名前が空の項目はタスクにできないノードとして飛ばし、名前のある項目だけをタスク化する (断らない)。
+    名前が空の行は変えない。指したノードは両方とも選び直す (名前が空の項目の名前は空)。スキップした数はコンテキストメニューと X の側が出す (screen/task-empty-name)
+states: ['task:K14.k1']
+decisions: ['spec.md 書き換え (名前が空の項目はタスクにできない)、2 つ以上を選んだとき (タスクにできないノードは飛ばす)', '例の承認の関門 9/17 の c']
+op:
+    kind: toggleTaskMark
+    nodes: [{ id: 3 }, 名前のある項目]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: ['', 名前のある項目] }
+    rename: null

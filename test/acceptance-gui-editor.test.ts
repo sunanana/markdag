@@ -26,8 +26,8 @@ function runFrontmatter(example: GuiExample): string[] {
 }
 
 describe('受け入れの例 @editor: data', () => {
-    it('@editor data の例が 52 件ある', () => {
-        expect(DATA.length).toBe(52);
+    it('@editor data の例が 76 件ある', () => {
+        expect(DATA.length).toBe(76);
     });
 
     for (const example of DATA) {

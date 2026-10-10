@@ -923,8 +923,8 @@ const BAR_GAP_AROUND_BOUNDS = 24;
 const NARROW = 360;
 // 依頼者が再現した窓の幅 800 の確認ページの図の領域の幅
 const NARROW_PREVIEW = 475;
-// ノードの帯がちょうど入る図の領域の幅 (道具箱の右 8px から右の端の 8px 手前まで、chromium で 434px)
-const JUST_FITS = 560;
+// ノードの帯がちょうど入る図の領域の幅 (道具箱の右 8px から右の端の 8px 手前まで、chromium で 506px)
+const JUST_FITS = 632;
 
 const zoomToOne = (page: Page): Promise<void> => zoomTo(page, 1);
 
@@ -1208,7 +1208,7 @@ test.describe('図の領域が狭くて帯が入らないときは右の端を�
         expect(errors).toEqual([]);
     });
 
-    test('@editor 帯がちょうど入る図の領域 (幅 560px。道具箱の右 8px から右の端の 8px 手前まで chromium で 434px) では今のまま: 左の端では帯の左の辺が道具箱の右 8px、右の端では帯の右の辺が図の領域の右の辺の 8px 手前、真ん中では相手の左右の中央', async ({ page }) => {
+    test('@editor 帯がちょうど入る図の領域 (幅 632px。道具箱の右 8px から右の端の 8px 手前まで chromium で 506px) では今のまま: 左の端では帯の左の辺が道具箱の右 8px、右の端では帯の右の辺が図の領域の右の辺の 8px 手前、真ん中では相手の左右の中央', async ({ page }) => {
         await open(page);
         await mount(page, SIMPLE, JUST_FITS);
         await zoomToOne(page);
@@ -1217,7 +1217,8 @@ test.describe('図の領域が狭くて帯が入らないときは右の端を�
         await moveTargetTo(page, { node: DESIGN_S }, (toolboxRight + areaWidth) / 2, areaHeight / 2);
         await selectNodes(page, [DESIGN_S], '設計');
         await expect.poll(() => barKinds(page)).toEqual(['node']);
-        // 空振りの防ぎ: 帯は入るが、余りは 60px まで (入らない境目の近く。帯と道具箱の幅はブラウザの字の幅で変わる: chromium で余り 21px、webkit で 44px)
+        // 空振りの防ぎ: 帯は入るが、余りは 60px まで (入らない境目の近く。帯と道具箱の幅はブラウザの字の幅で変わる: chromium で余り 21px。
+        // webkit はタスク化のボタンを足す前に 44px で、足したあとは測っていない)
         const { width, room } = await barRoom(page);
         expect(room - width, `帯の幅 ${round1(width)}px、道具箱の右 8px から右の端の 8px 手前まで ${round1(room)}px`).toBeGreaterThanOrEqual(0);
         expect(room - width, `帯の幅 ${round1(width)}px、道具箱の右 8px から右の端の 8px 手前まで ${round1(room)}px`).toBeLessThanOrEqual(60);

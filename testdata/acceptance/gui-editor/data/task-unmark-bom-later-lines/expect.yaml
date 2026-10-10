@@ -1,0 +1,15 @@
+kind: 境界
+checks: >-
+    文書の先頭に BOM があっても、2 行目から下のノードのタスクの記号を外すときは BOM に触らない (1 行目の見出しはタスクでなく、指してもいない)。
+    指した 2 つ (未着手と完了) の記号を外し、指していない項目は変えない
+states: ['task:P20.p3', 'task:K13.k2']
+decisions: ['spec.md 書き換え (BOM を外すのは 1 行目のノードに記号を付ける / 外すときだけ。タスク解除は状態によらない)', '例の承認の関門 8/17 の d', '直したものを触る (3 回目) 4/9 (2 行目からは触らない)']
+op:
+    kind: toggleTaskMark
+    nodes: [見積もりを取る, 不用品を処分する]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [見積もりを取る, 不用品を処分する] }
+    rename: null
+    notes: []

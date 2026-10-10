@@ -1,0 +1,58 @@
+kind: 正常
+checks: >-
+    ノードの左のチェックは、ノードを 1 つ選んでいて、そのノードがタスクにできてまだタスクでないときに出す。選ばずにポインタを乗せただけでは出さない。
+    選んだまま、ほかのノードやチェックにポインタを乗せても、チェックは選んだノードの左のまま。別のタスクでないノードを選ぶと、そのノードの左に移る。
+    タスクのノード、タスクにできないノード (表)、読み取りだけのグループのノード、名前が空の項目を選んだとき、2 つ以上を選んだときは出さない。
+    タスクのノードをコンテキストメニューの「タスク解除」でタスクでなくすと出る。チェックを押すと、そのノードをタスク化してスナックバーに「「見積もりを取る」をタスク化しました」。
+    選択はそのまま (ノードはタスクになったのでチェックは消える)。⌘Z で戻ると、また出る
+note: >-
+    2026-10-09 に、チェックを選んでいるときに出す形に書き直した (例の承認の関門 6/17。前はポインタを乗せたノードに出していた)。
+    名前が空の項目は箱を描かない (幅と高さが 0) のでポインタで押せない。下の項目を選んでから ↑ で選ぶ。コンテキストメニューが次に押すノードを覆わないように、間に Esc をはさんだ段がある
+states: ['task:C1.c2', 'task:C1.c10', 'task:C2.c2', 'task:C2.c3', 'task:C2.c10', 'task:C2.c11', 'task:C34.c1', 'task:C3.c1', 'task:C10.c1', 'task:C12.c1', 'task:C14.c1', 'task:C2.c12', 'task:C19.c1', 'task:C19.c14', 'task:C2.c4', 'task:C2.c5']
+decisions: ['spec.md 案 3 (選んでいるときに出す、2 つ以上とタスクのノードには出さない、押すとタスク化して選択はそのまま)、U2 (読み取りだけのグループのノードには出さない)', '例の承認の関門 6/17 (チェックは選んでいるときに出す)、9/17 の c (名前が空の項目はタスクにできない)', '直したものを触る関門 11/14']
+steps:
+    - hover: { node: 見積もりを取る }
+      expect: { selection: none, task_check: null }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, bar: node, task_check: 見積もりを取る }
+    - hover: { node: 不用品を処分する }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - hover: { task_check: true }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - click: { node: 不用品を処分する }
+      expect: { selection: nodes:不用品を処分する, task_check: 不用品を処分する }
+    - click: { node: 荷造りの箱を買う }
+      expect: { selection: nodes:荷造りの箱を買う, bar_labels: { task: タスク解除 }, task_check: null }
+    - click: { bar: task }
+      expect: { source: after-untask.md, selection: nodes:荷造りの箱を買う, bar_labels: { task: タスク化 }, task_check: 荷造りの箱を買う }
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: nodes:荷造りの箱を買う, task_check: null }
+    - click: { node: { id: 10 } }
+      expect: { selection: nodes:(id 10), task_check: null }
+    - key: Escape
+    - click: { node: 日取りを決める }
+      expect: { selection: nodes:日取りを決める, task_check: null }
+    - key: Escape
+    - click: { node: 名前のある項目 }
+      expect: { selection: nodes:名前のある項目, task_check: 名前のある項目 }
+    - key: ArrowUp
+      expect: { selection: nodes:(id 12), task_check: null }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - click: { node: 不用品を処分する }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,不用品を処分する', bar: nodes, task_check: null }
+    - key: Escape
+      expect: { selection: none, task_check: null }
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, task_check: 見積もりを取る }
+    - click: { task_check: true }
+      expect:
+          source: after-check.md
+          selection: nodes:見積もりを取る
+          bar: node
+          bar_labels: { task: タスク解除 }
+          notice: { kind: info, text: 「見積もりを取る」をタスク化しました }
+          task_check: null
+    - key: ControlOrMeta+z
+      expect: { source: input.md, selection: nodes:見積もりを取る, task_check: 見積もりを取る }

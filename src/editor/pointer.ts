@@ -195,6 +195,11 @@ export class PointerInput {
         return this.drag?.kind === 'marquee';
     }
 
+    // 矩形選択、付け替え、線を引くか合流させるドラッグ (押しただけで、まだ動かしていないものを含む) の途中か
+    get dragging(): boolean {
+        return this.drag !== null;
+    }
+
     // ドラッグ (押しただけで、まだ動かしていないものを含む) の途中ならやめて true。矩形は選ばず、そのあと離しても何もないところのクリックにしない
     cancelDrag(): boolean {
         if (this.drag === null) return false;

@@ -56,6 +56,7 @@ const NODE_BAR: ReadonlyArray<readonly [string, string] | 'sep'> = [
     ['details', '詳細編集'],
     ['tag-add', 'タグ追加'],
     ['tag-select', 'タグ選択'],
+    ['task', 'タスク化'],
     'sep',
     ['delete', '削除'],
 ];
@@ -66,6 +67,7 @@ const ROOT_BAR: ReadonlyArray<readonly [string, string] | 'sep'> = [
     ['details', '詳細編集'],
     ['tag-add', 'タグ追加'],
     ['tag-select', 'タグ選択'],
+    ['task', 'タスク化'],
 ];
 
 interface Point {
@@ -260,7 +262,7 @@ function buttonOf(items: Array<ButtonInfo | 'sep'>, key: string): ButtonInfo {
 const shape = (items: Array<ButtonInfo | 'sep'>): Array<readonly [string, string] | 'sep'> => items.map((item) => (item === 'sep' ? 'sep' : ([item.key, item.name] as const)));
 
 test.describe('帯の「子の追加」「兄弟追加」の名前 (F-13)', () => {
-    test('@editor 1 つのノード (ルートでない) を選んだ帯のボタンの名前は、名前、子の追加、兄弟追加、詳細編集、タグ追加、タグ選択、(区切り)、削除 の順 (data-command の並びは今のまま。見出しと項目)', async ({ page }) => {
+    test('@editor 1 つのノード (ルートでない) を選んだ帯のボタンの名前は、名前、子の追加、兄弟追加、詳細編集、タグ追加、タグ選択、タスク化、(区切り)、削除 の順 (data-command の並びは今のまま。見出しと項目)', async ({ page }) => {
         const errors = watchErrors(page);
         await open(page);
         await mount(page, DOC);
@@ -277,7 +279,7 @@ test.describe('帯の「子の追加」「兄弟追加」の名前 (F-13)', () =
         expect(errors).toEqual([]);
     });
 
-    test('@editor ルートを選んだ帯のボタンの名前は、名前、子の追加、詳細編集、タグ追加、タグ選択 の順 (兄弟追加と削除はない。B-012)', async ({ page }) => {
+    test('@editor ルートを選んだ帯のボタンの名前は、名前、子の追加、詳細編集、タグ追加、タグ選択、タスク化 の順 (兄弟追加と削除はない。B-012)', async ({ page }) => {
         await open(page);
         await mount(page, DOC);
         await useSelectTool(page);

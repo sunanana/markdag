@@ -147,12 +147,14 @@ pub(crate) enum LineBlock {
     Paragraph,
     /// 番号付きのリスト
     OrderedList,
-    /// それ以外 (見出し、引用、印のリスト、区切り線、コード、HTML のブロック、参照の定義など)
+    /// HTML のブロック
+    Html,
+    /// それ以外 (見出し、引用、印のリスト、区切り線、コード、参照の定義など)
     Other,
 }
 
 /// 文字だけを本文と同じ読み方で読み、段落 1 つになるかを返す。書き換えの層が、ノードの名前の書き始めが
-/// ブロックに読まれないように逃がすかを決めるのに使う
+/// ブロックに読まれないように逃がすかと、項目の 1 行目に記号を書けるか (段落の書き始めか) を決めるのに使う
 pub(crate) fn line_block(text: &str) -> LineBlock {
     let arena = Arena::new();
     let document = parse_body(&arena, &normalize_source(text));
@@ -163,6 +165,7 @@ pub(crate) fn line_block(text: &str) -> LineBlock {
     match &first.data().value {
         NodeValue::Paragraph if children.next().is_none() => LineBlock::Paragraph,
         NodeValue::List(list) if list.list_type == ListType::Ordered => LineBlock::OrderedList,
+        NodeValue::HtmlBlock(_) => LineBlock::Html,
         _ => LineBlock::Other,
     }
 }

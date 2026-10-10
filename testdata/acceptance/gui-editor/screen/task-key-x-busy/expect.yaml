@@ -1,0 +1,50 @@
+kind: 境界
+checks: >-
+    ドラッグ (付け替え、矩形選択、線を引く) の途中と、合流先を選ぶ途中 (「既存のノードへ合流」を押したあと) は X キーを受けない。選んだノードを書き換えず、スナックバーも出さず、キーの既定の動きは止める。
+    ドラッグはそのまま続き、離すとドラッグのとおりになる (付け替える、矩形で囲んだノードを選ぶ、線を引く)。合流先を選ぶ途中もそのまま続き、次に押したノードへ合流させる
+note: >-
+    付け替え、線を引く、合流の書き方は 0.12.0 の例 (screen/move-drag、link-drag-and-edge、join-existing) と同じ形。X を押した段の直前にスナックバーが出ていない付け替えの段だけ、スナックバーなし (notice null) を照らした。
+    矩形選択は、選んだノードの線を引く点に始まりの点がかからないよう、離れたノード (電気・ガス・水道) を選んでから始める
+states: ['task:K29.k4', 'task:K28.k4', 'task:K30.k4', 'task:K27.k4']
+decisions: ['spec.md 案 2 (ドラッグの途中と合流先を選ぶ途中は X キーを受けない)', '例の承認の関門 14/18 の b、15/18 の b', '直したものを触る (3 回目) 9/9']
+steps:
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る }
+    - drag: { from: { node: 見積もりを取る }, to: { node: 手続き }, release: false }
+      expect: { drop_target: 手続き }
+    - key: x
+      expect: { source: input.md, drop_target: 手続き, notice: null, key_prevented: true }
+    - up: true
+      expect: { source: after-move.md, selection: nodes:見積もりを取る, drop_target: null }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: 電気・ガス・水道 }
+      expect: { selection: nodes:電気・ガス・水道 }
+    - marquee: { nodes: [見積もりを取る], release: false }
+      expect: { marquee: true }
+    - key: x
+      expect: { source: input.md, marquee: true, key_prevented: true }
+    - up: true
+      expect: { source: input.md, selection: nodes:見積もりを取る, marquee: false }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - drag: { from: { handle: link }, to: { node: 転出届を出す }, release: false }
+      expect: { link_preview: true, drop_target: 転出届を出す }
+    - key: x
+      expect: { source: input.md, link_preview: true, drop_target: 転出届を出す, key_prevented: true }
+    - up: true
+      expect: { source: after-link.md, selection: 'edge:depends:見積もりを取る>転出届を出す', link_preview: false }
+    - key: ControlOrMeta+z
+      expect: { source: input.md }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+    - click: { node: 不用品を処分する }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,不用品を処分する' }
+    - click: { bar: join-existing }
+      expect: { tool: join-target }
+    - key: x
+      expect: { source: input.md, tool: join-target, selection: 'nodes:見積もりを取る,不用品を処分する', key_prevented: true }
+    - click: { node: 転出届を出す }
+      expect: { source: after-join.md, tool: select, selection: nodes:転出届を出す }

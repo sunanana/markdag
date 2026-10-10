@@ -1,0 +1,14 @@
+kind: 境界
+checks: >-
+    タスクにできないノード (表) とタスクにできる項目を一緒に指すと、表は飛ばして項目だけをタスク化する (断らない)。表の行は変えない。
+    指したノードは表も含めて全部選び直す (表の名前は空)。スキップした数の知らせはコンテキストメニューと X の側が出す (screen/task-not-taskable)
+states: ['task:K14.k1']
+decisions: ['spec.md 2 つ以上を選んだとき (タスクにできないノードは飛ばす)', '書き換えのあと (選んでいたものは選んだまま)']
+op:
+    kind: toggleTaskMark
+    nodes: [見積もりを取る, { id: 5 }]
+expect:
+    status: edited
+    source: expected.md
+    select: { kind: nodes, nodes: [見積もりを取る, ''] }
+    rename: null

@@ -93,6 +93,7 @@ export const GUI_ACTIONS = [
     'compose_key',
     'set_source',
     'set_mode',
+    'set_folded',
     'api',
     'wait',
     'blur_window',
@@ -136,6 +137,13 @@ export const SCREEN_OBSERVED_KEYS = [
     'bar',
     'bar_title',
     'bar_buttons',
+    'bar_labels',
+    'bar_titles',
+    'bar_widths',
+    'bar_moved',
+    'bar_resized',
+    'bar_centered',
+    'task_check',
     'handles',
     'bounds',
     'input',
@@ -506,6 +514,8 @@ export interface ScreenSession {
     // 原文を外から差し替え、図に届くのを待つ
     setSource(text: string): Promise<void>;
     setMode(mode: 'view' | 'edit'): Promise<boolean>;
+    // 閉じた枝をアプリのメソッド (図の setFolded) で名前の並びのとおりに置き換える (開閉の丸を押さずに閉じる。入力を開いたままでも閉じる)
+    setFolded(refs: unknown[]): Promise<void>;
     callApi(name: (typeof GUI_APIS)[number]): Promise<unknown>;
     blurWindow(): Promise<void>;
     // ページの描画の 2 コマと ms を待つ
@@ -640,6 +650,9 @@ async function runStep(session: ScreenSession, example: GuiExample, step: GuiSte
         const returned = await session.setMode(step.set_mode === 'edit' ? 'edit' : 'view');
         await session.settle();
         return { returned };
+    } else if (action === 'set_folded') {
+        if (!Array.isArray(step.set_folded)) throw new Error('set_folded は閉じるノードの名前の並びで書きます');
+        await session.setFolded(step.set_folded);
     } else if (action === 'api') {
         const name = String(step.api);
         const known = GUI_APIS.find((item) => item === name);

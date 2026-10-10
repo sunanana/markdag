@@ -1,0 +1,10 @@
+kind: 誤り
+checks: >-
+    自分の行を持たないルート (見出しのない文書のルート。名前は frontmatter の title) を指すと、原文を変えずに断る
+    (理由 no-source-line。ほかの操作が行を持たないノードを断る理由と同じ)
+states: ['task:P21.p2']
+decisions: ['spec.md タスクにできるノード (自分の行を持たないルートはできない)']
+op:
+    kind: toggleTaskMark
+    nodes: [買い物リスト]
+expect: { status: refused, reason: no-source-line }

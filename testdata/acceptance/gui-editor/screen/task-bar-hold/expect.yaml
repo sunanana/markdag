@@ -1,0 +1,43 @@
+kind: 正常
+checks: >-
+    コンテキストメニューのタスクのボタンを押した直後は、ノードの箱の幅が変わってもコンテキストメニューを画面の上で同じ左右の位置に保つ (押したボタンがポインタの下に残る)。続けて何回押しても動かない。
+    次に置き直すとき (ほかのノードを選ぶ、ズーム) は、選んだノードの左右の中央に戻る。X キーと、選んだノードの左のチェックでそのノードをタスク化したときは保たずに中央に置き直す (箱が広がった分、コンテキストメニューが動く)。
+    2 つ以上のコンテキストメニューも同じで、タスク以外のボタン (既存のノードへ合流) を押すと保つのをやめて中央に戻る
+note: >-
+    2026-10-09 に、チェックの段を選んでいるときに出す形に書き直した (例の承認の関門 6/17。前はポインタを乗せてチェックを出していた)。チェックで押したあとにコンテキストメニューが動いたこと (bar_moved) を足した
+states: ['task:H1.h1', 'task:H1.h2', 'task:H1.h9', 'task:H1.h10', 'task:H3.h1', 'task:H3.h7', 'task:K2.k1', 'task:K2.k4', 'task:K32.k2', 'task:H2.h1', 'task:C2.c1', 'task:C2.c4']
+decisions: ['spec.md 案 1 (帯の位置も動かさない)', '作ったものを触る関門 7/17 の b', '直したものを触る関門 1/13、2/13、3/13、4/13 (タスク以外のボタンで中央に戻る)、5/13 (X は中央)、6/13 (チェックは中央)', '直したものを触る (2 回目) 1/7', '例の承認の関門 6/17 (チェックは選んでいるときに出す。チェックで押したときは位置を保たない)']
+steps:
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, bar: node, bar_centered: true }
+    - click: { bar: task }
+      expect: { source: after-add.md, bar_moved: false, bar_resized: false, bar_labels: { task: タスク解除 } }
+    - click: { bar: task }
+      expect: { source: input.md, bar_moved: false, bar_resized: false, bar_labels: { task: タスク化 } }
+    - click: { bar: task }
+      expect: { source: after-add.md, bar_moved: false, bar_resized: false, bar_labels: { task: タスク解除 } }
+    - click: { node: 転出届を出す }
+      expect: { selection: nodes:転出届を出す, bar_centered: true }
+    - key: Escape
+    - click: { node: 見積もりを取る }
+      expect: { selection: nodes:見積もりを取る, bar_centered: true }
+    - key: x
+      expect: { source: input.md, selection: nodes:見積もりを取る, bar_centered: true }
+    - click: { bar: task }
+      expect: { source: after-add.md, bar_moved: false }
+    - wheel: { dy: 120 }
+      expect: { source: after-add.md, zoomed: true, bar_centered: true }
+    - click: { node: 不用品を処分する }
+      mod: Shift
+      expect: { selection: 'nodes:見積もりを取る,不用品を処分する', bar: nodes, bar_centered: true }
+    - click: { bar: task }
+      expect: { source: after-both.md, bar_moved: false, bar_resized: false, bar_labels: { task: タスク解除 } }
+    - click: { bar: join-existing }
+      expect: { source: after-both.md, bar: nodes, bar_centered: true }
+    - key: Escape
+    - key: Escape
+      expect: { selection: none, bar: none }
+    - click: { node: 転出届を出す }
+      expect: { selection: nodes:転出届を出す, bar_centered: true, task_check: 転出届を出す }
+    - click: { task_check: true }
+      expect: { source: after-check.md, selection: nodes:転出届を出す, bar_moved: true, bar_centered: true, task_check: null }
